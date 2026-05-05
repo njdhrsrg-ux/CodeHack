@@ -633,6 +633,85 @@ main {
   gap: 0.75rem;
 }
 
+.number-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, max-content));
+  gap: 0.75rem;
+  align-items: end;
+  min-width: 0;
+}
+
+.number-settings label {
+  width: min-content;
+  min-width: 120px;
+}
+
+.number-stepper {
+  width: 132px;
+  min-width: 132px;
+  max-width: 132px;
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(4, 8, 16, 0.94), rgba(4, 8, 16, 0.82)),
+    linear-gradient(180deg, var(--accent-soft), transparent);
+  box-shadow: inset 0 0 0 1px rgba(43, 255, 136, 0.08), 0 0 16px rgba(43, 255, 136, 0.08);
+}
+
+.number-stepper input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0;
+  text-align: center;
+  color: var(--accent);
+  border: 0;
+  border-left: 1px solid rgba(120, 255, 178, 0.18);
+  border-right: 1px solid rgba(120, 255, 178, 0.18);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.26);
+  font-weight: 800;
+  -moz-appearance: textfield;
+}
+
+.number-stepper input::-webkit-inner-spin-button,
+.number-stepper input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.number-stepper button {
+  min-height: 40px;
+  height: 40px;
+  width: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(180deg, rgba(43, 255, 136, 0.2), rgba(15, 141, 255, 0.12));
+  color: var(--accent);
+  font-size: 1.15rem;
+  font-weight: 900;
+  text-shadow: 0 0 10px currentColor;
+}
+
+.number-stepper:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 18px var(--accent-soft);
+}
+
+.number-stepper button:hover:not(:disabled) {
+  transform: none;
+  background: var(--green-soft);
+}
+
+.number-stepper.disabled {
+  opacity: 0.62;
+}
+
 .custom-box {
   border-top: 1px solid var(--line);
   padding-top: 0.9rem;

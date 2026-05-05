@@ -158,6 +158,11 @@ export function updateSettings(room, playerId, settings) {
       player.team = null;
     });
   }
+  if (settings.startingLives !== undefined) {
+    TEAMS.forEach((team) => {
+      room.teams[team].score.lives = room.settings.startingLives;
+    });
+  }
   touch(room);
 }
 
@@ -436,6 +441,7 @@ function returnToLobby(room) {
   if (room.chat) room.chat.team = { red: [], blue: [] };
   TEAMS.forEach((team) => {
     room.teams[team] = makeTeamState();
+    room.teams[team].score.lives = room.settings.startingLives || STARTING_LIVES;
   });
 }
 

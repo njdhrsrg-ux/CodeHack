@@ -259,24 +259,22 @@ function Lobby({ room, playerId, constants, action, toast }) {
               <button key={count} disabled={!isHost} className={room.settings.wordCount === count ? "active" : ""} onClick={() => action("room:settings", { wordCount: count })}>{count} palavras</button>
             ))}
           </div>
-          <label>Vidas dos times</label>
-          <input
-            type="number"
-            min="1"
-            max="5"
-            disabled={!isHost}
-            value={room.settings.startingLives || constants.STARTING_LIVES}
-            onChange={(event) => action("room:settings", { startingLives: Number(event.target.value) })}
-          />
-          <label>Interceptacoes para vencer</label>
-          <input
-            type="number"
-            min="1"
-            max="5"
-            disabled={!isHost}
-            value={room.settings.winIntercepts || constants.WIN_INTERCEPTS}
-            onChange={(event) => action("room:settings", { winIntercepts: Number(event.target.value) })}
-          />
+          <div className="number-settings">
+            <label>Vidas dos times
+              <NumberStepper
+                value={room.settings.startingLives || constants.STARTING_LIVES}
+                disabled={!isHost}
+                onChange={(value) => action("room:settings", { startingLives: value })}
+              />
+            </label>
+            <label>Interceptacoes para vencer
+              <NumberStepper
+                value={room.settings.winIntercepts || constants.WIN_INTERCEPTS}
+                disabled={!isHost}
+                onChange={(value) => action("room:settings", { winIntercepts: value })}
+              />
+            </label>
+          </div>
           <div className="custom-box">
             <strong>Categoria local</strong>
             <input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="Nome da categoria" />
@@ -289,6 +287,24 @@ function Lobby({ room, playerId, constants, action, toast }) {
       </div>
       <ChatPanel room={room} playerId={playerId} action={action} scope="global" />
     </section>
+  );
+}
+
+function NumberStepper({ value, onChange, disabled }) {
+  const current = clampNumber(Number(value) || 1, 1, 5);
+  return (
+    <div className={`number-stepper ${disabled ? "disabled" : ""}`}>
+      <button type="button" disabled={disabled || current <= 1} onClick={() => onChange(clampNumber(current - 1, 1, 5))}>-</button>
+      <input
+        type="number"
+        min="1"
+        max="5"
+        disabled={disabled}
+        value={current}
+        onChange={(event) => onChange(clampNumber(Number(event.target.value) || 1, 1, 5))}
+      />
+      <button type="button" disabled={disabled || current >= 5} onClick={() => onChange(clampNumber(current + 1, 1, 5))}>+</button>
+    </div>
   );
 }
 
@@ -931,6 +947,10 @@ function setSlot(value, slot, number) {
   const next = [value[0], value[1], value[2]];
   next[slot] = number;
   return next;
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function filledCount(values = []) {
