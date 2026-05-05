@@ -27,6 +27,7 @@ const ICONS = {
   leader: "/icons/lider.png"
 };
 const socketUrl = import.meta.env.VITE_SOCKET_URL || (window.location.port === "5173" ? "http://localhost:3001" : window.location.origin);
+const apiUrl = import.meta.env.VITE_API_URL || socketUrl;
 const socket = io(socketUrl, { autoConnect: true });
 const TEAMS = ["red", "blue"];
 const DEFAULT_CONSTANTS = {
@@ -738,7 +739,7 @@ function WordImage({ word, index, category }) {
     setUrl("");
     if (word === "CRIPTOGRAFADA") return undefined;
     const imageQuery = [word, imageCategoryTerm(category)].filter(Boolean).join(" ");
-    fetch(`/api/image?q=${encodeURIComponent(imageQuery)}`)
+    fetch(`${apiUrl}/api/image?q=${encodeURIComponent(imageQuery)}`)
       .then((response) => response.json())
       .then((data) => {
         if (alive && data.url) setUrl(data.url);
