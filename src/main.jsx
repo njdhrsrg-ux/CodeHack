@@ -259,6 +259,18 @@ function Lobby({ room, playerId, constants, action, toast }) {
               <button key={count} disabled={!isHost} className={room.settings.wordCount === count ? "active" : ""} onClick={() => action("room:settings", { wordCount: count })}>{count} palavras</button>
             ))}
           </div>
+          <label>Vidas dos times</label>
+          <div className="segmented">
+            {[1, 2, 3, 4, 5].map((count) => (
+              <button key={`life-${count}`} disabled={!isHost} className={(room.settings.startingLives || constants.STARTING_LIVES) === count ? "active" : ""} onClick={() => action("room:settings", { startingLives: count })}>{count}</button>
+            ))}
+          </div>
+          <label>Interceptacoes para vencer</label>
+          <div className="segmented">
+            {[1, 2, 3, 4, 5].map((count) => (
+              <button key={`intercept-${count}`} disabled={!isHost} className={(room.settings.winIntercepts || constants.WIN_INTERCEPTS) === count ? "active" : ""} onClick={() => action("room:settings", { winIntercepts: count })}>{count}</button>
+            ))}
+          </div>
           <div className="custom-box">
             <strong>Categoria local</strong>
             <input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="Nome da categoria" />
@@ -525,7 +537,7 @@ function GuessPhase({ room, playerId, kind, targetTeam, title, hints, action }) 
           )}
           <HintChoiceGrid hints={hints} value={proposal.guess || []} setValue={updateShared} wordCount={room.settings.wordCount} disabled={!canAct} />
           {canAct ? (
-            <button className="primary" disabled={filledCount(proposal.guess || []) !== 3} onClick={() => action("game:confirmDecision", { kind, targetTeam })}><BadgeCheck size={18} /> Confirmar {displayGuess(proposal.guess)}</button>
+            <button className="primary" disabled={!isValidCode(proposal.guess || [])} onClick={() => action("game:confirmDecision", { kind, targetTeam })}><BadgeCheck size={18} /> Confirmar {displayGuess(proposal.guess)}</button>
           ) : (
             <p className="small">{isOwnCoderGuess ? "Codificador acompanha a escolha, mas nao participa da descriptografia do proprio codigo." : proposal?.finalized ? "Decisao fechada." : "Sem acao disponivel para voce agora."}</p>
           )}
@@ -547,12 +559,11 @@ function HintChoiceGrid({ hints, value, setValue, wordCount, disabled = false })
           <div className="choice-buttons">
             {Array.from({ length: wordCount }, (_, index) => index + 1).map((number) => {
               const selected = value[slot] === number;
-              const usedElsewhere = value.includes(number) && !selected;
               return (
                 <button
                   key={number}
                   className={selected ? "active" : ""}
-                  disabled={disabled || usedElsewhere}
+                  disabled={disabled}
                   onClick={() => setValue(setSlot(value, slot, number))}
                 >
                   {number}
@@ -701,8 +712,8 @@ function ScoreBoard({ room, constants }) {
           <div className={`score team-surface ${team}`} key={team}>
             <span>{constants.TEAM_NAMES[team]}</span>
             <small>
-              <IconImg src={ICONS.life} alt="Vidas" className="game-icon life-icon" /> {score.lives}/{constants.STARTING_LIVES}
-              <IconImg src={ICONS.decrypt} alt="Descriptografias" className="game-icon decrypt-icon" /> {score.interceptions}/{constants.WIN_INTERCEPTS}
+              <IconImg src={ICONS.life} alt="Vidas" className="game-icon life-icon" /> {score.lives}/{startingLivesLimit(room, constants)}
+              <IconImg src={ICONS.decrypt} alt="Descriptografias" className="game-icon decrypt-icon" /> {score.interceptions}/{winInterceptLimit(room, constants)}
             </small>
           </div>
         );
@@ -840,8 +851,8 @@ function FinalScoreTile({ team, room, constants, winner }) {
     <div className={`result-tile final-score team-surface ${team} ${team === winner ? "good" : ""}`}>
       <span>{constants.TEAM_NAMES[team]}</span>
       <div className="final-score-row">
-        <span><IconImg src={ICONS.life} alt="Vidas" className="game-icon life-icon" /> {score.lives}/{constants.STARTING_LIVES}</span>
-        <span><IconImg src={ICONS.decrypt} alt="Descriptografias" className="game-icon decrypt-icon" /> {score.interceptions}/{constants.WIN_INTERCEPTS}</span>
+        <span><IconImg src={ICONS.life} alt="Vidas" className="game-icon life-icon" /> {score.lives}/{startingLivesLimit(room, constants)}</span>
+        <span><IconImg src={ICONS.decrypt} alt="Descriptografias" className="game-icon decrypt-icon" /> {score.interceptions}/{winInterceptLimit(room, constants)}</span>
       </div>
     </div>
   );
@@ -906,7 +917,7 @@ function getWinner(room, constants) {
   return TEAMS.find((team) => {
     const score = room.teams[team].score;
     const rival = room.teams[otherTeam(team)].score;
-    return score.correct >= constants.WIN_CORRECT || score.interceptions >= constants.WIN_INTERCEPTS || rival.lives <= 0;
+    return score.correct >= constants.WIN_CORRECT || score.interceptions >= winInterceptLimit(room, constants) || rival.lives <= 0;
   }) || "red";
 }
 
@@ -918,6 +929,19 @@ function setSlot(value, slot, number) {
 
 function filledCount(values = []) {
   return values.filter(Boolean).length;
+}
+
+function isValidCode(values = []) {
+  const filled = values.filter(Boolean);
+  return filled.length === 3 && new Set(filled).size === 3;
+}
+
+function startingLivesLimit(room, constants) {
+  return room.settings?.startingLives || constants.STARTING_LIVES;
+}
+
+function winInterceptLimit(room, constants) {
+  return room.settings?.winIntercepts || constants.WIN_INTERCEPTS;
 }
 
 function displayGuess(values = []) {

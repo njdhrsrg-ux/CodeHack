@@ -19,6 +19,8 @@ export function makeRoom(hostId, hostName) {
       category: "Geral",
       customWords: [],
       wordCount: 4,
+      startingLives: STARTING_LIVES,
+      winIntercepts: WIN_INTERCEPTS,
       randomTeams: false
     },
     phase: "lobby",
@@ -147,6 +149,8 @@ export function updateSettings(room, playerId, settings) {
     ...room.settings,
     ...settings,
     wordCount: clamp(Number(settings.wordCount ?? room.settings.wordCount), 4, 6),
+    startingLives: clamp(Number(settings.startingLives ?? room.settings.startingLives ?? STARTING_LIVES), 1, 5),
+    winIntercepts: clamp(Number(settings.winIntercepts ?? room.settings.winIntercepts ?? WIN_INTERCEPTS), 1, 5),
     customWords: Array.isArray(settings.customWords) ? settings.customWords.map(cleanWord).filter(Boolean) : room.settings.customWords
   };
   if (settings.randomTeams === true) {
@@ -206,7 +210,7 @@ export function startGame(room, hostId) {
   room.teams.blue.words = words.slice(room.settings.wordCount, room.settings.wordCount * 2);
   TEAMS.forEach((team) => {
     room.teams[team].hintHistory = [];
-    room.teams[team].score = { correct: 0, interceptions: 0, lives: STARTING_LIVES };
+    room.teams[team].score = { correct: 0, interceptions: 0, lives: room.settings.startingLives || STARTING_LIVES };
     room.teams[team].codexIndex = -1;
   });
   room.round = 0;
@@ -482,7 +486,7 @@ function winner(room) {
   const candidates = TEAMS.filter((team) => {
     const score = room.teams[team].score;
     const rival = room.teams[otherTeam(team)].score;
-    return score.correct >= WIN_CORRECT || score.interceptions >= WIN_INTERCEPTS || rival.lives <= 0;
+    return score.correct >= WIN_CORRECT || score.interceptions >= (room.settings.winIntercepts || WIN_INTERCEPTS) || rival.lives <= 0;
   });
   return candidates.length === 1 ? candidates[0] : null;
 }
@@ -612,9 +616,8 @@ function normalizePartialGuess(guess, wordCount) {
     return Number.isInteger(number) ? number : NaN;
   });
   const filled = code.filter((value) => value !== null);
-  const unique = new Set(filled);
-  if (unique.size !== filled.length || filled.some((value) => value < 1 || value > wordCount || Number.isNaN(value))) {
-    throw new Error("O codigo precisa usar digitos validos e sem repeticao.");
+  if (filled.some((value) => value < 1 || value > wordCount || Number.isNaN(value))) {
+    throw new Error("O codigo precisa usar digitos validos.");
   }
   return code;
 }
@@ -622,6 +625,7 @@ function normalizePartialGuess(guess, wordCount) {
 function normalizeGuess(guess, wordCount) {
   const code = normalizePartialGuess(guess, wordCount);
   if (code.some((value) => value === null)) throw new Error("O codigo precisa ter 3 digitos.");
+  if (new Set(code).size !== code.length) throw new Error("O codigo precisa ter 3 digitos sem repeticao.");
   return code;
 }
 
