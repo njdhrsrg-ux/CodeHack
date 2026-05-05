@@ -742,24 +742,14 @@ function WordImage({ word, index, category }) {
     setUrl("");
     if (word === "CRIPTOGRAFADA") return undefined;
     const imageQuery = [word, imageCategoryTerm(category)].filter(Boolean).join(" ");
-    fetch(`${apiUrl}/api/image?q=${encodeURIComponent(imageQuery)}`)
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error("image api unavailable")))
-      .then((data) => {
-        if (alive && data.url) setUrl(data.url);
-        else return clientImageLookup(imageQuery, category);
-      })
-      .then((fallbackUrl) => {
-        if (alive && fallbackUrl) setUrl(fallbackUrl);
-        else if (alive) setFailed(true);
-      })
-      .catch(() => {
-        clientImageLookup(imageQuery, category)
-          .then((fallbackUrl) => {
-            if (alive && fallbackUrl) setUrl(fallbackUrl);
-            else if (alive) setFailed(true);
-          })
-          .catch(() => alive && setFailed(true));
-      });
+    async function loadImage() {
+      const resolvedUrl = await serverImageLookup(imageQuery).catch(() => null)
+        || await clientImageLookup(imageQuery, category).catch(() => null);
+      if (!alive) return;
+      if (resolvedUrl) setUrl(resolvedUrl);
+      else setFailed(true);
+    }
+    loadImage();
     return () => {
       alive = false;
     };
@@ -959,6 +949,13 @@ function imageCategoryTerm(category) {
     Jogos: "jogo"
   };
   return terms[category] || category || "";
+}
+
+async function serverImageLookup(query) {
+  const response = await fetch(`${apiUrl}/api/image?q=${encodeURIComponent(query)}`);
+  if (!response.ok) return null;
+  const data = await response.json();
+  return data.url || null;
 }
 
 async function clientImageLookup(query, category) {
