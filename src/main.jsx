@@ -27,7 +27,7 @@ const ICONS = {
   leader: "/icons/lider.png"
 };
 const socketUrl = import.meta.env.VITE_SOCKET_URL || (window.location.port === "5173" ? "http://localhost:3001" : window.location.origin);
-const apiUrl = import.meta.env.VITE_API_URL || socketUrl;
+const apiUrl = cleanBaseUrl(import.meta.env.VITE_API_URL || socketUrl);
 const socket = io(socketUrl, { autoConnect: true });
 const TEAMS = ["red", "blue"];
 const DEFAULT_CONSTANTS = {
@@ -67,7 +67,10 @@ function App() {
       if (!reply?.ok) setToast(reply?.error || "Falha de transmissao.");
       else setToast("");
       if (reply?.playerId) setPlayerId(reply.playerId);
-      if (reply?.room) setRoom(reply.room);
+      if (reply?.room) {
+        rememberSession(reply.room, payload);
+        setRoom(reply.room);
+      }
       resolve(reply);
     });
   });
@@ -168,7 +171,7 @@ function ConfirmDialog({ title, text, confirmLabel, onCancel, onConfirm }) {
 
 function Home({ action, toast }) {
   const [name, setName] = useLocalState("decrypto:name", "");
-  const [code, setCode] = useState("");
+  const [code, setCode] = useLocalState("decrypto:lastRoomCode", "");
   return (
     <section className="home-grid enter">
       <div className="console-panel">
@@ -788,7 +791,6 @@ function ConfirmPanel({ room, playerId, constants }) {
       {entries.map(({ targetTeam, kind, proposal, voters }) => (
           <div className={`confirm-box team-surface ${rival}`} key={`${targetTeam}-${kind}`}>
             <strong>{kind === "team" ? "Descriptografia" : "Interceptacao"}</strong>
-            <span className="pending-code">{displayGuess(proposal.guess)}</span>
             <ConfirmationRoster players={voters} confirmedBy={proposal.confirmedBy || []} />
           </div>
       ))}
@@ -946,6 +948,20 @@ function imageCategoryTerm(category) {
     Jogos: "jogo"
   };
   return terms[category] || category || "";
+}
+
+function cleanBaseUrl(url) {
+  return String(url || "").replace(/\/+$/, "");
+}
+
+function rememberSession(room, payload = {}) {
+  try {
+    const name = String(payload.name || "").trim();
+    if (name) localStorage.setItem("decrypto:name", JSON.stringify(name));
+    if (room?.code) localStorage.setItem("decrypto:lastRoomCode", JSON.stringify(room.code));
+  } catch {
+    // Local cache is a convenience only.
+  }
 }
 
 function normalizeWordText(word) {

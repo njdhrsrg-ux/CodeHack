@@ -1411,7 +1411,7 @@ main {
 
 .round-code-row {
   display: grid;
-  grid-template-columns: minmax(56px, max-content) repeat(3, 30px);
+  grid-template-columns: 120px repeat(3, 30px);
   align-items: center;
   gap: 0.4rem;
   min-width: 0;
@@ -1421,7 +1421,7 @@ main {
   color: var(--surface-accent, #d8ecff);
   overflow-wrap: anywhere;
   min-width: 0;
-  max-width: 120px;
+  width: 120px;
   font-size: 0.84rem;
 }
 

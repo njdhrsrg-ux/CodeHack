@@ -605,12 +605,15 @@ function makeSecretCode(wordCount) {
 
 function normalizePartialGuess(guess, wordCount) {
   const values = Array.isArray(guess) ? guess : [];
-  const code = values
-    .filter((value) => value !== null && value !== undefined && value !== "")
-    .map((value) => Number(value))
-    .filter((value) => Number.isInteger(value));
-  const unique = new Set(code);
-  if (unique.size !== code.length || code.some((value) => value < 1 || value > wordCount) || code.length > MAX_HINTS) {
+  const code = Array.from({ length: MAX_HINTS }, (_, index) => {
+    const value = values[index];
+    if (value === null || value === undefined || value === "") return null;
+    const number = Number(value);
+    return Number.isInteger(number) ? number : NaN;
+  });
+  const filled = code.filter((value) => value !== null);
+  const unique = new Set(filled);
+  if (unique.size !== filled.length || filled.some((value) => value < 1 || value > wordCount || Number.isNaN(value))) {
     throw new Error("O codigo precisa usar digitos validos e sem repeticao.");
   }
   return code;
@@ -618,7 +621,7 @@ function normalizePartialGuess(guess, wordCount) {
 
 function normalizeGuess(guess, wordCount) {
   const code = normalizePartialGuess(guess, wordCount);
-  if (code.length !== MAX_HINTS) throw new Error("O codigo precisa ter 3 digitos.");
+  if (code.some((value) => value === null)) throw new Error("O codigo precisa ter 3 digitos.");
   return code;
 }
 
@@ -682,7 +685,8 @@ function teamPlayers(room, team) {
 }
 
 function transferHost(room) {
-  const next = Object.values(room.players).find((player) => player.connected) || Object.values(room.players)[0];
+  const candidates = Object.values(room.players).filter((player) => player.connected);
+  const next = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : Object.values(room.players)[0];
   room.hostId = next?.id || null;
   Object.values(room.players).forEach((player) => {
     player.isHost = player.id === room.hostId;

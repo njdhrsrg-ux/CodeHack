@@ -58,8 +58,6 @@ app.get("/api/image", async (req, res) => {
   if (!query || query === "CRIPTOGRAFADA") return res.status(400).json({ error: "query required" });
   const cacheKey = query.toLocaleLowerCase();
   if (imageCache.has(cacheKey)) return res.json(imageCache.get(cacheKey));
-  const google = await googleImage(query);
-  if (google) return cacheImage(cacheKey, res, { url: google, source: "google" });
   const pokemon = await pokemonImage(query);
   if (pokemon) return cacheImage(cacheKey, res, { url: pokemon, source: "pokeapi" });
   const wiki = await wikiImage(query);
