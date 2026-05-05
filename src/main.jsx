@@ -14,6 +14,8 @@ import {
   Sparkles,
   Trash2,
   Users,
+  Volume2,
+  VolumeX,
   X,
   Zap
 } from "lucide-react";
@@ -27,11 +29,10 @@ const ICONS = {
   leader: "/icons/lider.png"
 };
 const socketUrl = import.meta.env.VITE_SOCKET_URL || (window.location.port === "5173" ? "http://localhost:3001" : window.location.origin);
-const apiUrl = cleanBaseUrl(import.meta.env.VITE_API_URL || socketUrl);
 const socket = io(socketUrl, { autoConnect: true });
 const TEAMS = ["red", "blue"];
 const DEFAULT_CONSTANTS = {
-  WORD_BANKS: { Geral: [], Anime: [], "Pokemon": [], Filmes: [], Jogos: [] },
+  WORD_BANKS: { Geral: [], Anime: [], Pokemon: [], Filmes: [], Jogos: [], Geek: [], Famosos: [] },
   TEAM_NAMES: { red: "Time Vermelho", blue: "Time Azul" },
   WIN_CORRECT: 3,
   WIN_INTERCEPTS: 2,
@@ -45,6 +46,7 @@ function App() {
   const [playerId, setPlayerId] = useState("");
   const [toast, setToast] = useState("");
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [soundMuted, setSoundMuted] = useLocalState("codehack:soundMuted", false);
   const me = room?.players.find((p) => p.id === playerId);
   useGameSounds(room, playerId);
 
@@ -117,6 +119,10 @@ function App() {
                 confirmLabel: "Voltar",
                 onConfirm: confirmLeaveRoom
               })}><LogOut size={17} /> Tela inicial</button>
+              <button onClick={() => setSoundMuted(!soundMuted)}>
+                {soundMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+                {soundMuted ? "Som desligado" : "Som ligado"}
+              </button>
               {room.hostId === playerId && room.phase !== "lobby" && (
                 <button onClick={() => askConfirm({
                   title: "Voltar todos para o lobby?",
@@ -719,8 +725,8 @@ function WordsPanel({ title, team, words, category }) {
     <div className={`words-panel team-surface ${team || ""}`}>
       <h2>{title}</h2>
       {words.map((word, index) => (
-        <div className={category === "Geral" ? "word-card no-image" : "word-card"} key={`${word}-${index}`}>
-          {category !== "Geral" && <WordImage word={word} index={index} category={category} />}
+        <div className={category === "Pokemon" ? "word-card" : "word-card no-image"} key={`${word}-${index}`}>
+          {category === "Pokemon" && <WordImage word={word} index={index} />}
           <div>
             <strong><span className="word-number">#{index + 1} </span>{word}</strong>
           </div>
@@ -730,30 +736,11 @@ function WordsPanel({ title, team, words, category }) {
   );
 }
 
-function WordImage({ word, index, category }) {
+function WordImage({ word, index }) {
   const seed = Array.from(word).reduce((sum, char) => sum + char.charCodeAt(0), 0) + index * 23;
-  const [url, setUrl] = useState("");
   const [failed, setFailed] = useState(word === "CRIPTOGRAFADA");
   const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    setFailed(word === "CRIPTOGRAFADA");
-    setUrl("");
-    if (word === "CRIPTOGRAFADA") return undefined;
-    const imageQuery = [word, imageCategoryTerm(category)].filter(Boolean).join(" ");
-    async function loadImage() {
-      const resolvedUrl = await serverImageLookup(imageQuery).catch(() => null)
-        || await clientImageLookup(imageQuery, category).catch(() => null);
-      if (!alive) return;
-      if (resolvedUrl) setUrl(resolvedUrl);
-      else setFailed(true);
-    }
-    loadImage();
-    return () => {
-      alive = false;
-    };
-  }, [word, category]);
+  const url = pokemonDbImageUrl(word);
 
   if (failed || !url) return <div className="mock-image" style={{ "--hue": seed % 360 }} aria-label={`Imagem relacionada a ${word}`}>{word.slice(0, 2).toUpperCase()}</div>;
   return (
@@ -941,96 +928,18 @@ function orderedHistory(history = []) {
   return [...history].sort((a, b) => a.round - b.round);
 }
 
-function imageCategoryTerm(category) {
-  const terms = {
-    Anime: "anime",
-    Pokemon: "pokemon",
-    Filmes: "filme",
-    Jogos: "jogo"
-  };
-  return terms[category] || category || "";
-}
-
-async function serverImageLookup(query) {
-  const response = await fetch(`${apiUrl}/api/image?q=${encodeURIComponent(query)}`);
-  if (!response.ok) return null;
-  const data = await response.json();
-  return data.url || null;
-}
-
-async function clientImageLookup(query, category) {
-  if (category === "Pokemon" || /\bpokemon\b/i.test(query)) {
-    const pokemon = await clientPokemonImage(query);
-    if (pokemon) return pokemon;
-  }
-  return clientWikiImage(query);
-}
-
-async function clientPokemonImage(query) {
-  const name = query
-    .replace(/\bpokemon\b/ig, "")
+function pokemonDbImageUrl(word) {
+  const slug = String(word || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase()
     .replace(/\./g, "")
+    .replace(/♀/g, "-f")
+    .replace(/♂/g, "-m")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-  if (!name) return null;
-  const aliases = new Map([
-    ["mr-mime", "mr-mime"],
-    ["ho-oh", "ho-oh"],
-    ["nidoran", "nidoran-f"]
-  ]);
-  const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${aliases.get(name) || name}`);
-  if (!response.ok) return null;
-  const data = await response.json();
-  return data.sprites?.other?.["official-artwork"]?.front_default || data.sprites?.front_default || null;
-}
-
-async function clientWikiImage(query) {
-  for (const term of clientImageSearchTerms(query)) {
-    const commons = new URL("https://commons.wikimedia.org/w/api.php");
-    commons.searchParams.set("action", "query");
-    commons.searchParams.set("generator", "search");
-    commons.searchParams.set("gsrsearch", term);
-    commons.searchParams.set("gsrnamespace", "6");
-    commons.searchParams.set("gsrlimit", "1");
-    commons.searchParams.set("prop", "imageinfo");
-    commons.searchParams.set("iiprop", "url");
-    commons.searchParams.set("format", "json");
-    commons.searchParams.set("origin", "*");
-    try {
-      const response = await fetch(commons);
-      if (response.ok) {
-        const data = await response.json();
-        const page = Object.values(data.query?.pages || {})[0];
-        if (page?.imageinfo?.[0]?.url) return page.imageinfo[0].url;
-      }
-    } catch {
-      // Try Wikipedia summary below.
-    }
-    try {
-      const response = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(term)}`);
-      if (!response.ok) continue;
-      const data = await response.json();
-      if (data.thumbnail?.source) return data.thumbnail.source;
-    } catch {
-      // Try the next term.
-    }
-  }
-  return null;
-}
-
-function clientImageSearchTerms(query) {
-  const trimmed = query.trim();
-  const withoutCategory = trimmed.replace(/\s+(geral|anime|pokemon|filme|filmes|jogo|jogos)$/i, "").trim();
-  if (/\s+geral$/i.test(trimmed)) return [...new Set([withoutCategory, trimmed].filter(Boolean))];
-  return [...new Set([trimmed, withoutCategory].filter(Boolean))];
-}
-
-function cleanBaseUrl(url) {
-  return String(url || "").replace(/\/+$/, "");
+  return slug ? `https://img.pokemondb.net/artwork/large/${slug}.jpg` : "";
 }
 
 function rememberSession(room, payload = {}) {
@@ -1053,6 +962,7 @@ function normalizeWordText(word) {
 
 function playConfirmCue() {
   try {
+    if (isSoundMuted()) return;
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
     const context = new AudioContext();
@@ -1144,6 +1054,7 @@ function useFinalSounds(room, winner, playerId) {
 
 function playTone(kind) {
   try {
+    if (isSoundMuted()) return;
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
     const context = new AudioContext();
@@ -1173,6 +1084,14 @@ function playTone(kind) {
     window.setTimeout(() => context.close(), 800);
   } catch {
     // Sound is a flourish; gameplay and visual feedback continue without it.
+  }
+}
+
+function isSoundMuted() {
+  try {
+    return JSON.parse(localStorage.getItem("codehack:soundMuted") || "false") === true;
+  } catch {
+    return false;
   }
 }
 

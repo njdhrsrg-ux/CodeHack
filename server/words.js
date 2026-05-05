@@ -568,6 +568,261 @@ Varric
 Solas
 `);
 
+const GEEK_BANK = cleanLines(`
+Batman
+Superman
+Mulher Maravilha
+Flash
+Aquaman
+Cyborg
+Lanterna Verde
+Coringa
+Arlequina
+Charada
+Pinguim
+Mulher Gato
+Robin
+Asa Noturna
+Batgirl
+Homem Aranha
+Homem de Ferro
+Capitao America
+Thor
+Hulk
+Viúva Negra
+Gaviao Arqueiro
+Doutor Estranho
+Pantera Negra
+Wolverine
+Deadpool
+Professor Xavier
+Magneto
+Tempestade
+Ciclope
+Jean Grey
+Vampira
+Gambit
+Demolidor
+Justiceiro
+Venom
+Thanos
+Loki
+Wanda Maximoff
+Visao
+Nick Fury
+Blade
+Motoqueiro Fantasma
+Senhor das Estrelas
+Gamora
+Groot
+Rocket Raccoon
+Drax
+Homelander
+Billy Butcher
+Starlight
+Eleven
+Mike Wheeler
+Dustin Henderson
+Lucas Sinclair
+Will Byers
+Max Mayfield
+Hopper
+Wednesday Addams
+Wandinha
+Morticia Addams
+Gomez Addams
+Tio Chico
+Sherlock Holmes
+John Watson
+Doctor Who
+Dalek
+Darth Vader
+Luke Skywalker
+Leia Organa
+Han Solo
+Chewbacca
+Yoda
+Obi-Wan Kenobi
+Ahsoka Tano
+Mandaloriano
+Grogu
+Spock
+Capitao Kirk
+Jean-Luc Picard
+Data
+Frodo
+Samwise Gamgee
+Gandalf
+Aragorn
+Legolas
+Gimli
+Gollum
+Bilbo
+Harry Potter
+Hermione Granger
+Ron Weasley
+Dumbledore
+Voldemort
+Severus Snape
+Hagrid
+Draco Malfoy
+Geralt de Rivia
+Ciri
+Yennefer
+Rick Sanchez
+Morty Smith
+Homer Simpson
+Bart Simpson
+Lisa Simpson
+Marge Simpson
+Bob Esponja
+Patrick Estrela
+Lula Molusco
+Sandy Bochechas
+Finn
+Jake
+Princesa Jujuba
+Marceline
+Steven Universo
+Garnet
+Ametista
+Perola
+Dexter
+Johnny Bravo
+Ben 10
+Mutano
+Ravena
+Estelar
+Robin
+Kim Possible
+Shego
+Phineas
+Ferb
+Perry
+Mabel Pines
+Dipper Pines
+Bill Cipher
+Aang
+Katara
+Sokka
+Zuko
+Toph
+Korra
+`);
+
+const FAMOUS_BANK = cleanLines(`
+Albert Einstein
+Isaac Newton
+Marie Curie
+Charles Darwin
+Galileu Galilei
+Nikola Tesla
+Stephen Hawking
+Ada Lovelace
+Alan Turing
+Santos Dumont
+Machado de Assis
+Clarice Lispector
+Carlos Drummond de Andrade
+Jorge Amado
+Monteiro Lobato
+Cecilia Meireles
+Ariano Suassuna
+Paulo Freire
+Oscar Niemeyer
+Tarsila do Amaral
+Anita Malfatti
+Candido Portinari
+Pelé
+Garrincha
+Zico
+Ronaldo Fenomeno
+Ronaldinho Gaucho
+Romario
+Neymar
+Marta
+Ayrton Senna
+Emerson Fittipaldi
+Gustavo Kuerten
+Rebeca Andrade
+Rayssa Leal
+Zeca Pagodinho
+Caetano Veloso
+Gilberto Gil
+Chico Buarque
+Milton Nascimento
+Elis Regina
+Gal Costa
+Maria Bethania
+Rita Lee
+Tim Maia
+Jorge Ben Jor
+Cartola
+Pixinguinha
+Tom Jobim
+Vinicius de Moraes
+Anitta
+Ivete Sangalo
+Marilia Mendonca
+Xuxa
+Silvio Santos
+Faustao
+Gloria Maria
+Jô Soares
+Fernanda Montenegro
+Tony Ramos
+Lazaro Ramos
+Taís Araujo
+Paulo Gustavo
+Chico Anysio
+Renato Aragao
+Grande Otelo
+Carmen Miranda
+Lula
+Getulio Vargas
+Juscelino Kubitschek
+Dom Pedro II
+Princesa Isabel
+Tiradentes
+Zumbi dos Palmares
+Dandara
+Maria Quiteria
+Marechal Deodoro
+Nelson Mandela
+Martin Luther King
+Mahatma Gandhi
+Abraham Lincoln
+Napoleao Bonaparte
+Cleopatra
+Julio Cesar
+Leonardo da Vinci
+Michelangelo
+William Shakespeare
+Mozart
+Beethoven
+Frida Kahlo
+Pablo Picasso
+Salvador Dali
+Madonna
+Michael Jackson
+Elvis Presley
+Beyonce
+Taylor Swift
+Lady Gaga
+Freddie Mercury
+Bob Marley
+Oprah Winfrey
+Barack Obama
+Steve Jobs
+Bill Gates
+Elon Musk
+Ney Matogrosso
+Padre Cicero
+Irmã Dulce
+Chacrinha
+Hebe Camargo
+`);
+
 const POKEMON_NAMES = [
   "Pikachu", "Charizard", "Bulbasaur", "Ivysaur", "Venusaur", "Charmander", "Charmeleon", "Squirtle", "Wartortle", "Blastoise",
   "Caterpie", "Metapod", "Butterfree", "Weedle", "Kakuna", "Beedrill", "Pidgey", "Pidgeotto", "Pidgeot", "Rattata",
@@ -845,5 +1100,7 @@ export const WORD_BANKS = {
   Anime: characterBank(ANIME_CHARACTER_BANK),
   Pokemon: POKEMON_NAMES,
   Filmes: cleanBank(MOVIE_TITLE_BANK),
-  Jogos: characterBank(GAME_CHARACTER_BANK)
+  Jogos: characterBank(GAME_CHARACTER_BANK),
+  Geek: cleanBank(GEEK_BANK),
+  Famosos: cleanBank(FAMOUS_BANK)
 };
