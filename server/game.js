@@ -507,8 +507,12 @@ function rankAfterMaxRounds(room) {
 
 function maskTeam(room, team, viewer) {
   const ownTeam = viewer?.team === team || room.phase === "gameOver";
+  const score = room.phase === "lobby"
+    ? { ...room.teams[team].score, lives: room.settings.startingLives || STARTING_LIVES }
+    : room.teams[team].score;
   return {
     ...room.teams[team],
+    score,
     words: ownTeam ? room.teams[team].words : []
   };
 }
