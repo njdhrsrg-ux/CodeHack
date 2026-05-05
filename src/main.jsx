@@ -260,17 +260,23 @@ function Lobby({ room, playerId, constants, action, toast }) {
             ))}
           </div>
           <label>Vidas dos times</label>
-          <div className="segmented">
-            {[1, 2, 3, 4, 5].map((count) => (
-              <button key={`life-${count}`} disabled={!isHost} className={(room.settings.startingLives || constants.STARTING_LIVES) === count ? "active" : ""} onClick={() => action("room:settings", { startingLives: count })}>{count}</button>
-            ))}
-          </div>
+          <input
+            type="number"
+            min="1"
+            max="5"
+            disabled={!isHost}
+            value={room.settings.startingLives || constants.STARTING_LIVES}
+            onChange={(event) => action("room:settings", { startingLives: Number(event.target.value) })}
+          />
           <label>Interceptacoes para vencer</label>
-          <div className="segmented">
-            {[1, 2, 3, 4, 5].map((count) => (
-              <button key={`intercept-${count}`} disabled={!isHost} className={(room.settings.winIntercepts || constants.WIN_INTERCEPTS) === count ? "active" : ""} onClick={() => action("room:settings", { winIntercepts: count })}>{count}</button>
-            ))}
-          </div>
+          <input
+            type="number"
+            min="1"
+            max="5"
+            disabled={!isHost}
+            value={room.settings.winIntercepts || constants.WIN_INTERCEPTS}
+            onChange={(event) => action("room:settings", { winIntercepts: Number(event.target.value) })}
+          />
           <div className="custom-box">
             <strong>Categoria local</strong>
             <input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="Nome da categoria" />
