@@ -28,6 +28,19 @@ import {
   updateSettings,
   updateTiebreaker
 } from "./game.js";
+import {
+  authUserByToken,
+  changeUserPassword,
+  createActiveMatch,
+  discardActiveMatch,
+  getProfile,
+  loginUser,
+  logoutUser,
+  meFromToken,
+  recordMatch,
+  registerUser,
+  updateUserProfile
+} from "./auth.js";
 
 loadLocalEnv();
 
@@ -58,11 +71,20 @@ app.get("/api/health", (_req, res) => res.json({ ok: true, rooms: rooms.size }))
 app.get("/api/constants", (_req, res) => res.json(CONSTANTS));
 app.get("/api/image", async (req, res) => {
   const query = String(req.query.q || "").trim();
+  const category = String(req.query.category || "").trim();
   if (!query || query === "CRIPTOGRAFADA") return res.status(400).json({ error: "query required" });
-  const cacheKey = query.toLocaleLowerCase();
+  const cacheKey = `${category}:${query}`.toLocaleLowerCase();
   if (imageCache.has(cacheKey)) return res.json(imageCache.get(cacheKey));
   const pokemon = await pokemonImage(query);
   if (pokemon) return cacheImage(cacheKey, res, { url: pokemon, source: "pokeapi" });
+  if (category === "Geral") {
+    const pexels = await pexelsImage(query);
+    if (pexels) return cacheImage(cacheKey, res, { url: pexels.url, source: "pexels", photographer: pexels.photographer, page: pexels.page });
+  }
+  if (category === "Filmes") {
+    const poster = await omdbImage(query);
+    if (poster) return cacheImage(cacheKey, res, { url: poster, source: "omdb" });
+  }
   if (!/\bpokemon\b/i.test(query)) {
     const google = await googleImage(query);
     if (google) return cacheImage(cacheKey, res, { url: google, source: "google" });
@@ -80,9 +102,25 @@ io.on("connection", (socket) => {
 
   socket.on("rooms:list", (_payload, reply) => safe(reply, () => ({ rooms: publicRoomList() })));
 
-  socket.on("room:create", ({ name, avatar, clientId, roomName, password, publicRoom: isPublicRoom }, reply) => safe(reply, () => {
+  socket.on("auth:me", ({ token }, reply) => safe(reply, async () => ({ user: await meFromToken(token) })));
+  socket.on("auth:register", (payload, reply) => safe(reply, () => registerUser(payload)));
+  socket.on("auth:login", (payload, reply) => safe(reply, () => loginUser(payload)));
+  socket.on("auth:logout", ({ token }, reply) => safe(reply, async () => {
+    await logoutUser(token);
+    return { ok: true };
+  }));
+  socket.on("auth:profile", ({ userId, username }, reply) => safe(reply, async () => ({ profile: await getProfile(userId || username) })));
+  socket.on("auth:updateProfile", ({ token, displayName, avatar }, reply) => safe(reply, () => updateUserProfile(token, { displayName, avatar })));
+  socket.on("auth:changePassword", ({ token, currentPassword, newPassword }, reply) => safe(reply, async () => {
+    await changeUserPassword(token, { currentPassword, newPassword });
+    return { ok: true };
+  }));
+
+  socket.on("room:create", ({ name, avatar, clientId, roomName, password, publicRoom: isPublicRoom, authToken }, reply) => safe(reply, async () => {
     clearPendingDisconnect(clientId);
-    const room = uniqueRoom(socket.id, name, avatar, clientId, { roomName, password: isPublicRoom === false ? "" : password, publicRoom: isPublicRoom });
+    const user = await authUserByToken(authToken);
+    const room = uniqueRoom(socket.id, user?.displayName || name, user?.avatar || avatar, clientId, { roomName, password: isPublicRoom === false ? "" : password, publicRoom: isPublicRoom });
+    attachUser(room.players[socket.id], user);
     sessions.set(socket.id, room.code);
     socket.join(room.code);
     emitRoom(room);
@@ -90,12 +128,14 @@ io.on("connection", (socket) => {
     return { room: publicRoom(room, socket.id), playerId: socket.id };
   }));
 
-  socket.on("room:join", ({ code, name, avatar, clientId, role, password }, reply) => safe(reply, () => {
+  socket.on("room:join", ({ code, name, avatar, clientId, role, password, authToken }, reply) => safe(reply, async () => {
     const room = getRoom(code);
+    const user = await authUserByToken(authToken);
     validateRoomPassword(room, password);
     const allowActiveTakeover = clearPendingDisconnect(clientId);
-    const join = addPlayer(room, socket.id, name, avatar, clientId, role, { allowActiveTakeover });
+    const join = addPlayer(room, socket.id, user?.displayName || name, user?.avatar || avatar, clientId, role, { allowActiveTakeover, userId: user?.id });
     if (join.needsRoleChoice) return { needsRoleChoice: true, preview: roomJoinPreview(room), name: join.playerName, code: room.code };
+    attachUser(room.players[join.playerId], user);
     detachPreviousSocket(join.previousId, room.code);
     sessions.set(socket.id, room.code);
     socket.join(room.code);
@@ -105,11 +145,13 @@ io.on("connection", (socket) => {
     return { room: publicRoom(room, join.playerId), playerId: join.playerId };
   }));
 
-  socket.on("room:resume", ({ code, name, avatar, clientId, role }, reply) => safe(reply, () => {
+  socket.on("room:resume", ({ code, name, avatar, clientId, role, authToken }, reply) => safe(reply, async () => {
     const room = getRoom(code);
+    const user = await authUserByToken(authToken);
     const allowActiveTakeover = clearPendingDisconnect(clientId);
-    const join = addPlayer(room, socket.id, name, avatar, clientId, role, { allowActiveTakeover });
+    const join = addPlayer(room, socket.id, user?.displayName || name, user?.avatar || avatar, clientId, role, { allowActiveTakeover, userId: user?.id });
     if (join.needsRoleChoice) return { needsRoleChoice: true, preview: roomJoinPreview(room), name: join.playerName, code: room.code };
+    attachUser(room.players[join.playerId], user);
     detachPreviousSocket(join.previousId, room.code);
     sessions.set(socket.id, room.code);
     socket.join(room.code);
@@ -119,13 +161,16 @@ io.on("connection", (socket) => {
     return { room: publicRoom(room, join.playerId), playerId: join.playerId };
   }));
 
-  socket.on("room:leave", (_payload, reply) => safe(reply, () => {
+  socket.on("room:leave", (_payload, reply) => safe(reply, async () => {
     const room = currentRoom(socket);
     const code = room.code;
     const removed = removePlayer(room, socket.id);
     sessions.delete(socket.id);
     socket.leave(code);
-    if (Object.keys(room.players).length === 0) rooms.delete(code);
+    if (Object.keys(room.players).length === 0) {
+      await discardActiveMatch(room);
+      rooms.delete(code);
+    }
     else {
       emitRoom(room);
       if (removed) emitRoomEvent(room, socket.id, "leave", removed);
@@ -156,9 +201,11 @@ io.on("connection", (socket) => {
     return { ok: true };
   }));
 
-  socket.on("player:avatar", ({ avatar }, reply) => safe(reply, () => {
+  socket.on("player:avatar", ({ avatar, authToken }, reply) => safe(reply, async () => {
     const room = currentRoom(socket);
-    const updatedAvatar = updatePlayerAvatar(room, socket.id, avatar);
+    const user = await authUserByToken(authToken);
+    const updatedAvatar = user ? (await updateUserProfile(authToken, { avatar })).user.avatar : updatePlayerAvatar(room, socket.id, avatar);
+    if (room.players[socket.id]) room.players[socket.id].avatar = updatedAvatar;
     io.to(room.code).emit("player:avatarUpdate", { playerId: socket.id, avatar: updatedAvatar });
     emitRoom(room);
     return { room: publicRoom(room, socket.id) };
@@ -173,8 +220,9 @@ io.on("connection", (socket) => {
     return { ok: true };
   }));
 
-  socket.on("host:returnLobby", (_payload, reply) => safe(reply, () => {
+  socket.on("host:returnLobby", (_payload, reply) => safe(reply, async () => {
     const room = currentRoom(socket);
+    await discardActiveMatch(room);
     hostReturnLobby(room, socket.id);
     emitRoom(room);
     emitRoomList();
@@ -195,9 +243,10 @@ io.on("connection", (socket) => {
     return { ok: true };
   }));
 
-  socket.on("game:start", (_payload, reply) => safe(reply, () => {
+  socket.on("game:start", (_payload, reply) => safe(reply, async () => {
     const room = currentRoom(socket);
     startGame(room, socket.id);
+    createActiveMatch(room).catch((error) => console.error("createMatch failed", error));
     emitRoom(room);
     emitRoomList();
     return { ok: true };
@@ -265,7 +314,10 @@ io.on("connection", (socket) => {
       const liveRoom = rooms.get(code);
       const removed = removePlayer(liveRoom, socket.id);
       if (!removed) return;
-      if (Object.keys(liveRoom.players).length === 0) rooms.delete(code);
+      if (Object.keys(liveRoom.players).length === 0) {
+        discardActiveMatch(liveRoom).catch((error) => console.error("discardMatch failed", error));
+        rooms.delete(code);
+      }
       else {
         emitRoom(liveRoom);
         emitRoomEvent(liveRoom, socket.id, "leave", removed);
@@ -295,9 +347,18 @@ function getRoom(code) {
 }
 
 function emitRoom(room) {
+  recordMatch(room).catch((error) => console.error("recordMatch failed", error));
   Object.keys(room.players).forEach((playerId) => {
     io.to(playerId).emit("room:update", publicRoom(room, playerId));
   });
+}
+
+function attachUser(player, user) {
+  if (!player || !user) return;
+  player.userId = user.id;
+  player.username = user.username;
+  player.name = user.displayName;
+  player.avatar = user.avatar || player.avatar || "";
 }
 
 function emitRoomList() {
@@ -334,6 +395,7 @@ function emitRoomEvent(room, exceptPlayerId, type, player) {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     type,
     playerName: player?.name || "Jogador",
+    sessionTag: player?.sessionTag || "",
     avatar: player?.avatar || "",
     team: player?.team || null,
     at: Date.now()
@@ -356,11 +418,10 @@ function detachPreviousSocket(previousId, code) {
 }
 
 function safe(reply, fn) {
-  try {
-    reply?.({ ok: true, ...fn() });
-  } catch (error) {
-    reply?.({ ok: false, error: error.message || "Erro inesperado." });
-  }
+  Promise.resolve()
+    .then(fn)
+    .then((result) => reply?.({ ok: true, ...result }))
+    .catch((error) => reply?.({ ok: false, error: error.message || "Erro inesperado." }));
 }
 
 function cacheImage(key, res, payload) {
@@ -393,12 +454,59 @@ async function googleImage(query) {
   url.searchParams.set("searchType", "image");
   url.searchParams.set("num", "1");
   url.searchParams.set("safe", "active");
+  url.searchParams.set("hl", "en");
+  url.searchParams.set("lr", "lang_en");
   url.searchParams.set("q", query);
   try {
     const response = await fetch(url);
     if (!response.ok) return null;
     const data = await response.json();
     return data.items?.[0]?.link || null;
+  } catch {
+    return null;
+  }
+}
+
+async function pexelsImage(query) {
+  const key = process.env.PEXELS_API_KEY;
+  if (!key) return null;
+  const url = new URL("https://api.pexels.com/v1/search");
+  url.searchParams.set("query", query);
+  url.searchParams.set("per_page", "1");
+  url.searchParams.set("orientation", "square");
+  url.searchParams.set("locale", "en-US");
+  try {
+    const response = await fetch(url, { headers: { Authorization: key } });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const photo = data.photos?.[0];
+    if (!photo?.src) return null;
+    return {
+      url: photo.src.medium || photo.src.large || photo.src.original,
+      photographer: photo.photographer || "",
+      page: photo.url || ""
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function omdbImage(query) {
+  const key = process.env.OMDB_API_KEY || "34925b28";
+  const title = String(query || "")
+    .trim()
+    .replace(/\s+movie$/i, "")
+    .replace(/\s+/g, "_")
+    .toLowerCase();
+  if (!title) return null;
+  const url = new URL("https://www.omdbapi.com/");
+  url.searchParams.set("t", title);
+  url.searchParams.set("apikey", key);
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.Poster && data.Poster !== "N/A" ? data.Poster : null;
   } catch {
     return null;
   }
@@ -468,7 +576,7 @@ async function wikiImage(query) {
 
 function imageSearchTerms(query) {
   const trimmed = query.trim();
-  const withoutCategory = trimmed.replace(/\s+(geral|anime|pokemon|filme|filmes|jogo|jogos)$/i, "").trim();
+  const withoutCategory = trimmed.replace(/\s+(geral|anime|pokemon|filme|filmes|jogo|jogos|geek|famosos|movie|famous person|fictional character|video game character|anime character)$/i, "").trim();
   if (/\s+geral$/i.test(trimmed)) return [...new Set([withoutCategory, trimmed].filter(Boolean))];
   return [...new Set([trimmed, withoutCategory].filter(Boolean))];
 }

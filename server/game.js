@@ -7,6 +7,8 @@ const WIN_CORRECT = 3;
 const WIN_INTERCEPTS = 2;
 const STARTING_LIVES = 2;
 const MAX_ROUNDS = 8;
+const ALLOW_UNDERSTAFFED_TEST_GAMES = true;
+const recentWordsByCategory = new Map();
 
 export function makeRoom(hostId, hostName, hostAvatar = "", hostClientId = hostId, roomOptions = {}) {
   const code = makeCode();
@@ -44,9 +46,13 @@ export function makeRoom(hostId, hostName, hostAvatar = "", hostClientId = hostI
 }
 
 export function makePlayer(id, name = "Operador", isHost = false, avatar = "", clientId = id) {
+  const cleanedClientId = cleanClientId(clientId) || id;
   return {
     id,
-    clientId: cleanClientId(clientId) || id,
+    clientId: cleanedClientId,
+    sessionTag: makeSessionTag(cleanedClientId || id),
+    userId: null,
+    username: "",
     name: cleanName(name),
     avatar: cleanAvatar(avatar),
     team: null,
@@ -84,16 +90,19 @@ export function addPlayer(room, id, name, avatar = "", clientId = id, role = nul
   const cleanedClientId = cleanClientId(clientId) || id;
   if (Object.keys(room.players).length >= 12) throw new Error("A sala ja atingiu o limite de 12 jogadores.");
   const existingByClient = Object.values(room.players).find((player) => player.clientId === cleanedClientId);
-  if (existingByClient) {
-    const previousId = existingByClient.id;
-    if (previousId !== id && existingByClient.connected && !options.allowActiveTakeover) {
+  const existingByUser = options.userId ? Object.values(room.players).find((player) => player.userId === options.userId) : null;
+  const existingPlayer = existingByClient || existingByUser;
+  if (existingPlayer) {
+    const previousId = existingPlayer.id;
+    if (previousId !== id && existingPlayer.connected && !options.allowActiveTakeover) {
       throw new Error("Este jogador ja esta conectado nesta sala em outra aba.");
     }
     room.players[id] = {
-      ...existingByClient,
+      ...existingPlayer,
       id,
-      clientId: cleanedClientId,
-      avatar: cleanAvatar(avatar) || existingByClient.avatar,
+      clientId: existingByClient ? cleanedClientId : existingPlayer.clientId,
+      sessionTag: existingPlayer.sessionTag || makeSessionTag(existingPlayer.clientId || cleanedClientId),
+      avatar: cleanAvatar(avatar) || existingPlayer.avatar,
       connected: true,
       rejoinedAt: Date.now()
     };
@@ -107,37 +116,30 @@ export function addPlayer(room, id, name, avatar = "", clientId = id, role = nul
     touch(room);
     return { playerId: id, previousId, playerName: room.players[id].name, eventType: "resume" };
   }
-  if (Object.values(room.players).some((player) => player.name === cleaned)) {
-    throw new Error("Ja existe um jogador com esse nome nesta partida.");
-  }
   const departed = room.phase !== "lobby"
-    ? Object.values(room.departedPlayers || {}).find((player) => player.clientId === cleanedClientId || player.name === cleaned)
+    ? Object.values(room.departedPlayers || {}).find((player) => player.clientId === cleanedClientId || (options.userId && player.userId === options.userId))
     : null;
-  if (!departed && room.phase !== "lobby" && !["player", "spectator"].includes(role)) {
-    return { needsRoleChoice: true, playerName: cleaned };
+  if (!departed && room.phase !== "lobby" && role === "player") {
+    throw new Error("Partida em andamento: novos participantes entram apenas como espectadores.");
   }
   if (departed) {
     room.players[id] = {
       ...departed,
       id,
       clientId: cleanedClientId,
+      sessionTag: departed.sessionTag || makeSessionTag(cleanedClientId),
       avatar: cleanAvatar(avatar) || departed.avatar,
       isHost: false,
       connected: true,
       rejoinedAt: Date.now()
     };
-    delete room.departedPlayers[departed.name];
+    delete room.departedPlayers[departed.clientId || departed.name];
     replacePlayerReference(room, departed.id, id);
   } else {
     const player = makePlayer(id, cleaned, false, avatar, cleanedClientId);
     if (room.phase !== "lobby") {
-      if (role === "spectator") {
-        player.team = null;
-        player.spectator = true;
-      } else {
-        player.team = balancedJoinTeam(room);
-        if (!TEAMS.includes(player.team)) throw new Error("Os times de jogadores estao cheios. Entre como espectador.");
-      }
+      player.team = null;
+      player.spectator = true;
       player.joinedRound = room.round;
     }
     room.players[id] = player;
@@ -154,6 +156,7 @@ export function roomJoinPreview(room) {
     players: Object.values(room.players).map((player) => ({
       id: player.id,
       name: player.name,
+      sessionTag: player.sessionTag || "",
       avatar: player.avatar,
       team: player.team,
       spectator: player.spectator,
@@ -192,7 +195,6 @@ export function sendChatMessage(room, playerId, scope, text) {
   };
   if (scope === "global") {
     if (room.phase !== "lobby") throw new Error("Chat da sala fica disponivel apenas no lobby.");
-    if (player.spectator) throw new Error("Espectadores nao enviam mensagens no chat da sala durante a partida.");
     room.chat.global.push(message);
     room.chat.global = room.chat.global.slice(-80);
   } else if (scope === "team") {
@@ -295,14 +297,33 @@ function assignRandomTeams(room) {
   });
 }
 
+function ensureTestTeams(room, hostId) {
+  const host = room.players[hostId];
+  if (host && !TEAMS.includes(host.team)) {
+    host.team = "red";
+    host.spectator = false;
+  }
+  TEAMS.forEach((team) => {
+    if (teamPlayers(room, team).length) return;
+    const botId = `test-bot-${team}`;
+    const bot = makePlayer(botId, `Teste ${TEAM_NAMES[team].replace("Time ", "")}`, false, "", botId);
+    bot.team = team;
+    bot.connected = true;
+    bot.testBot = true;
+    room.players[botId] = bot;
+  });
+}
+
 export function startGame(room, hostId) {
   guardHost(room, hostId);
   if (room.settings.randomTeams) assignRandomTeams(room);
+  if (ALLOW_UNDERSTAFFED_TEST_GAMES) ensureTestTeams(room, hostId);
   const counts = teamCounts(room);
-  if (counts.red < 2 || counts.blue < 2) throw new Error("Cada time precisa de pelo menos dois jogadores.");
+  if (!ALLOW_UNDERSTAFFED_TEST_GAMES && (counts.red < 2 || counts.blue < 2)) throw new Error("Cada time precisa de pelo menos dois jogadores.");
+  if (counts.red < 1 || counts.blue < 1) throw new Error("Para testar, cada time ainda precisa ter pelo menos um jogador.");
   const bank = getWordBank(room.settings);
   if (bank.length < room.settings.wordCount * 2) throw new Error("A categoria precisa ter palavras suficientes.");
-  const words = shuffle(bank);
+  const words = drawSecretWords(room.settings, room.settings.wordCount, bank);
   room.teams.red.words = words.slice(0, room.settings.wordCount);
   room.teams.blue.words = words.slice(room.settings.wordCount, room.settings.wordCount * 2);
   TEAMS.forEach((team) => {
@@ -346,7 +367,7 @@ export function updateGuess(room, playerId, kind, guess, targetTeam) {
   const target = normalizeTargetTeam(kind, room.players[playerId], targetTeam);
   const turn = room.current.turns[target];
   guardDecision(room, playerId, kind, target, turn);
-  const proposal = getProposal(turn, kind);
+  const proposal = getProposal(turn, kind, room.settings.wordCount);
   proposal.guess = normalizePartialGuess(guess, room.settings.wordCount);
   proposal.updatedBy = playerId;
   proposal.confirmedBy = [];
@@ -360,7 +381,7 @@ export function confirmDecision(room, playerId, kind, targetTeam) {
   const target = normalizeTargetTeam(kind, room.players[playerId], targetTeam);
   const turn = room.current.turns[target];
   guardDecision(room, playerId, kind, target, turn);
-  const proposal = getProposal(turn, kind);
+  const proposal = getProposal(turn, kind, room.settings.wordCount);
   normalizeGuess(proposal.guess, room.settings.wordCount);
   if (!proposal.confirmedBy.includes(playerId)) proposal.confirmedBy.push(playerId);
   maybeFinalizeProposal(room, target, kind);
@@ -370,11 +391,7 @@ export function confirmDecision(room, playerId, kind, targetTeam) {
 export function confirmResult(room, playerId) {
   if (room.phase !== "roundResult") throw new Error("Resultado nao esta em confirmacao.");
   if (room.players[playerId]?.spectator) throw new Error("Espectadores nao confirmam resultados.");
-  ensureGameCanContinue(room);
-  if (!room.current.resultConfirmedBy.includes(playerId)) room.current.resultConfirmedBy.push(playerId);
-  if (allConnectedConfirmed(room.current.resultConfirmedBy, room)) {
-    advanceAfterRoundResult(room);
-  }
+  advanceAfterRoundResult(room);
   touch(room);
 }
 
@@ -433,7 +450,31 @@ function beginRound(room) {
     nextPhase: "playing"
   };
   TEAMS.forEach((team) => chooseCoder(room, team));
+  autoPilotTestTurns(room);
   touch(room);
+}
+
+function autoPilotTestTurns(room) {
+  if (!ALLOW_UNDERSTAFFED_TEST_GAMES || room.phase !== "playing" || !room.current) return;
+  TEAMS.forEach((team) => {
+    const turn = room.current.turns[team];
+    const coder = room.players[turn.coderId];
+    if (coder?.testBot && !turn.hints.length) {
+      turn.hints = turn.code.map((number) => `sinal ${number}`);
+    }
+  });
+  TEAMS.forEach((targetTeam) => {
+    ["team", "intercept"].forEach((kind) => {
+      const humanVoters = eligibleDecisionPlayers(room, kind, targetTeam);
+      if (humanVoters.length) return;
+      const proposal = room.current.turns[targetTeam].proposals[kind];
+      if (proposal.finalized) return;
+      proposal.guess = makeSecretCode(room.settings.wordCount);
+      proposal.confirmedBy = [];
+      proposal.finalized = true;
+      proposal.updatedBy = "test-bot";
+    });
+  });
 }
 
 function chooseCoder(room, team) {
@@ -457,6 +498,7 @@ function maybeFinalizeProposal(room, targetTeam, kind) {
   proposal.confirmedBy = proposal.confirmedBy.filter((id) => eligibleIds.has(id));
   if (proposal.confirmedBy.length < players.length) return;
   proposal.finalized = true;
+  autoPilotTestTurns(room);
   if (allDecisionsFinalized(room)) scoreRound(room);
 }
 
@@ -522,11 +564,12 @@ function scoreRound(room) {
 }
 
 function decideNextPhase(room) {
-  const immediateWinner = winner(room);
-  if (immediateWinner) {
-    room.final = { winner: immediateWinner, reason: "condicao", confirmedBy: [] };
+  const immediate = resolveImmediateOutcome(room);
+  if (immediate.winner) {
+    room.final = { winner: immediate.winner, reason: immediate.reason || "condicao", confirmedBy: [] };
     return "gameOver";
   }
+  if (immediate.tiebreaker) return "tiebreaker";
   if (room.round >= MAX_ROUNDS) {
     const ranked = rankAfterMaxRounds(room);
     if (ranked) {
@@ -596,7 +639,7 @@ function returnToLobby(room) {
 function archiveDepartedPlayer(room, player) {
   if (room.phase === "lobby") return;
   room.departedPlayers ||= {};
-  room.departedPlayers[player.name] = {
+  room.departedPlayers[player.clientId || player.name] = {
     ...player,
     connected: false,
     isHost: false,
@@ -642,6 +685,32 @@ function winner(room) {
     return score.correct >= WIN_CORRECT || score.interceptions >= (room.settings.winIntercepts || WIN_INTERCEPTS) || rival.lives <= 0;
   });
   return candidates.length === 1 ? candidates[0] : null;
+}
+
+function resolveImmediateOutcome(room) {
+  const redScore = room.teams.red.score;
+  const blueScore = room.teams.blue.score;
+  const interceptLimit = room.settings.winIntercepts || WIN_INTERCEPTS;
+  const redOut = redScore.lives <= 0;
+  const blueOut = blueScore.lives <= 0;
+  const redInterceptWin = redScore.interceptions >= interceptLimit;
+  const blueInterceptWin = blueScore.interceptions >= interceptLimit;
+
+  if (redOut && blueOut) {
+    return rankedImmediate(redScore.interceptions, blueScore.interceptions, "vidas");
+  }
+  if (redInterceptWin && blueInterceptWin) {
+    return rankedImmediate(redScore.lives, blueScore.lives, "interceptacoes");
+  }
+
+  const immediateWinner = winner(room);
+  return immediateWinner ? { winner: immediateWinner, reason: "condicao" } : {};
+}
+
+function rankedImmediate(redValue, blueValue, reason) {
+  if (redValue > blueValue) return { winner: "red", reason };
+  if (blueValue > redValue) return { winner: "blue", reason };
+  return { tiebreaker: true };
 }
 
 function rankAfterMaxRounds(room) {
@@ -731,7 +800,7 @@ function guardDecision(room, playerId, kind, targetTeam, turn) {
   if (turn.proposals[kind].finalized) throw new Error("Esta decisao ja foi fechada.");
   if (kind === "team") {
     if (player.team !== targetTeam) throw new Error("Apenas o proprio time pode descriptografar.");
-    if (playerId === turn.coderId) throw new Error("O codificador nao vota no proprio codigo.");
+    if (playerId === turn.coderId && !allowSoloCoderDecision(room, targetTeam)) throw new Error("O codificador nao vota no proprio codigo.");
   } else if (player.team !== otherTeam(targetTeam)) {
     throw new Error("Apenas o adversario pode interceptar.");
   }
@@ -739,19 +808,24 @@ function guardDecision(room, playerId, kind, targetTeam, turn) {
 
 function eligibleDecisionPlayers(room, kind, targetTeam) {
   const team = kind === "team" ? targetTeam : otherTeam(targetTeam);
-  return teamPlayers(room, team).filter((player) => (
-    player.connected && (kind !== "team" || player.id !== room.current.turns[targetTeam].coderId)
+  const players = teamPlayers(room, team).filter((player) => (
+    player.connected && !player.testBot && (kind !== "team" || player.id !== room.current.turns[targetTeam].coderId)
   ));
+  if (kind === "team" && !players.length && allowSoloCoderDecision(room, targetTeam)) {
+    const coder = room.players[room.current.turns[targetTeam].coderId];
+    return coder?.connected ? [coder] : [];
+  }
+  return players;
 }
 
-function getProposal(turn, kind) {
-  if (!turn.proposals[kind]) turn.proposals[kind] = makeProposal();
+function getProposal(turn, kind, wordCount) {
+  if (!turn.proposals[kind]) turn.proposals[kind] = makeProposal(wordCount);
   return turn.proposals[kind];
 }
 
 function tiebreakerFinalizedOrReady(room, team) {
   const entry = room.tiebreaker[team];
-  const players = teamPlayers(room, team).filter((player) => player.connected);
+  const players = teamPlayers(room, team).filter((player) => player.connected && !player.testBot);
   if (entry.confirmedBy.length >= players.length) {
     entry.finalized = true;
     return true;
@@ -760,7 +834,7 @@ function tiebreakerFinalizedOrReady(room, team) {
 }
 
 function allConnectedConfirmed(confirmedBy, room) {
-  const players = Object.values(room.players).filter((player) => player.connected && !player.spectator);
+  const players = Object.values(room.players).filter((player) => player.connected && !player.spectator && !player.testBot);
   return players.length > 0 && players.every((player) => confirmedBy.includes(player.id));
 }
 
@@ -772,8 +846,35 @@ function normalizeTargetTeam(kind, player, targetTeam) {
 }
 
 function getWordBank(settings) {
-  if (settings.category === "Personalizada") return shuffle(settings.customWords.map(cleanWord).filter(Boolean));
-  return shuffle(WORD_BANKS[settings.category] || WORD_BANKS.Geral);
+  if (settings.category === "Personalizada") return uniqueWords(settings.customWords);
+  return uniqueWords(WORD_BANKS[settings.category] || WORD_BANKS.Geral);
+}
+
+function uniqueWords(words) {
+  return [...new Set((words || []).map(cleanWord).filter(Boolean))];
+}
+
+function drawSecretWords(settings, wordCount, bank = getWordBank(settings)) {
+  const needed = wordCount * 2;
+  const key = wordMemoryKey(settings);
+  const recent = new Set(recentWordsByCategory.get(key) || []);
+  const fresh = bank.filter((word) => !recent.has(word));
+  const pool = fresh.length >= needed ? fresh : bank;
+  const selected = shuffle(pool).slice(0, needed);
+  rememberDrawnWords(key, selected, bank.length);
+  return selected;
+}
+
+function wordMemoryKey(settings) {
+  if (settings.category !== "Personalizada") return settings.category || "Geral";
+  return `Personalizada:${uniqueWords(settings.customWords).join("|").toLowerCase()}`;
+}
+
+function rememberDrawnWords(key, words, bankSize) {
+  const current = recentWordsByCategory.get(key) || [];
+  const limit = Math.min(Math.max(words.length * 4, 32), Math.max(words.length, Math.floor(bankSize * 0.65)));
+  const next = [...words, ...current.filter((word) => !words.includes(word))].slice(0, limit);
+  recentWordsByCategory.set(key, next);
 }
 
 function makeSecretCode(wordCount) {
@@ -817,14 +918,19 @@ function makeTurn(wordCount) {
     coderId: null,
     hints: [],
     proposals: {
-      team: makeProposal(),
-      intercept: makeProposal()
+      team: makeProposal(wordCount),
+      intercept: makeProposal(wordCount)
     }
   };
 }
 
-function makeProposal() {
-  return { guess: [], updatedBy: null, confirmedBy: [], finalized: false };
+function makeProposal(wordCount) {
+  return { guess: defaultGuess(wordCount), updatedBy: null, confirmedBy: [], finalized: false };
+}
+
+function defaultGuess(wordCount) {
+  const max = Number.isInteger(wordCount) && wordCount > 0 ? wordCount : MAX_HINTS;
+  return Array.from({ length: MAX_HINTS }, (_, index) => Math.min(index + 1, max));
 }
 
 function makeChatState() {
@@ -836,7 +942,7 @@ function makeChatState() {
 }
 
 function cleanName(name) {
-  return String(name || "Operador").trim().replace(/\s+/g, " ").slice(0, 18) || "Operador";
+  return String(name || "Jogador").trim().replace(/\s+/g, " ").slice(0, 28) || "Jogador";
 }
 
 function cleanRoomName(name, hostName = "Operador") {
@@ -849,6 +955,12 @@ function cleanRoomPassword(password) {
 
 function cleanClientId(clientId) {
   return String(clientId || "").trim().replace(/[^a-zA-Z0-9:_-]/g, "").slice(0, 80);
+}
+
+function makeSessionTag(clientId) {
+  const source = cleanClientId(clientId) || Math.random().toString(36).slice(2, 10);
+  const compact = source.replace(/[^a-z0-9]/gi, "").slice(-4).toUpperCase();
+  return `#${compact || "0000"}`;
 }
 
 function cleanAvatar(avatar) {
@@ -880,7 +992,7 @@ function teamCounts(room) {
 function gameBlockReason(room) {
   if (!["playing", "roundResult", "tiebreaker"].includes(room.phase)) return "";
   const counts = teamCounts(room);
-  if (counts.red < 2 || counts.blue < 2) {
+  if (!ALLOW_UNDERSTAFFED_TEST_GAMES && (counts.red < 2 || counts.blue < 2)) {
     return "A partida esta pausada: cada time precisa ter pelo menos dois jogadores conectados.";
   }
   if (room.phase === "playing" && room.current) {
@@ -893,6 +1005,11 @@ function gameBlockReason(room) {
     }
   }
   return "";
+}
+
+function allowSoloCoderDecision(room, team) {
+  const humans = teamPlayers(room, team).filter((player) => player.connected && !player.testBot);
+  return ALLOW_UNDERSTAFFED_TEST_GAMES && humans.length === 1 && room.current?.turns?.[team]?.coderId === humans[0].id;
 }
 
 function ensureGameCanContinue(room) {

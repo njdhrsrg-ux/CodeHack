@@ -857,6 +857,15 @@ const POKEMON_NAMES = [
 ];
 
 const GENERATED_MODIFIERS = /\s+(Classico|Neon|Secreto|Perdido|Lendario|Digital)$/i;
+const ABSTRACT_GENERAL_WORDS = new Set([
+  "Pessoa", "Povo", "Homem", "Mulher", "Crianca", "Bebe", "Amigo", "Familia", "Vizinho",
+  "Rosto", "Sorriso", "Riso", "Choro", "Sono", "Sonho", "Medo", "Raiva", "Alegria", "Dor", "Forca",
+  "Calor", "Frio", "Claro", "Escuro", "Grande", "Pequeno", "Alto", "Baixo", "Novo", "Velho", "Rapido", "Lento",
+  "Limpo", "Sujo", "Cheio", "Vazio", "Doce", "Salgado", "Quente", "Gelado", "Macio", "Duro", "Leve", "Pesado",
+  "Aberto", "Fechado", "Longe", "Perto", "Cima", "Meio", "Inicio", "Fim", "Ontem", "Hoje", "Amanha",
+  "Manha", "Tarde", "Noite", "Hora", "Minuto", "Semana", "Mes", "Ano", "Numero", "Letra", "Nome",
+  "Voz", "Som", "Barulho", "Silencio", "Cor"
+]);
 const CHARACTER_FULL_NAMES = new Map(Object.entries({
   Goku: "Son Goku",
   Gohan: "Son Gohan",
@@ -1096,7 +1105,7 @@ function characterBank(words) {
 }
 
 export const WORD_BANKS = {
-  Geral: [...new Set(GENERAL_SIMPLE)],
+  Geral: [...new Set(GENERAL_SIMPLE)].filter((word) => !ABSTRACT_GENERAL_WORDS.has(word)),
   Anime: characterBank(ANIME_CHARACTER_BANK),
   Pokemon: POKEMON_NAMES,
   Filmes: cleanBank(MOVIE_TITLE_BANK),

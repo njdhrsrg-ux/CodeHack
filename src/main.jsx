@@ -3,20 +3,27 @@ import { createRoot } from "react-dom/client";
 import { createPortal } from "react-dom";
 import { io } from "socket.io-client";
 import {
+  ArrowLeft,
   BadgeCheck,
   Check,
   ClipboardPaste,
   Copy,
+  Eye,
+  EyeOff,
   LogIn,
   LogOut,
+  Minus,
   Pencil,
   Play,
+  Plus,
   RadioTower,
   RotateCcw,
   Settings,
   Shuffle,
   Sparkles,
   Trash2,
+  Unplug,
+  UserCircle,
   Users,
   Volume2,
   VolumeX,
@@ -35,6 +42,7 @@ const ICONS = {
 const socketUrl = import.meta.env.VITE_SOCKET_URL || (window.location.port === "5173" ? "http://localhost:3001" : window.location.origin);
 const socket = io(socketUrl, { autoConnect: true });
 const TEAMS = ["red", "blue"];
+const wordImageCache = new Map();
 const DEFAULT_CONSTANTS = {
   WORD_BANKS: { Geral: [], Anime: [], Pokemon: [], Filmes: [], Jogos: [], Geek: [], Famosos: [] },
   TEAM_NAMES: { red: "Time Vermelho", blue: "Time Azul" },
@@ -42,6 +50,290 @@ const DEFAULT_CONSTANTS = {
   WIN_INTERCEPTS: 2,
   STARTING_LIVES: 2,
   MAX_ROUNDS: 8
+};
+
+const IMAGE_ALIAS = {
+  Casa: "house", Rua: "street", Porta: "door", Mesa: "table", Cadeira: "chair", Cama: "bed", Sofa: "sofa", Janela: "window", Parede: "wall", Chao: "floor",
+  Teto: "ceiling", Tapete: "rug", Prato: "plate", Copo: "glass cup", Garrafa: "bottle", Colher: "spoon", Faca: "knife", Garfo: "fork", Panela: "cooking pot", Fogao: "stove",
+  Geladeira: "refrigerator", Pia: "sink", Banho: "bath", Sabao: "soap", Toalha: "towel", Escova: "brush", Pente: "comb", Camisa: "shirt", Calca: "pants", Vestido: "dress",
+  Sapato: "shoe", Meia: "sock", Chapeu: "hat", Bolsa: "bag", Mochila: "backpack", Carteira: "wallet", Chave: "key", Moeda: "coin", Nota: "banknote", Livro: "book",
+  Caderno: "notebook", Caneta: "pen", Lapis: "pencil", Borracha: "eraser", Papel: "paper", Carta: "letter envelope", Caixa: "box", Sacola: "shopping bag", Presente: "gift", Relogio: "clock",
+  Telefone: "telephone", Radio: "radio", Camera: "camera", Tela: "screen", Teclado: "keyboard", Mouse: "computer mouse", Cabo: "cable", Lampada: "lamp", Vela: "candle", Fogo: "fire",
+  Agua: "water", Gelo: "ice", Chuva: "rain", Nuvem: "cloud", Sol: "sun", Lua: "moon", Estrela: "star", Ceu: "sky", Mar: "sea", Rio: "river",
+  Lago: "lake", Praia: "beach", Areia: "sand", Pedra: "stone", Terra: "soil", Barro: "mud", Grama: "grass", Folha: "leaf", Flor: "flower", Arvore: "tree",
+  Galho: "tree branch", Raiz: "root", Fruta: "fruit", Banana: "banana", Maca: "apple", Pera: "pear", Uva: "grape", Laranja: "orange fruit", Limao: "lemon", Manga: "mango",
+  Melancia: "watermelon", Abacaxi: "pineapple", Morango: "strawberry", Coco: "coconut", Tomate: "tomato", Batata: "potato", Cenoura: "carrot", Milho: "corn", Arroz: "rice", Feijao: "beans",
+  Macarrao: "pasta", Pao: "bread", Queijo: "cheese", Leite: "milk", Cafe: "coffee", Cha: "tea", Suco: "juice", Bolo: "cake", Mel: "honey", Sal: "salt", Acucar: "sugar",
+  Ovo: "egg", Carne: "meat", Peixe: "fish", Frango: "chicken", Sopa: "soup", Pizza: "pizza", Sorvete: "ice cream", Biscoito: "cookie",
+  Cachorro: "dog", Gato: "cat", Passaro: "bird", Cavalo: "horse", Vaca: "cow", Porco: "pig", Ovelha: "sheep", Cabra: "goat", Pato: "duck", Galinha: "chicken animal",
+  Coelho: "rabbit", Rato: "mouse animal", Sapo: "frog", Cobra: "snake", Tartaruga: "turtle", Leao: "lion", Tigre: "tiger", Urso: "bear", Macaco: "monkey",
+  Elefante: "elephant", Girafa: "giraffe", Zebra: "zebra", Lobo: "wolf", Raposa: "fox", Baleia: "whale", Golfinho: "dolphin", Tubarao: "shark", Formiga: "ant", Abelha: "bee",
+  Mosca: "fly insect", Borboleta: "butterfly", Aranha: "spider",
+  Carro: "car", Onibus: "bus", Trem: "train", Aviao: "airplane", Barco: "boat", Navio: "ship", Bicicleta: "bicycle", Moto: "motorcycle", Roda: "wheel", Pneu: "tire",
+  Volante: "steering wheel", Freio: "brake", Motor: "engine", Posto: "gas station", Ponte: "bridge", Tunel: "tunnel", Estrada: "road",
+  Escola: "school", Hospital: "hospital", Mercado: "market", Banco: "bench", Padaria: "bakery", Farmacia: "pharmacy", Igreja: "church", Praca: "town square", Parque: "park", Cinema: "movie theater",
+  Teatro: "theater", Museu: "museum", Loja: "store", Hotel: "hotel", Restaurante: "restaurant", Cozinha: "kitchen", Quarto: "bedroom", Sala: "living room", Banheiro: "bathroom", Garagem: "garage",
+  Jardim: "garden", Piscina: "swimming pool", Portao: "gate", Elevador: "elevator", Escada: "stairs",
+  Bola: "ball", Boneca: "doll", Carrinho: "toy car", Jogo: "board game", Dado: "dice", Pipa: "kite", Tambor: "drum", Violao: "acoustic guitar", Piano: "piano", Flauta: "flute",
+  Apito: "whistle", Musica: "musical notes", Danca: "dance", Festa: "party", Time: "sports team", Gol: "goal soccer", Rede: "net", Campo: "field", Quadra: "sports court", Onda: "wave",
+  Vento: "wind", Neve: "snow", Montanha: "mountain", Vale: "valley", Ilha: "island", Floresta: "forest", Deserto: "desert", Caverna: "cave", Vulcao: "volcano", Mapa: "map",
+  Bussola: "compass", Mala: "suitcase", Viagem: "travel", Cidade: "city", Aldeia: "village", Fazenda: "farm",
+  Mae: "mother", Pai: "father", Irmao: "brother", Avo: "grandparent", Doutor: "doctor", Professor: "teacher", Aluno: "student", Motorista: "driver", Cozinheiro: "cook", Pintor: "painter",
+  Cantor: "singer", Juiz: "judge", Policia: "police officer", Bombeiro: "firefighter", Rei: "king", Rainha: "queen", Principe: "prince", Princesa: "princess",
+  Coroa: "crown", Espada: "sword", Escudo: "shield", Martelo: "hammer", Prego: "nail", Serra: "saw tool", Tesoura: "scissors", Cola: "glue", Tinta: "paint", Pincel: "paint brush",
+  Linha: "thread", Agulha: "needle", Botao: "button", Espelho: "mirror", Penteado: "hairstyle", Olho: "eye", Nariz: "nose", Boca: "mouth", Dente: "tooth", Orelha: "ear",
+  Mao: "hand", Dedo: "finger", Braco: "arm", Perna: "leg", Pe: "foot", Cabeca: "head", Cabelo: "hair", Corpo: "body",
+  Vermelho: "red color", Azul: "blue color", Verde: "green color", Amarelo: "yellow color", Preto: "black color", Branco: "white color", Rosa: "pink color", Roxo: "purple color", Cinza: "gray color",
+  Ouro: "gold", Prata: "silver", Vidro: "glass material", Madeira: "wood", Ferro: "iron metal", Plastico: "plastic", Pano: "cloth", Couro: "leather", Corda: "rope",
+  Balde: "bucket", Vassoura: "broom", Esponja: "sponge", Lixo: "trash", Cesto: "basket", Remedio: "medicine", Curativo: "bandage", Planta: "plant", Semente: "seed", Horta: "vegetable garden",
+  "Guarda chuva": "umbrella", Travesseiro: "pillow", Cobertor: "blanket", Cortina: "curtain", Almofada: "cushion", Estante: "bookcase", Prateleira: "shelf",
+  "Homem Aranha": "Spider-Man",
+  "Homem de Ferro": "Iron Man",
+  "Capitao America": "Captain America",
+  "Doutor Estranho": "Doctor Strange",
+  "Pantera Negra": "Black Panther",
+  "Viuva Negra": "Black Widow",
+  "Gaviao Arqueiro": "Hawkeye",
+  "Mulher Maravilha": "Wonder Woman",
+  "Mulher Gato": "Catwoman",
+  "Lanterna Verde": "Green Lantern",
+  "Coringa": "Joker",
+  "Arlequina": "Harley Quinn",
+  "Charada": "Riddler",
+  "Pinguim": "Penguin",
+  "Asa Noturna": "Nightwing",
+  "Demolidor": "Daredevil",
+  "Justiceiro": "Punisher",
+  "Visao": "Vision",
+  "Senhor das Estrelas": "Star-Lord",
+  "Capitao Kirk": "Captain Kirk",
+  "Mandaloriano": "The Mandalorian",
+  "Perola": "Pearl",
+  "Bob Esponja": "SpongeBob SquarePants",
+  "Patrick Estrela": "Patrick Star",
+  "Lula Molusco": "Squidward Tentacles",
+  "Sandy Bochechas": "Sandy Cheeks",
+  "Princesa Jujuba": "Princess Bubblegum",
+  "Steven Universo": "Steven Universe",
+  "Mutano": "Beast Boy",
+  "Ravena": "Raven",
+  "Estelar": "Starfire",
+  "Tio Chico": "Uncle Fester",
+  "Wandinha": "Wednesday Addams",
+  "Senhor dos Aneis": "The Lord of the Rings",
+  "Vingadores": "The Avengers",
+  "Poderoso Chefao": "The Godfather",
+  "De Volta para o Futuro": "Back to the Future",
+  "Procurando Nemo": "Finding Nemo",
+  "Rei Leao": "The Lion King",
+  "Exterminador": "The Terminator",
+  "Missao Impossivel": "Mission Impossible",
+  "O Iluminado": "The Shining",
+  "A Bruxa": "The Witch",
+  "O Exorcista": "The Exorcist",
+  "Era do Gelo": "Ice Age",
+  "Valente": "Brave",
+  "Amelie": "Amelie",
+  "Viagem de Chihiro": "Spirited Away",
+  "Castelo Animado": "Howl's Moving Castle",
+  "Tumulo dos Vagalumes": "Grave of the Fireflies",
+  "Meu Amigo Totoro": "My Neighbor Totoro"
+};
+
+const MOVIE_TITLE_ALIAS = {
+  Matrix: "The Matrix",
+  Titanic: "Titanic",
+  Avatar: "Avatar",
+  Alien: "Alien",
+  Rocky: "Rocky",
+  Batman: "Batman",
+  Joker: "Joker",
+  Coringa: "Joker",
+  Gladiador: "Gladiator",
+  Inception: "Inception",
+  Tubarao: "Jaws",
+  "Jurassic Park": "Jurassic Park",
+  "Star Wars": "Star Wars",
+  "Indiana Jones": "Indiana Jones",
+  "Harry Potter": "Harry Potter",
+  "Senhor dos Aneis": "The Lord of the Rings",
+  Vingadores: "The Avengers",
+  "Homem Aranha": "Spider-Man",
+  Superman: "Superman",
+  Godzilla: "Godzilla",
+  "King Kong": "King Kong",
+  "Poderoso Chefao": "The Godfather",
+  "Forrest Gump": "Forrest Gump",
+  "E.T.": "E.T. the Extra-Terrestrial",
+  "De Volta para o Futuro": "Back to the Future",
+  "Toy Story": "Toy Story",
+  Shrek: "Shrek",
+  Frozen: "Frozen",
+  "Procurando Nemo": "Finding Nemo",
+  "Rei Leao": "The Lion King",
+  "Pantera Negra": "Black Panther",
+  Duna: "Dune",
+  "Mad Max": "Mad Max",
+  Exterminador: "The Terminator",
+  Predador: "Predator",
+  Rambo: "First Blood",
+  "Karate Kid": "The Karate Kid",
+  "Top Gun": "Top Gun",
+  "Missao Impossivel": "Mission: Impossible",
+  "007": "Dr. No",
+  Psicose: "Psycho",
+  "O Iluminado": "The Shining",
+  It: "It",
+  Ghostbusters: "Ghostbusters",
+  MIB: "Men in Black",
+  "Blade Runner": "Blade Runner",
+  Tron: "Tron",
+  "Wall-E": "WALL-E",
+  Up: "Up",
+  Ratatouille: "Ratatouille",
+  Moana: "Moana",
+  Aladdin: "Aladdin",
+  Mulan: "Mulan",
+  Cinderela: "Cinderella",
+  Pinocchio: "Pinocchio",
+  "Mary Poppins": "Mary Poppins",
+  "La La Land": "La La Land",
+  Whiplash: "Whiplash",
+  Parasita: "Parasite",
+  Interestelar: "Interstellar",
+  Gravidade: "Gravity",
+  "Perdido em Marte": "The Martian",
+  Oppenheimer: "Oppenheimer",
+  Barbie: "Barbie",
+  "Clube da Luta": "Fight Club",
+  "Pulp Fiction": "Pulp Fiction",
+  "Kill Bill": "Kill Bill",
+  "Django Livre": "Django Unchained",
+  "Bastardos Inglorios": "Inglourious Basterds",
+  "Os Bons Companheiros": "Goodfellas",
+  Scarface: "Scarface",
+  "Taxi Driver": "Taxi Driver",
+  "Cidade de Deus": "City of God",
+  "Tropa de Elite": "Elite Squad",
+  "Central do Brasil": "Central Station",
+  "Auto da Compadecida": "A Dog's Will",
+  "Labirinto do Fauno": "Pan's Labyrinth",
+  Amelie: "Amelie",
+  "Cinema Paradiso": "Cinema Paradiso",
+  "Como Treinar o seu Dragao": "How to Train Your Dragon",
+  "Kung Fu Panda": "Kung Fu Panda",
+  Madagascar: "Madagascar",
+  "Era do Gelo": "Ice Age",
+  "Monstros S.A.": "Monsters Inc.",
+  "Os Incriveis": "The Incredibles",
+  "Divertida Mente": "Inside Out",
+  Viva: "Coco",
+  Soul: "Soul",
+  Luca: "Luca",
+  Valente: "Brave",
+  Carros: "Cars",
+  Raya: "Raya and the Last Dragon",
+  Encanto: "Encanto",
+  Enrolados: "Tangled",
+  "Detona Ralph": "Wreck-It Ralph",
+  Zootopia: "Zootopia",
+  "Lilo e Stitch": "Lilo & Stitch",
+  Tarzan: "Tarzan",
+  Hercules: "Hercules",
+  "Bela e a Fera": "Beauty and the Beast",
+  "Pequena Sereia": "The Little Mermaid",
+  "Branca de Neve": "Snow White and the Seven Dwarfs",
+  "Alice no Pais das Maravilhas": "Alice in Wonderland",
+  "Peter Pan": "Peter Pan",
+  Dumbo: "Dumbo",
+  Bambi: "Bambi",
+  Fantasia: "Fantasia",
+  "Planeta dos Macacos": "Planet of the Apes",
+  "Silencio dos Inocentes": "The Silence of the Lambs",
+  Seven: "Se7en",
+  "Garota Exemplar": "Gone Girl",
+  "Sexto Sentido": "The Sixth Sense",
+  Fragmentado: "Split",
+  Corra: "Get Out",
+  Nos: "Us",
+  Hereditario: "Hereditary",
+  Midsommar: "Midsommar",
+  "Invocacao do Mal": "The Conjuring",
+  Annabelle: "Annabelle",
+  "Atividade Paranormal": "Paranormal Activity",
+  Halloween: "Halloween",
+  "Sexta Feira 13": "Friday the 13th",
+  Pesadelo: "A Nightmare on Elm Street",
+  Panico: "Scream",
+  "Jogos Mortais": "Saw",
+  "O Chamado": "The Ring",
+  "A Bruxa": "The Witch",
+  "O Exorcista": "The Exorcist",
+  Dracula: "Dracula",
+  Frankenstein: "Frankenstein",
+  Casablanca: "Casablanca",
+  "Cidadao Kane": "Citizen Kane",
+  "Cantando na Chuva": "Singin' in the Rain",
+  "Magico de Oz": "The Wizard of Oz",
+  "E o Vento Levou": "Gone with the Wind",
+  "Ben Hur": "Ben-Hur",
+  "Lawrence da Arabia": "Lawrence of Arabia",
+  "Apocalypse Now": "Apocalypse Now",
+  Platoon: "Platoon",
+  "Nascido para Matar": "Full Metal Jacket",
+  "Resgate do Soldado Ryan": "Saving Private Ryan",
+  "O Resgate do Soldado Ryan": "Saving Private Ryan",
+  "O Resgate do Soldade Ryan": "Saving Private Ryan",
+  "Coracao Valente": "Braveheart"
+};
+
+const IMAGE_ORIGIN = {
+  Anime: {
+    "Son Goku": "Dragon Ball", "Vegeta": "Dragon Ball", "Son Gohan": "Dragon Ball", "Piccolo": "Dragon Ball", "Bulma Brief": "Dragon Ball", "Freeza": "Dragon Ball",
+    "Naruto Uzumaki": "Naruto", "Sasuke Uchiha": "Naruto", "Sakura Haruno": "Naruto", "Kakashi Hatake": "Naruto", "Hinata Hyuga": "Naruto", "Itachi Uchiha": "Naruto", "Madara Uchiha": "Naruto", "Jiraiya": "Naruto", "Gaara": "Naruto",
+    "Monkey D. Luffy": "One Piece", "Roronoa Zoro": "One Piece", "Nami": "One Piece", "Vinsmoke Sanji": "One Piece", "Tony Tony Chopper": "One Piece", "Nico Robin": "One Piece", "Shanks": "One Piece",
+    "Ichigo Kurosaki": "Bleach", "Rukia Kuchiki": "Bleach", "Orihime Inoue": "Bleach", "Sosuke Aizen": "Bleach", "Kenpachi Zaraki": "Bleach",
+    "Saitama": "One Punch Man", "Genos": "One Punch Man", "Tatsumaki": "One Punch Man", "Garou": "One Punch Man",
+    "Izuku Midoriya": "My Hero Academia", "Katsuki Bakugo": "My Hero Academia", "Ochaco Uraraka": "My Hero Academia", "Shoto Todoroki": "My Hero Academia",
+    "Tanjiro Kamado": "Demon Slayer", "Nezuko Kamado": "Demon Slayer", "Zenitsu Agatsuma": "Demon Slayer", "Inosuke Hashibira": "Demon Slayer", "Kyojuro Rengoku": "Demon Slayer",
+    "Eren Yeager": "Attack on Titan", "Mikasa Ackerman": "Attack on Titan", "Levi Ackerman": "Attack on Titan",
+    "Light Yagami": "Death Note", "L Lawliet": "Death Note", "Misa Amane": "Death Note",
+    "Edward Elric": "Fullmetal Alchemist", "Roy Mustang": "Fullmetal Alchemist",
+    "Gon Freecss": "Hunter x Hunter", "Killua Zoldyck": "Hunter x Hunter", "Hisoka Morow": "Hunter x Hunter",
+    "Usagi Tsukino": "Sailor Moon", "Shinji Ikari": "Neon Genesis Evangelion", "Asuka Langley Soryu": "Neon Genesis Evangelion",
+    "Satoru Gojo": "Jujutsu Kaisen", "Megumi Fushiguro": "Jujutsu Kaisen", "Nobara Kugisaki": "Jujutsu Kaisen",
+    "Aki Hayakawa": "Chainsaw Man", "Vash the Stampede": "Trigun", "Lelouch Lamperouge": "Code Geass", "Shigeo Kageyama": "Mob Psycho 100"
+  },
+  Jogos: {
+    "Mario": "Super Mario", "Luigi": "Super Mario", "Princess Peach": "Super Mario", "Bowser": "Super Mario", "Yoshi": "Super Mario", "Donkey Kong": "Donkey Kong",
+    "Link": "The Legend of Zelda", "Princess Zelda": "The Legend of Zelda", "Ganondorf": "The Legend of Zelda",
+    "Sonic": "Sonic the Hedgehog", "Miles Tails Prower": "Sonic the Hedgehog", "Knuckles the Echidna": "Sonic the Hedgehog", "Shadow the Hedgehog": "Sonic the Hedgehog",
+    "Samus Aran": "Metroid", "Mega Man": "Mega Man", "Ryu": "Street Fighter", "Chun-Li": "Street Fighter", "M Bison": "Street Fighter",
+    "Scorpion": "Mortal Kombat", "Sub-Zero": "Mortal Kombat", "Liu Kang": "Mortal Kombat", "Johnny Cage": "Mortal Kombat",
+    "Cloud Strife": "Final Fantasy VII", "Sephiroth": "Final Fantasy VII", "Tifa Lockhart": "Final Fantasy VII", "Aerith Gainsborough": "Final Fantasy VII",
+    "Sora": "Kingdom Hearts", "Crash Bandicoot": "Crash Bandicoot", "Spyro": "Spyro the Dragon", "Master Chief": "Halo",
+    "Gordon Freeman": "Half-Life", "Chell": "Portal", "Kratos": "God of War", "Atreus": "God of War", "Nathan Drake": "Uncharted", "Victor Sullivan": "Uncharted",
+    "Lara Croft": "Tomb Raider", "Leon Kennedy": "Resident Evil", "Jill Valentine": "Resident Evil", "Albert Wesker": "Resident Evil", "Nemesis": "Resident Evil",
+    "Solid Snake": "Metal Gear Solid", "Big Boss": "Metal Gear Solid", "Geralt of Rivia": "The Witcher", "Cirilla Fiona Elen Riannon": "The Witcher", "Yennefer": "The Witcher",
+    "Arthur Morgan": "Red Dead Redemption", "John Marston": "Red Dead Redemption", "Carl Johnson": "Grand Theft Auto", "Trevor Philips": "Grand Theft Auto", "Franklin Clinton": "Grand Theft Auto",
+    "Ezio Auditore": "Assassin's Creed", "Altair Ibn-La'Ahad": "Assassin's Creed", "Agent 47": "Hitman", "Max Payne": "Max Payne", "Alan Wake": "Alan Wake",
+    "Joel": "The Last of Us", "Ellie": "The Last of Us", "Aloy": "Horizon Zero Dawn", "2B": "Nier Automata", "Lena Oxton": "Overwatch", "Jinx": "League of Legends", "Ahri": "League of Legends", "Jett": "Valorant"
+  },
+  Geek: {
+    "Batman": "DC Comics", "Superman": "DC Comics", "Wonder Woman": "DC Comics", "Flash": "DC Comics", "Aquaman": "DC Comics", "Cyborg": "DC Comics", "Green Lantern": "DC Comics", "Joker": "DC Comics", "Harley Quinn": "DC Comics", "Catwoman": "DC Comics", "Robin": "DC Comics",
+    "Spider-Man": "Marvel Comics", "Iron Man": "Marvel Comics", "Captain America": "Marvel Comics", "Thor": "Marvel Comics", "Hulk": "Marvel Comics", "Black Widow": "Marvel Comics", "Doctor Strange": "Marvel Comics", "Black Panther": "Marvel Comics", "Wolverine": "Marvel Comics", "Deadpool": "Marvel Comics", "Thanos": "Marvel Comics", "Loki": "Marvel Comics", "Wanda Maximoff": "Marvel Comics",
+    "Homelander": "The Boys", "Billy Butcher": "The Boys", "Eleven": "Stranger Things", "Mike Wheeler": "Stranger Things", "Dustin Henderson": "Stranger Things", "Wednesday Addams": "The Addams Family",
+    "Sherlock Holmes": "Sherlock Holmes", "Doctor Who": "Doctor Who", "Dalek": "Doctor Who",
+    "Darth Vader": "Star Wars", "Luke Skywalker": "Star Wars", "Leia Organa": "Star Wars", "Han Solo": "Star Wars", "Chewbacca": "Star Wars", "Yoda": "Star Wars", "Obi-Wan Kenobi": "Star Wars", "Ahsoka Tano": "Star Wars", "Grogu": "Star Wars",
+    "Spock": "Star Trek", "Captain Kirk": "Star Trek", "Jean-Luc Picard": "Star Trek", "Data": "Star Trek",
+    "Frodo": "The Lord of the Rings", "Samwise Gamgee": "The Lord of the Rings", "Gandalf": "The Lord of the Rings", "Aragorn": "The Lord of the Rings", "Legolas": "The Lord of the Rings", "Gollum": "The Lord of the Rings",
+    "Harry Potter": "Harry Potter", "Hermione Granger": "Harry Potter", "Ron Weasley": "Harry Potter", "Dumbledore": "Harry Potter", "Voldemort": "Harry Potter", "Severus Snape": "Harry Potter",
+    "Geralt de Rivia": "The Witcher", "Ciri": "The Witcher", "Yennefer": "The Witcher", "Rick Sanchez": "Rick and Morty", "Morty Smith": "Rick and Morty",
+    "Homer Simpson": "The Simpsons", "Bart Simpson": "The Simpsons", "Lisa Simpson": "The Simpsons", "Marge Simpson": "The Simpsons",
+    "SpongeBob SquarePants": "SpongeBob SquarePants", "Finn": "Adventure Time", "Jake": "Adventure Time", "Princess Bubblegum": "Adventure Time", "Marceline": "Adventure Time",
+    "Steven Universe": "Steven Universe", "Garnet": "Steven Universe", "Ametista": "Steven Universe", "Pearl": "Steven Universe",
+    "Dexter": "Dexter's Laboratory", "Johnny Bravo": "Johnny Bravo", "Ben 10": "Ben 10", "Beast Boy": "Teen Titans", "Raven": "Teen Titans", "Starfire": "Teen Titans", "Kim Possible": "Kim Possible", "Shego": "Kim Possible", "Aang": "Avatar The Last Airbender", "Katara": "Avatar The Last Airbender", "Zuko": "Avatar The Last Airbender", "Korra": "The Legend of Korra"
+  }
 };
 
 function hydrateRoom(nextRoom) {
@@ -68,6 +360,11 @@ function App() {
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [homeView, setHomeView] = useState("home");
   const [roomDirectory, setRoomDirectory] = useState([]);
+  const [authToken, setAuthToken] = useLocalState("codehack:authToken", "");
+  const [authUser, setAuthUser] = useLocalState("codehack:authUser", null);
+  const [authSavedAt, setAuthSavedAt] = useLocalState("codehack:authSavedAt", 0);
+  const [authModal, setAuthModal] = useState(null);
+  const [profileUser, setProfileUser] = useState(null);
   const [soundMuted, setSoundMuted] = useLocalState("codehack:soundMuted", false);
   const [matrixEnabled, setMatrixEnabled] = useLocalState("codehack:matrixEnabled", true);
   const [playerAvatar, setPlayerAvatar] = useLocalState("codehack:avatar", "");
@@ -80,7 +377,7 @@ function App() {
   useGameSounds(room, playerId);
 
   const action = (event, payload = {}) => new Promise((resolve) => {
-    const enrichedPayload = { ...payload, clientId: clientIdRef.current };
+    const enrichedPayload = { ...payload, clientId: payload.clientId || clientIdRef.current, authToken };
     socket.emit(event, enrichedPayload, (reply) => {
       if (!reply?.ok) setToast(reply?.error || "Falha de transmissao.");
       else setToast("");
@@ -91,8 +388,21 @@ function App() {
       }
       if (reply?.playerId || reply?.room?.viewerId) setPlayerId(reply.playerId || reply.room.viewerId);
       if (reply?.room) {
-        rememberSession(reply.room, enrichedPayload, clientIdRef.current);
+        rememberSession(reply.room, enrichedPayload, enrichedPayload.clientId);
         setRoom(hydrateRoom(reply.room));
+      }
+      resolve(reply);
+    });
+  });
+
+  const authAction = (event, payload = {}) => new Promise((resolve) => {
+    socket.emit(event, payload, (reply) => {
+      if (reply?.token) setAuthToken(reply.token);
+      if (reply?.user?.id) {
+        setAuthUser(reply.user);
+        setProfileUser((current) => current?.id === reply.user.id ? reply.user : current);
+        setAuthSavedAt(Date.now());
+        setPlayerAvatar(reply.user.avatar || "");
       }
       resolve(reply);
     });
@@ -141,13 +451,58 @@ function App() {
   }, []);
 
   useEffect(() => {
+    function openProfile(event) {
+      const userId = event.detail?.userId;
+      if (!userId) return;
+      socket.emit("auth:profile", { userId }, (reply) => {
+        if (reply?.ok && reply.profile) {
+          setProfileUser(reply.profile);
+        }
+      });
+    }
+    window.addEventListener("profile:open", openProfile);
+    return () => window.removeEventListener("profile:open", openProfile);
+  }, []);
+
+  useEffect(() => {
+    if (!authToken) {
+      setAuthUser(null);
+      setAuthSavedAt(0);
+      setPlayerAvatar("");
+    }
+  }, [authToken]);
+
+  useEffect(() => {
+    if (!authToken) return;
+    if (Date.now() - Number(authSavedAt || 0) > 7 * 24 * 60 * 60 * 1000) {
+      setAuthToken("");
+      setAuthUser(null);
+      setAuthSavedAt(0);
+      setPlayerAvatar("");
+      return;
+    }
+    socket.emit("auth:me", { token: authToken }, (reply) => {
+      if (reply?.ok && reply.user?.id) {
+        setAuthUser(reply.user);
+        setAuthSavedAt(Date.now());
+        setPlayerAvatar(reply.user.avatar || "");
+      } else {
+        setAuthToken("");
+        setAuthUser(null);
+        setAuthSavedAt(0);
+        setPlayerAvatar("");
+      }
+    });
+  }, [authToken]);
+
+  useEffect(() => {
     let restored = false;
     function restoreActiveRoom() {
       if (restored) return;
       const active = readActiveRoomSession();
-      if (!active?.code || !active?.name || active.clientId !== clientIdRef.current) return;
+      if (!active?.code || !active?.name || !active.clientId) return;
       restored = true;
-      socket.emit("room:resume", { ...active, avatar: playerAvatar }, (reply) => {
+      socket.emit("room:resume", { ...active, avatar: authUser?.avatar || "" }, (reply) => {
         if (!reply?.ok) {
           clearActiveRoomSession();
           setToast(reply?.error || "");
@@ -161,7 +516,7 @@ function App() {
     if (socket.connected) restoreActiveRoom();
     socket.on("connect", restoreActiveRoom);
     return () => socket.off("connect", restoreActiveRoom);
-  }, [playerAvatar]);
+  }, [authUser?.avatar]);
 
   function askConfirm(config) {
     setConfirmDialog(config);
@@ -187,8 +542,11 @@ function App() {
             action={action}
             toast={toast}
             playerAvatar={playerAvatar}
+            authUser={authUser}
             onBack={() => setHomeView("home")}
             onOpenSettings={() => setPlayerSettingsOpen(true)}
+            onOpenAuth={() => setAuthModal("login")}
+            onOpenProfile={() => setProfileUser(authUser)}
             onPasswordJoin={setPasswordJoin}
           />
         ) : (
@@ -202,8 +560,12 @@ function App() {
               action={action}
               toast={toast}
               playerAvatar={playerAvatar}
+              authUser={authUser}
               roomDirectory={roomDirectory}
               onOpenRooms={() => setHomeView("rooms")}
+              onOpenAuth={() => setAuthModal("login")}
+              onOpenProfile={() => setProfileUser(authUser)}
+              onOpenSettings={() => setPlayerSettingsOpen(true)}
               onPasswordJoin={setPasswordJoin}
             />
           </main>
@@ -243,8 +605,8 @@ function App() {
                   onConfirm: () => action("host:returnLobby")
                 })}><RotateCcw size={17} /> Voltar ao lobby</button>
               )}
-              <button className="icon-only" title="Configuracoes" aria-label="Configuracoes" onClick={() => setPlayerSettingsOpen(true)}>
-                <Settings size={18} />
+              <button className="avatar-top-button" title="Configuracoes" aria-label="Configuracoes" onClick={() => setPlayerSettingsOpen(true)}>
+                {authUser?.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={24} />}
               </button>
             </div>
           </div>
@@ -301,8 +663,9 @@ function App() {
             const reply = await action("room:join", {
               code: passwordJoin.room.code,
               name: passwordJoin.name,
-              avatar: playerAvatar,
-              password
+              avatar: authUser?.avatar || "",
+              password,
+              clientId: passwordJoin.clientId || getRoomClientId(passwordJoin.room.code)
             });
             if (reply?.ok) setPasswordJoin(null);
           }}
@@ -315,12 +678,52 @@ function App() {
           matrixEnabled={matrixEnabled}
           setMatrixEnabled={setMatrixEnabled}
           playerAvatar={playerAvatar}
+          authUser={authUser}
           onAvatarChange={async (avatar) => {
             setPlayerAvatar(avatar);
+            if (authUser) {
+              const optimisticUser = { ...authUser, avatar };
+              setAuthUser(optimisticUser);
+              setProfileUser((current) => current?.id === authUser.id ? optimisticUser : current);
+            }
             if (room) await action("player:avatar", { avatar });
+            else if (authUser) await authAction("auth:updateProfile", { token: authToken, avatar });
+          }}
+          onOpenAuth={() => setAuthModal("login")}
+          onOpenProfile={() => {
+            setPlayerSettingsOpen(false);
+            setProfileUser(authUser);
           }}
           onClose={() => setPlayerSettingsOpen(false)}
         />
+      )}
+      {authModal && (
+        <AuthModal
+          mode={authModal}
+          setMode={setAuthModal}
+          authAction={authAction}
+          onClose={() => setAuthModal(null)}
+        />
+      )}
+      {profileUser && (
+        <div className="confirm-overlay profile-overlay" role="dialog" aria-modal="true">
+          <div className="profile-modal">
+            <ProfilePage
+              profile={profileUser}
+              isOwn={authUser?.id === profileUser.id}
+              authAction={authAction}
+              onBack={() => setProfileUser(null)}
+              onLogout={async () => {
+                await authAction("auth:logout", { token: authToken });
+                setAuthToken("");
+                setAuthUser(null);
+                setAuthSavedAt(0);
+                setPlayerAvatar("");
+                setProfileUser(null);
+              }}
+            />
+          </div>
+        </div>
       )}
       {draggedPlayerSnapshot && (
         <div className={`drag-ghost player-card team-surface ${draggedPlayerSnapshot.team || ""}`} style={{ "--drag-x": `${dragPosition.x}px`, "--drag-y": `${dragPosition.y}px` }}>
@@ -331,7 +734,7 @@ function App() {
   );
 }
 
-function PlayerSettingsModal({ soundMuted, setSoundMuted, matrixEnabled, setMatrixEnabled, playerAvatar, onAvatarChange, onClose }) {
+function PlayerSettingsModal({ soundMuted, setSoundMuted, matrixEnabled, setMatrixEnabled, playerAvatar, authUser, onAvatarChange, onOpenAuth, onOpenProfile, onClose }) {
   async function pickAvatar(event) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -348,19 +751,24 @@ function PlayerSettingsModal({ soundMuted, setSoundMuted, matrixEnabled, setMatr
           <button className="icon-only" onClick={onClose} aria-label="Fechar configuracoes"><X size={18} /></button>
         </div>
         <div className="avatar-editor-block">
-          <label className="avatar-editor" title="Alterar avatar">
+          <label className={`avatar-editor ${authUser ? "" : "disabled"}`} title={authUser ? "Alterar avatar no perfil" : "Entre para alterar avatar"}>
             <span className="settings-avatar-preview">
-              {playerAvatar ? <img src={playerAvatar} alt="Avatar atual" /> : <Users size={42} />}
+              {authUser?.avatar ? <img src={authUser.avatar} alt="Avatar atual" /> : <UserCircle size={42} />}
             </span>
-            <span className="avatar-edit-overlay"><Pencil size={30} /></span>
-            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={pickAvatar} />
+            {authUser && <span className="avatar-edit-overlay"><Pencil size={30} /></span>}
+            {authUser && <input type="file" accept="image/png,image/jpeg,image/webp" onChange={pickAvatar} />}
           </label>
-          {playerAvatar && (
+          {authUser?.avatar && (
             <button className="avatar-remove-button" title="Remover avatar" aria-label="Remover avatar" onClick={() => onAvatarChange("")}>
               <X size={16} />
             </button>
           )}
         </div>
+        {authUser ? (
+          <button onClick={onOpenProfile}><UserCircle size={18} /> Perfil</button>
+        ) : (
+          <button onClick={onOpenAuth}><UserCircle size={18} /> Entrar ou criar conta</button>
+        )}
         <SettingToggle
           icon={soundMuted ? <VolumeX size={22} /> : <Volume2 size={22} />}
           title="Sons"
@@ -468,7 +876,7 @@ function RoomEventStack({ events }) {
             {event.avatar ? <img src={event.avatar} alt={`Avatar de ${event.playerName}`} /> : initials(event.playerName)}
           </span>
           <span className="room-event-text">
-            <strong>{event.playerName}</strong>
+            <strong><GuestDisplayName name={event.playerName} sessionTag={event.sessionTag} /></strong>
             {event.type === "leave" ? (
               " saiu da partida."
             ) : (
@@ -512,10 +920,236 @@ function JoinChoiceModal({ joinChoice, onCancel, onPick }) {
   );
 }
 
-function Home({ action, toast, playerAvatar, roomDirectory, onOpenRooms, onPasswordJoin }) {
+function AuthModal({ mode, setMode, authAction, onClose }) {
+  const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordRepeat, setPasswordRepeat] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const isRegister = mode === "register";
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (isRegister && password !== passwordRepeat) {
+      setError("As senhas nao coincidem.");
+      return;
+    }
+    const reply = await authAction(isRegister ? "auth:register" : "auth:login", { username, displayName, password });
+    if (reply?.ok) onClose();
+    else setError(reply?.error || "Falha ao autenticar.");
+  }
+
+  return (
+    <div className="confirm-overlay" role="dialog" aria-modal="true">
+      <form className="confirm-modal auth-modal" onSubmit={submit}>
+        <div className="auth-head">
+          <UserCircle size={30} />
+          <strong>{isRegister ? "Criar conta" : "Entrar"}</strong>
+        </div>
+        <label>Usuario
+          <input value={username} onChange={(event) => setUsername(event.target.value)} maxLength={24} autoFocus />
+        </label>
+        {isRegister && (
+          <label>Nome de exibicao
+            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={18} />
+          </label>
+        )}
+        <label>Senha
+          <PasswordField value={password} onChange={setPassword} show={showPassword} setShow={setShowPassword} />
+        </label>
+        {isRegister && (
+          <label>Repetir senha
+            <PasswordField value={passwordRepeat} onChange={setPasswordRepeat} show={showPassword} setShow={setShowPassword} />
+          </label>
+        )}
+        {error && <p className="toast">{error}</p>}
+        <div className="inline-actions">
+          <button type="button" onClick={onClose}>Cancelar</button>
+          <button type="button" onClick={() => setMode(isRegister ? "login" : "register")}>{isRegister ? "Ja tenho conta" : "Criar conta"}</button>
+          <button className="primary" type="submit"><UserCircle size={18} /> {isRegister ? "Criar" : "Entrar"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function ProfilePage({ profile, isOwn, authAction, onBack, onLogout }) {
+  const [tab, setTab] = useState("stats");
+  const [draftName, setDraftName] = useState(profile.displayName || "");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordRepeat, setNewPasswordRepeat] = useState("");
+  const [accountError, setAccountError] = useState("");
+  const [selectedMatch, setSelectedMatch] = useState(null);
+  const matches = profile.matches || [];
+  const stats = profile.stats || { wins: 0, losses: 0, decryptedWords: {}, interceptedWords: {} };
+  useEffect(() => {
+    setDraftName(profile.displayName || "");
+  }, [profile.displayName]);
+
+  async function pickAvatar(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const avatar = await resizeAvatar(file);
+    await authAction("auth:updateProfile", { token: localStorageToken(), avatar });
+  }
+
+  async function saveDisplayName() {
+    setAccountError("");
+    const reply = await authAction("auth:updateProfile", { token: localStorageToken(), displayName: draftName });
+    if (!reply?.ok) setAccountError(reply?.error || "Nao foi possivel salvar o nome.");
+  }
+
+  async function savePassword() {
+    setAccountError("");
+    if (newPassword !== newPasswordRepeat) {
+      setAccountError("As senhas novas nao coincidem.");
+      return;
+    }
+    const reply = await authAction("auth:changePassword", { token: localStorageToken(), currentPassword, newPassword });
+    if (!reply?.ok) {
+      setAccountError(reply?.error || "Nao foi possivel redefinir a senha.");
+      return;
+    }
+    setCurrentPassword("");
+    setNewPassword("");
+    setNewPasswordRepeat("");
+  }
+
+  return (
+    <main className="profile-page enter">
+      <section className="panel profile-hero">
+        <label className={`avatar-editor ${isOwn ? "" : "disabled"}`}>
+          <span className="settings-avatar-preview">{profile.avatar ? <img src={profile.avatar} alt="" /> : <UserCircle size={44} />}</span>
+          {isOwn && <span className="avatar-edit-overlay"><Pencil size={30} /></span>}
+          {isOwn && <input type="file" accept="image/png,image/jpeg,image/webp" onChange={pickAvatar} />}
+        </label>
+        <div>
+          <strong>@{profile.username}</strong>
+          <p>{profile.displayName}</p>
+        </div>
+        <div className="profile-actions">
+          <button onClick={onBack}><ArrowLeft size={17} /> Voltar</button>
+          {isOwn && <button className="danger-action" onClick={onLogout}><Unplug size={17} /> Deslogar</button>}
+        </div>
+      </section>
+      <div className="segmented profile-tabs">
+        {isOwn && <button className={tab === "account" ? "active" : ""} onClick={() => setTab("account")}>Conta</button>}
+        <button className={tab === "stats" ? "active" : ""} onClick={() => setTab("stats")}>Estatisticas</button>
+        <button className={tab === "history" ? "active" : ""} onClick={() => setTab("history")}>Historico</button>
+      </div>
+      {tab === "account" && isOwn && (
+        <section className="panel profile-account-panel">
+          <div className="profile-account-row">
+            <label>Nome de exibicao
+              <input value={draftName} onChange={(event) => setDraftName(event.target.value)} maxLength={18} />
+            </label>
+            <button className="primary compact-action" onClick={saveDisplayName}>Salvar</button>
+          </div>
+          <div className="profile-account-row password-row">
+            <label>Senha atual
+              <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
+            </label>
+            <label>Nova senha
+              <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+            </label>
+            <label>Repetir nova senha
+              <input type="password" value={newPasswordRepeat} onChange={(event) => setNewPasswordRepeat(event.target.value)} />
+            </label>
+            <button className="compact-action" onClick={savePassword}>Redefinir</button>
+          </div>
+          {accountError && <p className="toast">{accountError}</p>}
+        </section>
+      )}
+      {tab === "stats" && <ProfileStats stats={stats} />}
+      {tab === "history" && (
+        <ProfileHistory matches={matches} selectedMatch={selectedMatch} setSelectedMatch={setSelectedMatch} />
+      )}
+    </main>
+  );
+}
+
+function ProfileStats({ stats }) {
+  return (
+    <section className="panel profile-grid">
+      <div className="profile-stat"><strong>{stats.wins || 0}</strong><span>Vitorias</span></div>
+      <div className="profile-stat"><strong>{stats.losses || 0}</strong><span>Derrotas</span></div>
+      <div className="profile-stat"><strong>{stats.abandoned || 0}</strong><span>Abandonos</span></div>
+      <TopWords title="Top descriptografadas" words={stats.decryptedWords} />
+      <TopWords title="Top interceptadas" words={stats.interceptedWords} />
+    </section>
+  );
+}
+
+function TopWords({ title, words = {} }) {
+  const score = (value) => typeof value === "number" ? value : Number(value?.correct || 0);
+  const attempts = (value) => typeof value === "number" ? value : Number(value?.attempts || 0);
+  const entries = Object.entries(words).sort((a, b) => score(b[1]) - score(a[1]) || attempts(b[1]) - attempts(a[1])).slice(0, 10);
+  return (
+    <div className="top-words">
+      <strong>{title}</strong>
+      {entries.length ? entries.map(([word, count]) => <p key={word}>{word}<span>{score(count)}/{attempts(count)}</span></p>) : <p>Nenhum registro ainda.</p>}
+    </div>
+  );
+}
+
+function ProfileHistory({ matches, selectedMatch, setSelectedMatch }) {
+  return (
+    <section className="profile-history-grid">
+      <div className="panel match-list">
+        {matches.length ? matches.map((match) => (
+          <button key={match.id} className={selectedMatch?.id === match.id ? "active" : ""} onClick={() => setSelectedMatch(match)}>
+            <strong>{new Date(match.finishedAt).toLocaleString()}</strong>
+            <span>{match.id}</span>
+            <em>{match.playerCount} jogadores • {match.outcome === "win" ? "vitoria" : match.outcome === "abandoned" ? "abandonada" : "derrota"}</em>
+          </button>
+        )) : <p>Nenhuma partida registrada.</p>}
+      </div>
+      {selectedMatch && <MatchDetails match={selectedMatch} />}
+    </section>
+  );
+}
+
+function MatchDetails({ match }) {
+  return (
+    <div className="panel match-details">
+      <strong>Placar final</strong>
+      <p>Vermelho: {match.finalScore.red.lives} vidas, {match.finalScore.red.interceptions} interceptacoes</p>
+      <p>Azul: {match.finalScore.blue.lives} vidas, {match.finalScore.blue.interceptions} interceptacoes</p>
+      {TEAMS.map((team) => (
+        <div className={`hint-board team-surface ${team}`} key={team}>
+          <strong>{teamLabel(team)}</strong>
+          <p>Palavras: {(match.teams[team].words || []).join(", ")}</p>
+          {(match.teams[team].hintHistory || []).map((entry) => (
+            <div className="history-round" key={`${team}-${entry.round}`}>
+              <strong>Rodada {entry.round}</strong>
+              <p>Dicas: {entry.hints.join(" / ")}</p>
+              <p>Time: {displayGuess(entry.teamGuess)} • Interceptacao: {displayGuess(entry.interceptGuess)} • Correto: {displayGuess(entry.code)}</p>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function localStorageToken() {
+  try {
+    return JSON.parse(localStorage.getItem("codehack:authToken") || "\"\"");
+  } catch {
+    return "";
+  }
+}
+
+function Home({ action, toast, playerAvatar, authUser, roomDirectory, onOpenRooms, onOpenAuth, onOpenProfile, onOpenSettings, onPasswordJoin }) {
   const [name, setName] = useLocalState("decrypto:name", "");
   const [code, setCode] = useLocalState("decrypto:lastRoomCode", "");
   const [createOpen, setCreateOpen] = useState(false);
+  const guestDisplayName = splitGuestDisplayName(name.trim()).name || guestName();
+  const displayName = authUser?.displayName || guestDisplayName;
   async function pasteRoomCode() {
     try {
       const text = await navigator.clipboard.readText();
@@ -527,20 +1161,40 @@ function Home({ action, toast, playerAvatar, roomDirectory, onOpenRooms, onPassw
 
   async function joinByCode() {
     const normalizedCode = code.trim().toUpperCase();
+    const clientId = getRoomClientId(normalizedCode);
     const listedRoom = roomDirectory.find((room) => room.code === normalizedCode);
     if (listedRoom?.hasPassword) {
-      onPasswordJoin({ room: listedRoom, name });
+      onPasswordJoin({ room: listedRoom, name: displayName, clientId });
       return;
     }
-    await action("room:join", { code: normalizedCode, name, avatar: playerAvatar });
+    await action("room:join", { code: normalizedCode, name: displayName, avatar: authUser?.avatar || "", clientId });
   }
 
   return (
     <section className="home-grid enter">
       <div className="console-panel">
-        <label>Nome do operador</label>
-        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={18} placeholder="Seu nome" />
+        <div className="home-user-strip">
+          <button className="settings-avatar-preview small avatar-profile-button" title="Configuracoes" aria-label="Configuracoes" onClick={onOpenSettings}>
+            {authUser?.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={32} />}
+          </button>
+          {authUser ? (
+            <div>
+              <strong>{authUser.displayName}</strong>
+            </div>
+          ) : (
+            <label className="guest-display-field">
+              <span>Nome</span>
+              <input
+                value={guestDisplayName}
+                onChange={(event) => setName(event.target.value)}
+                maxLength={18}
+                placeholder="Nome de exibicao"
+              />
+            </label>
+          )}
+        </div>
         <button className="primary" onClick={() => setCreateOpen(true)}><Play size={18} /> Criar sala</button>
+        {authUser ? <button onClick={onOpenProfile}><UserCircle size={18} /> Perfil</button> : <button onClick={onOpenAuth}><UserCircle size={18} /> Criar conta / Entrar</button>}
         <button onClick={onOpenRooms}><RadioTower size={18} /> Salas</button>
         <div className="join-row">
           <div className="paste-input-wrap">
@@ -555,10 +1209,10 @@ function Home({ action, toast, playerAvatar, roomDirectory, onOpenRooms, onPassw
       </div>
       {createOpen && (
         <CreateRoomModal
-          playerName={name}
+          playerName={displayName}
           onCancel={() => setCreateOpen(false)}
           onCreate={async (settings) => {
-            const reply = await action("room:create", { name, avatar: playerAvatar, ...settings });
+            const reply = await action("room:create", { name: displayName, avatar: authUser?.avatar || "", clientId: makeRoomClientId(), ...settings });
             if (reply?.ok) setCreateOpen(false);
           }}
         />
@@ -567,7 +1221,7 @@ function Home({ action, toast, playerAvatar, roomDirectory, onOpenRooms, onPassw
   );
 }
 
-function RoomDirectory({ rooms, constants, action, toast, playerAvatar, onBack, onOpenSettings, onPasswordJoin }) {
+function RoomDirectory({ rooms, constants, action, toast, playerAvatar, authUser, onBack, onOpenSettings, onOpenAuth, onOpenProfile, onPasswordJoin }) {
   const [name, setName] = useLocalState("decrypto:name", "");
   const [phaseFilter, setPhaseFilter] = useState("all");
   const [passwordFilter, setPasswordFilter] = useState("all");
@@ -584,24 +1238,30 @@ function RoomDirectory({ rooms, constants, action, toast, playerAvatar, onBack, 
     });
 
   async function joinRoom(room) {
+    const displayName = authUser?.displayName || splitGuestDisplayName(name.trim()).name || guestName();
+    const clientId = getRoomClientId(room.code);
     if (room.hasPassword) {
-      onPasswordJoin({ room, name });
+      onPasswordJoin({ room, name: displayName, clientId });
       return;
     }
-    await action("room:join", { code: room.code, name, avatar: playerAvatar });
+    await action("room:join", { code: room.code, name: displayName, avatar: authUser?.avatar || "", clientId });
   }
 
   return (
     <main className="rooms-page">
-      <header className="rooms-header panel">
-        <button onClick={onBack}><LogOut size={17} /> Menu principal</button>
-        <label>Nome do operador
-          <input value={name} onChange={(event) => setName(event.target.value)} maxLength={18} placeholder="Seu nome" />
-        </label>
-        <button className="icon-only" title="Configuracoes" aria-label="Configuracoes" onClick={onOpenSettings}><Settings size={18} /></button>
-      </header>
-
       <section className="panel rooms-filter-panel">
+        <div className="rooms-filter-top">
+          <div className="home-user-strip rooms-profile-strip">
+            <button className="settings-avatar-preview small avatar-profile-button" title="Configuracoes" aria-label="Configuracoes" onClick={onOpenSettings}>
+              {authUser?.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={32} />}
+            </button>
+            <div>
+              <strong>{authUser ? authUser.displayName : (splitGuestDisplayName(name.trim()).name || guestName())}</strong>
+            </div>
+            {!authUser && <button className="compact-action" onClick={onOpenAuth}><UserCircle size={18} /> Entrar</button>}
+          </div>
+          <button onClick={onBack}><LogOut size={17} /> Menu principal</button>
+        </div>
         <div className="rooms-filter-grid">
           <label>Status
             <RetroSelect
@@ -683,13 +1343,14 @@ function RoomDirectory({ rooms, constants, action, toast, playerAvatar, onBack, 
 
 function PasswordJoinModal({ room, toast, onCancel, onJoin }) {
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   return (
     <div className="confirm-overlay" role="dialog" aria-modal="true">
       <div className="confirm-modal">
         <strong>Senha da sala</strong>
         <p>{room.name}</p>
         <label>Senha
-          <input value={password} maxLength={32} onChange={(event) => setPassword(event.target.value)} autoFocus />
+          <PasswordField value={password} maxLength={32} show={showPassword} setShow={setShowPassword} onChange={setPassword} autoFocus />
         </label>
         {toast && <p className="toast">{toast}</p>}
         <div className="inline-actions">
@@ -705,6 +1366,7 @@ function CreateRoomModal({ playerName, onCancel, onCreate }) {
   const defaultName = `Sala de ${String(playerName || "Operador").trim() || "Operador"}`;
   const [roomName, setRoomName] = useState(defaultName);
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [publicRoom, setPublicRoom] = useState(true);
   const valid = roomName.trim().length > 0;
 
@@ -720,11 +1382,13 @@ function CreateRoomModal({ playerName, onCancel, onCreate }) {
           <input value={roomName} maxLength={36} onChange={(event) => setRoomName(event.target.value)} placeholder={defaultName} />
         </label>
         <label>Senha
-          <input
+          <PasswordField
             value={publicRoom ? password : ""}
             maxLength={32}
             disabled={!publicRoom}
-            onChange={(event) => setPassword(event.target.value)}
+            show={showPassword}
+            setShow={setShowPassword}
+            onChange={setPassword}
             placeholder={publicRoom ? "Opcional" : "Desativada em sala privada"}
           />
         </label>
@@ -743,6 +1407,25 @@ function CreateRoomModal({ playerName, onCancel, onCreate }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function PasswordField({ value, onChange, show, setShow, disabled = false, maxLength = 64, placeholder = "", autoFocus = false }) {
+  return (
+    <span className="password-field">
+      <input
+        type={show ? "text" : "password"}
+        value={value}
+        maxLength={maxLength}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+      />
+      <button type="button" className="input-icon-button" disabled={disabled} onClick={() => setShow(!show)} aria-label={show ? "Esconder senha" : "Mostrar senha"}>
+        {show ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
+    </span>
   );
 }
 
@@ -907,7 +1590,7 @@ function TeamColumn({ team, room, playerId, isHost, action, playerAvatar, dragge
             setDraggedPlayerSnapshot={setDraggedPlayerSnapshot}
             setDragPosition={setDragPosition}
           />
-        )) : <div className="empty-team">Time vazio</div>}
+        )) : <div className="empty-team">Vazio</div>}
       </div>
     </div>
   );
@@ -920,7 +1603,10 @@ function PlayerCard({ player, playerId, isHost, action, dragged, dragEnabled = f
     <div
       className={`player-card team-surface ${player.team || ""} ${isSelf ? "self" : ""} ${confirmState ? `vote-${confirmState}` : ""} ${dragged ? "dragging" : ""} ${player.connected ? "" : "offline"}`}
       draggable={dragEnabled}
-      onClick={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (player.userId) window.dispatchEvent(new CustomEvent("profile:open", { detail: { userId: player.userId } }));
+      }}
       onDragStart={(event) => {
         if (!dragEnabled) return;
         event.dataTransfer.setData("text/player-id", player.id);
@@ -949,15 +1635,26 @@ function PlayerCard({ player, playerId, isHost, action, dragged, dragEnabled = f
 function PlayerIdentity({ player, marker = "" }) {
   return (
     <span className="player-identity">
-      <span className="player-avatar">{player.avatar ? <img src={player.avatar} alt={`Avatar de ${player.name}`} /> : initials(player.name)}</span>
+      <span className="player-avatar">{player.avatar ? <img src={player.avatar} alt={`Avatar de ${player.name}`} /> : <UserCircle size={22} />}</span>
       <span className="player-copy">
         <span className="player-name">
-          {player.name}
+          <GuestDisplayName name={player.name} sessionTag={player.sessionTag} />
           {player.isHost && <IconImg src={ICONS.leader} alt="Lider da sala" className="leader-icon" />}
         </span>
         {marker && <small className="player-marker">{marker}</small>}
       </span>
     </span>
+  );
+}
+
+function GuestDisplayName({ name, sessionTag = "" }) {
+  const guestParts = splitGuestDisplayName(name);
+  const tag = String(sessionTag || guestParts.tag || "").trim().toUpperCase();
+  return (
+    <>
+      <span>{guestParts.name}</span>
+      {tag && <span className="guest-id-tag">{tag}</span>}
+    </>
   );
 }
 
@@ -991,13 +1688,12 @@ function ChatPanel({ room, playerId, action, scope }) {
       <h2>{isTeamChat ? "Chat do time" : isSpectatorChat ? "Chat dos espectadores" : "Chat da sala"}</h2>
       <div className="chat-messages" ref={listRef}>
         {messages.length ? messages.map((message) => (
-          <div className={`chat-message ${message.playerId === playerId ? "mine" : ""}`} key={message.id}>
-            <div className="chat-meta">
-              <strong>{message.playerName}</strong>
-              {message.team && <span className={`chat-team ${message.team}`}>{teamLabel(message.team)}</span>}
-            </div>
-            <p>{message.text}</p>
-          </div>
+          <p className={`chat-line ${message.playerId === playerId ? "mine" : ""}`} key={message.id}>
+            <strong className={room.phase !== "lobby" && message.team ? `team-name ${message.team}` : ""}>
+              <GuestDisplayName name={message.playerName} sessionTag={room.players.find((player) => player.id === message.playerId)?.sessionTag} />
+            </strong>
+            <span>: {message.text}</span>
+          </p>
         )) : <p className="small">Nenhuma mensagem ainda.</p>}
       </div>
       <form className="chat-form" onSubmit={send}>
@@ -1021,7 +1717,7 @@ function Game({ room, playerId, constants, action, toast, playerAvatar }) {
         <aside className="left-rail">
           <RoundCounter room={room} constants={constants} compact />
           <WordsPanel team={myTeam} words={room.teams[myTeam]?.words || []} category={room.settings.category} />
-          <ChatPanel room={room} playerId={playerId} action={action} scope="team" />
+          <GamePlayersPanel room={room} playerId={playerId} constants={constants} action={action} playerAvatar={playerAvatar} />
         </aside>
 
         <div className="play-panel">
@@ -1037,7 +1733,7 @@ function Game({ room, playerId, constants, action, toast, playerAvatar }) {
           <div className="side-panel scoreboard-panel">
             <ScoreBoard room={room} constants={constants} playerId={playerId} ordered />
           </div>
-          <GamePlayersPanel room={room} playerId={playerId} constants={constants} action={action} playerAvatar={playerAvatar} />
+          <ChatPanel room={room} playerId={playerId} action={action} scope="team" />
         </aside>
       </div>
       <HintHistory room={room} constants={constants} playerId={playerId} />
@@ -1107,12 +1803,12 @@ function SpectatorChats({ room, constants }) {
           <h2>Chat do {constants.TEAM_NAMES[team]}</h2>
           <div className="chat-messages">
             {(teamChat[team] || []).map((message) => (
-              <div className="chat-message" key={message.id}>
-                <div className="chat-meta">
-                  <strong>{message.playerName}</strong>
-                </div>
-                <p>{message.text}</p>
-              </div>
+              <p className="chat-line" key={message.id}>
+                <strong className={`team-name ${team}`}>
+                  <GuestDisplayName name={message.playerName} sessionTag={room.players.find((player) => player.id === message.playerId)?.sessionTag} />
+                </strong>
+                <span>: {message.text}</span>
+              </p>
             ))}
             {!(teamChat[team] || []).length && <p className="small">Nenhuma mensagem ainda.</p>}
           </div>
@@ -1125,7 +1821,8 @@ function SpectatorChats({ room, constants }) {
 function GamePlayersPanel({ room, playerId, constants, action, playerAvatar }) {
   const isHost = room.hostId === playerId;
   const me = room.players.find((player) => player.id === playerId);
-  const visibleTeams = me?.team ? [me.team, otherTeam(me.team), null] : [...TEAMS, null];
+  const hasSpectators = room.players.some((player) => player.team === null);
+  const visibleTeams = me?.team ? [me.team, otherTeam(me.team), ...(hasSpectators ? [null] : [])] : [...TEAMS, ...(hasSpectators ? [null] : [])];
   return (
     <div className={`side-panel players-panel team-surface ${me?.team || ""}`}>
       <h2><Users size={20} /> Jogadores</h2>
@@ -1147,7 +1844,7 @@ function GamePlayersPanel({ room, playerId, constants, action, playerAvatar }) {
                 marker={playerCardMarker(room, player)}
                 confirmState={playerConfirmState(room, player)}
               />
-            )) : <div className="empty-team">{team === null ? "Vazio" : "Time vazio"}</div>}
+            )) : <div className="empty-team">Vazio</div>}
           </div>
         </div>
         );
@@ -1223,35 +1920,42 @@ function HintsPhase({ room, targetTeam, action }) {
   }, [reviewing]);
 
   return (
-    <div className={`phase-card compact team-surface ${targetTeam}`}>
-      <p className="eyebrow"><Zap size={16} /> codigo confidencial</p>
-      <div className="secret-code">{turn?.code?.join("-") || "?"}</div>
-      <div className="hint-grid">
-        {(turn?.code || []).map((number, index) => (
-          <label key={`${number}-${index}`}>Dica para {words[number - 1] || `#${number}`}
-            <input value={hints[index]} onChange={(e) => setHints(hints.map((hint, i) => i === index ? e.target.value : hint))} placeholder="Digite uma pista curta" />
-          </label>
-        ))}
-      </div>
-      {!reviewing ? (
+    <>
+      <div className={`phase-card compact team-surface ${targetTeam}`}>
+        <p className="eyebrow"><Zap size={16} /> codigo confidencial</p>
+        <div className="secret-code">{turn?.code?.join("-") || "?"}</div>
+        <div className="hint-grid">
+          {(turn?.code || []).map((number, index) => (
+            <label key={`${number}-${index}`}>Dica para {words[number - 1] || `#${number}`}
+              <input value={hints[index]} onChange={(e) => setHints(hints.map((hint, i) => i === index ? e.target.value : hint))} placeholder="Digite uma pista curta" />
+            </label>
+          ))}
+        </div>
         <button className="primary pulse" disabled={Boolean(room.blocked) || hints.filter((hint) => hint.trim()).length !== 3} onClick={() => setReviewing(true)}><BadgeCheck size={18} /> Revisar dicas</button>
-      ) : (
-        <div className="inline-confirm confirmation-alert">
-          <div className="confirm-warning">
-            <BadgeCheck size={32} />
-            <div>
-              <strong>Confirmacao final</strong>
-              <span>Depois de enviar, as dicas ficam visiveis para todos os jogadores.</span>
+      </div>
+      {reviewing && createPortal(
+        <div className="confirm-overlay hint-review-overlay" role="dialog" aria-modal="true">
+          <div className={`confirm-modal hint-review-modal team-surface ${targetTeam}`}>
+            <div className="confirm-warning">
+              <BadgeCheck size={34} />
+              <div>
+                <strong>Confirmação final</strong>
+                <span>Depois de enviar, as dicas ficam visíveis para todos os jogadores.</span>
+              </div>
+            </div>
+            <HintsList hints={hints} />
+            <div className="inline-actions">
+              <button onClick={() => setReviewing(false)}>Editar</button>
+              <button className="primary" disabled={Boolean(room.blocked)} onClick={async () => {
+                const reply = await action("game:hints", { hints });
+                if (reply?.ok) setReviewing(false);
+              }}><BadgeCheck size={18} /> Enviar dicas</button>
             </div>
           </div>
-          <HintsList hints={hints} />
-          <div className="inline-actions">
-            <button onClick={() => setReviewing(false)}>Editar</button>
-            <button className="primary" disabled={Boolean(room.blocked)} onClick={() => action("game:hints", { hints })}><BadgeCheck size={18} /> Enviar dicas</button>
-          </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }
 
@@ -1260,16 +1964,18 @@ function GuessPhase({ room, playerId, kind, targetTeam, title, hints, action }) 
   const turn = room.current?.turns?.[targetTeam];
   const proposal = turn?.proposals?.[kind] || { guess: [], confirmedBy: [], finalized: false };
   const isOwnCoderGuess = kind === "team" && turn?.coderId === playerId;
+  const soloCoderTest = isOwnCoderGuess && canSoloCoderTest(room, targetTeam);
   const expectedTeam = kind === "team" ? targetTeam : otherTeam(targetTeam);
-  const canAct = !room.blocked && me?.team === expectedTeam && !isOwnCoderGuess && hints.length > 0 && !proposal?.finalized;
+  const guessValue = proposal.guess?.length ? proposal.guess : [1, 2, 3];
+  const canAct = !room.blocked && me?.team === expectedTeam && (!isOwnCoderGuess || soloCoderTest) && hints.length > 0 && !proposal?.finalized;
   const canViewSharedGuess = (me?.spectator || me?.team === expectedTeam) && hints.length > 0;
-  const voters = room.players.filter((player) => !player.spectator && player.team === expectedTeam && player.connected && (kind !== "team" || player.id !== turn?.coderId));
+  const voters = room.players.filter((player) => !player.spectator && player.team === expectedTeam && player.connected && (kind !== "team" || player.id !== turn?.coderId || soloCoderTest));
 
   if (!turn) {
     return (
       <div className={`decision-card team-surface ${targetTeam || ""}`}>
         <p className="eyebrow"><RadioTower size={16} /> {title}</p>
-        <p className="small">Sincronizando estado da rodada.</p>
+        <WaitingState />
       </div>
     );
   }
@@ -1284,7 +1990,7 @@ function GuessPhase({ room, playerId, kind, targetTeam, title, hints, action }) 
         <strong>{title}</strong>
         {proposal?.finalized && <span>Fechado</span>}
       </div>
-      {!hints.length && <p className="small">Aguardando dicas deste codigo.</p>}
+      {!hints.length && <WaitingState />}
       {canViewSharedGuess ? (
         <>
           {isOwnCoderGuess && (
@@ -1293,19 +1999,32 @@ function GuessPhase({ room, playerId, kind, targetTeam, title, hints, action }) 
               <strong>{turn.code.join("-")}</strong>
             </div>
           )}
-          <HintChoiceGrid hints={hints} value={proposal.guess || []} setValue={updateShared} wordCount={room.settings.wordCount} disabled={!canAct} />
+          <HintChoiceGrid hints={hints} value={guessValue} setValue={updateShared} wordCount={room.settings.wordCount} disabled={!canAct} />
           {canAct ? (
-            <button className="primary" disabled={!isValidCode(proposal.guess || [])} onClick={() => action("game:confirmDecision", { kind, targetTeam })}><BadgeCheck size={18} /> Confirmar {displayGuess(proposal.guess)}</button>
+            <button className="primary" disabled={!isValidCode(guessValue)} onClick={() => action("game:confirmDecision", { kind, targetTeam })}><BadgeCheck size={18} /> Confirmar {displayGuess(guessValue)}</button>
           ) : (
-            <p className="small">{isOwnCoderGuess ? "Codificador acompanha a escolha, mas nao participa da descriptografia do proprio codigo." : proposal?.finalized ? "Decisao fechada." : "Sem acao disponivel para voce agora."}</p>
+            proposal?.finalized ? <p className="small">Decisao fechada.</p> : <WaitingState />
           )}
         </>
       ) : (
-        <p className="small">{isOwnCoderGuess ? "Codificador nao participa da descriptografia do proprio codigo." : proposal?.finalized ? "Decisao fechada." : "Sem acao disponivel para voce agora."}</p>
+        hints.length ? (proposal?.finalized ? <p className="small">Decisao fechada.</p> : <WaitingState />) : null
       )}
       <ConfirmationRoster players={voters} confirmedBy={proposal.confirmedBy || []} />
     </div>
   );
+}
+
+function WaitingState({ label = "Aguardando transmissão..." }) {
+  return (
+    <div className="waiting-state" aria-live="polite">
+      <span className="waiting-spinner" aria-hidden="true" />
+      <strong>{label}</strong>
+    </div>
+  );
+}
+
+function canSoloCoderTest(room, team) {
+  return room.players.filter((player) => player.connected && !player.spectator && player.team === team).length === 1;
 }
 
 function HintChoiceGrid({ hints, value, setValue, wordCount, disabled = false }) {
@@ -1314,23 +2033,42 @@ function HintChoiceGrid({ hints, value, setValue, wordCount, disabled = false })
       {[0, 1, 2].map((slot) => (
         <div className="choice-slot" key={slot}>
           <span className="choice-hint">{hints[slot]}</span>
-          <div className="choice-buttons">
-            {Array.from({ length: wordCount }, (_, index) => index + 1).map((number) => {
-              const selected = value[slot] === number;
-              return (
-                <button
-                  key={number}
-                  className={selected ? "active" : ""}
-                  disabled={disabled}
-                  onClick={() => setValue(setSlot(value, slot, number))}
-                >
-                  {number}
-                </button>
-              );
-            })}
-          </div>
+          <GuessStepper
+            value={Number(value[slot]) || slot + 1}
+            min={1}
+            max={wordCount}
+            disabled={disabled}
+            onChange={(nextNumber) => setValue(setSlot(value, slot, nextNumber))}
+          />
         </div>
       ))}
+    </div>
+  );
+}
+
+function GuessStepper({ value, min, max, disabled, onChange }) {
+  const current = clampNumber(value || min, min, max);
+  return (
+    <div className="guess-stepper">
+      <button
+        type="button"
+        className="stepper-icon"
+        disabled={disabled || current <= min}
+        onClick={() => onChange(clampNumber(current - 1, min, max))}
+        aria-label="Diminuir palpite"
+      >
+        <Minus size={18} />
+      </button>
+      <input tabIndex={-1} readOnly value={current} aria-label="Numero do palpite" />
+      <button
+        type="button"
+        className="stepper-icon"
+        disabled={disabled || current >= max}
+        onClick={() => onChange(clampNumber(current + 1, min, max))}
+        aria-label="Aumentar palpite"
+      >
+        <Plus size={18} />
+      </button>
     </div>
   );
 }
@@ -1343,7 +2081,7 @@ function ConfirmationRoster({ players, confirmedBy }) {
         return (
           <div className={`confirm-person ${confirmed ? "confirmed" : ""}`} key={player.id}>
             <IconImg src={ICONS.confirmed} alt={confirmed ? "Confirmado" : "Nao confirmado"} className="confirm-icon" />
-            <span>{player.name}</span>
+            <span><GuestDisplayName name={player.name} sessionTag={player.sessionTag} /></span>
           </div>
         );
       })}
@@ -1353,65 +2091,106 @@ function ConfirmationRoster({ players, confirmedBy }) {
 
 function RoundResult({ room, playerId, constants, action }) {
   const results = room.current.result;
-  const confirmed = room.current.resultConfirmedBy || [];
   const me = room.players.find((player) => player.id === playerId);
   const orderedTeams = me?.team ? [me.team, otherTeam(me.team)] : TEAMS;
-  const voters = room.players.filter((player) => player.connected && !player.spectator);
+  useAutoAdvanceRoundResult(room, playerId, action, me);
   return (
     <div className={`phase-card result-phase team-surface ${me?.team || ""} reveal`}>
       <p className="eyebrow"><Sparkles size={16} /> resultados</p>
       <div className="result-grid two">
-        {orderedTeams.map((team) => (
+        {orderedTeams.map((team, index) => (
           <ResultTeamTile
             key={team}
             team={team}
-            result={results[team]}
+            results={results}
             constants={constants}
             viewerTeam={me?.team}
+            fromSide={index === 0 ? "from-right" : "from-left"}
           />
         ))}
       </div>
-      <ConfirmationRoster players={voters} confirmedBy={confirmed} />
-      {me?.spectator ? <p className="small">Espectadores acompanham o resultado sem confirmar.</p> : (
-        <button className="primary" disabled={confirmed.includes(playerId) || Boolean(room.blocked)} onClick={() => action("game:confirmResult")}><Play size={18} /> Confirmar resultado</button>
-      )}
+      <WaitingState label={me?.spectator ? "Acompanhando..." : "Proxima rodada em instantes..."} />
     </div>
   );
 }
 
-function ResultTeamTile({ team, result, constants, viewerTeam }) {
-  useResultSounds(result, team, viewerTeam);
+function useAutoAdvanceRoundResult(room, playerId, action, me) {
+  useEffect(() => {
+    if (room.phase !== "roundResult" || me?.spectator || room.blocked) return undefined;
+    const timer = window.setTimeout(() => {
+      action("game:confirmResult");
+    }, 16000);
+    return () => window.clearTimeout(timer);
+  }, [room.phase, room.current?.id, room.blocked, me?.spectator, playerId]);
+}
+
+function ResultTeamTile({ team, results, constants, viewerTeam, fromSide }) {
+  const ownResult = results[team];
+  const rivalResult = results[otherTeam(team)];
+  useResultSounds(ownResult, team, viewerTeam);
   return (
     <div className={`result-tile team-surface ${team}`} key={team}>
-            <span>{constants.TEAM_NAMES[team]}</span>
-            <div className="result-code-list">
-        <CodeLine
-          values={result.interceptGuess}
-          tone={otherTeam(team)}
-          status={result.intercepted}
-          className="intercept-reveal"
+      <span>{constants.TEAM_NAMES[team]}</span>
+      <div className="result-code-list">
+        <AnimatedInterceptLine
+          outgoingValues={rivalResult.interceptGuess}
+          incomingValues={ownResult.interceptGuess}
+          outgoingTeam={team}
+          incomingTeam={otherTeam(team)}
+          status={ownResult.intercepted}
           revealDelay={0.2}
-          statusDelay={5.2}
-          reading
+          fromSide={fromSide}
         />
-        {result.decryptionSkipped ? (
-          <div className="result-code-line skipped decrypt-reveal" style={{ "--reveal-delay": "5.6s" }}>
+        {ownResult.decryptionSkipped ? (
+          <div className="result-code-line skipped decrypt-reveal" style={{ "--reveal-delay": "5.5s" }}>
             <strong>Descriptografia ignorada</strong>
           </div>
         ) : (
           <CodeLine
-            values={result.teamGuess}
+            values={ownResult.teamGuess}
             tone={team}
-            status={result.teamCorrect}
+            status={ownResult.teamCorrect}
             className="decrypt-reveal"
-            revealDelay={5.6}
-            statusDelay={10.6}
+            revealDelay={5.5}
+            statusDelay={8.5}
             reading
           />
         )}
-        <CodeLine values={result.code} tone="correct" className="correct-reveal" revealDelay={11} />
-            </div>
-          </div>
+        <CodeLine values={ownResult.code} tone="correct" className="correct-reveal" revealDelay={9} />
+      </div>
+    </div>
+  );
+}
+
+function AnimatedInterceptLine({ outgoingValues, incomingValues, outgoingTeam, incomingTeam, status, revealDelay = 0, fromSide }) {
+  const [phase, setPhase] = useState("pending");
+
+  useEffect(() => {
+    setPhase("pending");
+    const baseDelay = revealDelay * 1000;
+    const timers = [
+      window.setTimeout(() => setPhase("hold"), baseDelay),
+      window.setTimeout(() => setPhase("exit"), baseDelay + 1000),
+      window.setTimeout(() => setPhase("enter"), baseDelay + 1550)
+    ];
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [outgoingValues?.join("-"), incomingValues?.join("-"), revealDelay]);
+
+  if (phase === "pending") {
+    return <div className="result-code-line intercept-placeholder" aria-hidden="true"><strong>&nbsp;</strong></div>;
+  }
+
+  const incoming = phase === "enter";
+  return (
+    <CodeLine
+      key={phase}
+      values={incoming ? incomingValues : outgoingValues}
+      tone={incoming ? incomingTeam : outgoingTeam}
+      status={incoming ? status : undefined}
+      className={`intercept-transfer ${fromSide} ${phase}`}
+      statusDelay={incoming ? 3 : 0}
+      reading={incoming}
+    />
   );
 }
 
@@ -1529,19 +2308,34 @@ function WordImage({ word, index, category }) {
   useEffect(() => {
     if (category === "Pokemon" || word === "CRIPTOGRAFADA") return;
     let active = true;
+    const cacheKey = imageCacheKey(word, category);
+    if (wordImageCache.has(cacheKey)) {
+      const cachedUrl = wordImageCache.get(cacheKey);
+      setRemoteUrl(cachedUrl || "");
+      setFailed(!cachedUrl);
+      return undefined;
+    }
     setFailed(false);
     setRemoteUrl("");
     const controller = new AbortController();
-    const query = category === "Geral" ? word : `${word} ${category || ""}`.trim();
-    fetch(`/api/image?q=${encodeURIComponent(query)}`, { signal: controller.signal })
+    const query = imageSearchQuery(word, category);
+    fetch(`/api/image?q=${encodeURIComponent(query)}&category=${encodeURIComponent(category || "")}`, { signal: controller.signal })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
         if (!active) return;
-        if (data?.url) setRemoteUrl(data.url);
-        else setFailed(true);
+        if (data?.url) {
+          wordImageCache.set(cacheKey, data.url);
+          setRemoteUrl(data.url);
+        } else {
+          wordImageCache.set(cacheKey, "");
+          setFailed(true);
+        }
       })
       .catch(() => {
-        if (active) setFailed(true);
+        if (active) {
+          wordImageCache.set(cacheKey, "");
+          setFailed(true);
+        }
       });
     return () => {
       active = false;
@@ -1562,6 +2356,10 @@ function WordImage({ word, index, category }) {
       ), document.body)}
     </>
   );
+}
+
+function imageCacheKey(word, category) {
+  return `${category || ""}:${String(word || "").trim().toLowerCase()}`;
 }
 
 function HintsList({ hints }) {
@@ -1693,12 +2491,15 @@ function FinalWords({ room, constants }) {
                 const right = hasTiebreaker && normalizeWordText(guess) === normalizeWordText(word);
                 return (
                   <div className="final-word-card" key={`${team}-${word}-${index}`}>
-                    <span><span className="word-number">#{index + 1} </span>{word}</span>
-                    {hasTiebreaker && (
-                      <small className={right ? "guess-ok" : "guess-bad"}>
-                        {guess || "sem palpite"} {right ? <Check size={15} /> : <X size={15} />}
-                      </small>
-                    )}
+                    <WordImage word={word} index={index} category={room.settings.category} />
+                    <div className="final-word-copy">
+                      <span><span className="word-number">#{index + 1} </span>{word}</span>
+                      {hasTiebreaker && (
+                        <small className={right ? "guess-ok" : "guess-bad"}>
+                          {guess || "sem palpite"} {right ? <Check size={15} /> : <X size={15} />}
+                        </small>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -1845,11 +2646,77 @@ function pokemonDbImageUrl(word) {
   return slug ? `https://projectpokemon.org/images/normal-sprite/${slug}.gif` : "";
 }
 
+function imageSearchQuery(word, category) {
+  const cleanWord = String(word || "").trim();
+  if (category === "Filmes") return movieTitleAlias(cleanWord);
+  const alias = imageAlias(cleanWord);
+  if (category === "Geral") return alias;
+  const origin = IMAGE_ORIGIN[category]?.[alias] || IMAGE_ORIGIN[category]?.[cleanWord];
+  if (["Anime", "Jogos", "Geek"].includes(category) && origin) return `${alias} ${origin}`;
+  const categoryHint = {
+    Anime: "anime character",
+    Filmes: "movie",
+    Jogos: "video game character",
+    Geek: "fictional character",
+    Famosos: "famous person"
+  }[category] || "";
+  return `${alias} ${categoryHint}`.trim();
+}
+
+function imageAlias(word) {
+  return IMAGE_ALIAS[word] || IMAGE_ALIAS[stripAccents(word)] || word;
+}
+
+function movieTitleAlias(word) {
+  return MOVIE_TITLE_ALIAS[word] || MOVIE_TITLE_ALIAS[stripAccents(word)] || imageAlias(word);
+}
+
+function stripAccents(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function guestName() {
+  return "Jogador";
+}
+
+function makeRoomClientId() {
+  return `room:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function getRoomClientId(code) {
+  const normalizedCode = String(code || "").trim().toUpperCase();
+  if (!normalizedCode) return makeRoomClientId();
+  try {
+    const cache = JSON.parse(localStorage.getItem("codehack:roomClientIds") || "{}");
+    if (!cache[normalizedCode]) {
+      cache[normalizedCode] = makeRoomClientId();
+      localStorage.setItem("codehack:roomClientIds", JSON.stringify(cache));
+    }
+    return cache[normalizedCode];
+  } catch {
+    return makeRoomClientId();
+  }
+}
+
+function splitGuestDisplayName(name) {
+  const value = String(name || guestName()).trim() || guestName();
+  if (/^Convidado(?:\s+[A-Z0-9]{3,8})?$/i.test(value)) return { name: guestName(), tag: "" };
+  const match = value.match(/^(.*?)\s+(#[A-Z0-9]{4})$/i);
+  if (!match) return { name: value, tag: "" };
+  return { name: match[1] || guestName(), tag: match[2].toUpperCase() };
+}
+
 function rememberSession(room, payload = {}, clientId = getGhostClientId()) {
   try {
     const name = String(payload.name || "").trim();
-    if (name) localStorage.setItem("decrypto:name", JSON.stringify(name));
+    const savedName = payload.authToken ? name : splitGuestDisplayName(name).name;
+    if (savedName) localStorage.setItem("decrypto:name", JSON.stringify(savedName));
     if (room?.code) localStorage.setItem("decrypto:lastRoomCode", JSON.stringify(room.code));
+    if (room?.code && clientId) {
+      const cache = JSON.parse(localStorage.getItem("codehack:roomClientIds") || "{}");
+      cache[String(room.code).toUpperCase()] = clientId;
+      localStorage.setItem("codehack:roomClientIds", JSON.stringify(cache));
+    }
     if (room?.code && name) {
       sessionStorage.setItem("codehack:activeRoom", JSON.stringify({
         code: room.code,
@@ -1971,9 +2838,9 @@ function useResultSounds(result, team, viewerTeam) {
     const key = `${team}-${result.intercepted}-${result.teamCorrect}-${result.code.join("-")}`;
     if (playedKey.current === key) return;
     playedKey.current = key;
-    window.setTimeout(() => playTone(result.intercepted ? "intercepted" : "notIntercepted"), 5200);
+    window.setTimeout(() => playTone(result.intercepted ? "intercepted" : "notIntercepted"), 5000);
     if (!result.intercepted) {
-      window.setTimeout(() => playTone(result.teamCorrect ? "decryptOk" : "decryptBad"), 10800);
+      window.setTimeout(() => playTone(result.teamCorrect ? "decryptOk" : "decryptBad"), 8500);
     }
   }, [result, team, viewerTeam]);
 }
@@ -2068,3 +2935,4 @@ function useLocalState(key, initial) {
 }
 
 createRoot(document.getElementById("root")).render(<App />);
+
