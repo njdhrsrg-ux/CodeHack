@@ -605,9 +605,12 @@ function App() {
                   onConfirm: () => action("host:returnLobby")
                 })}><RotateCcw size={17} /> Voltar ao lobby</button>
               )}
-              <button className="avatar-top-button" title="Configuracoes" aria-label="Configuracoes" onClick={() => setPlayerSettingsOpen(true)}>
-                {authUser?.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={24} />}
-              </button>
+              <div className="home-user-strip topbar-profile-strip">
+                <button className="settings-avatar-preview small avatar-profile-button" title="Configuracoes" aria-label="Configuracoes" onClick={() => setPlayerSettingsOpen(true)}>
+                  {authUser?.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={28} />}
+                </button>
+                <strong>{authUser?.displayName || me?.name || "Jogador"}</strong>
+              </div>
             </div>
           </div>
           </header>
@@ -804,10 +807,26 @@ function SettingToggle({ icon, title, checked, onChange }) {
 
 function RetroSelect({ value, options, onChange, disabled = false }) {
   const [open, setOpen] = useState(false);
+  const [menuRect, setMenuRect] = useState(null);
+  const triggerRef = useRef(null);
   const items = options.map((option) => (
     typeof option === "string" ? { value: option, label: option } : option
   ));
   const selected = items.find((option) => option.value === value) || items[0];
+  useEffect(() => {
+    if (!open) return undefined;
+    function updateRect() {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (rect) setMenuRect({ left: rect.left, top: rect.bottom + 6, width: rect.width });
+    }
+    updateRect();
+    window.addEventListener("resize", updateRect);
+    window.addEventListener("scroll", updateRect, true);
+    return () => {
+      window.removeEventListener("resize", updateRect);
+      window.removeEventListener("scroll", updateRect, true);
+    };
+  }, [open]);
 
   return (
     <div
@@ -817,6 +836,7 @@ function RetroSelect({ value, options, onChange, disabled = false }) {
       }}
     >
       <button
+        ref={triggerRef}
         type="button"
         className="retro-select-trigger"
         disabled={disabled}
@@ -827,8 +847,8 @@ function RetroSelect({ value, options, onChange, disabled = false }) {
         <span>{selected?.label || "Selecionar"}</span>
         <i aria-hidden="true" />
       </button>
-      {open && (
-        <div className="retro-select-menu" role="listbox">
+      {open && menuRect && createPortal(
+        <div className="retro-select-menu retro-select-menu-portal" role="listbox" style={{ left: menuRect.left, top: menuRect.top, width: menuRect.width }}>
           {items.map((option) => (
             <button
               type="button"
@@ -845,7 +865,8 @@ function RetroSelect({ value, options, onChange, disabled = false }) {
               {option.label}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -1077,6 +1098,7 @@ function ProfileStats({ stats }) {
     <section className="panel profile-grid">
       <div className="profile-stat"><strong>{stats.wins || 0}</strong><span>Vitorias</span></div>
       <div className="profile-stat"><strong>{stats.losses || 0}</strong><span>Derrotas</span></div>
+      <div className="profile-stat"><strong>{stats.draws || 0}</strong><span>Empates</span></div>
       <div className="profile-stat"><strong>{stats.abandoned || 0}</strong><span>Abandonos</span></div>
       <TopWords title="Top descriptografadas" words={stats.decryptedWords} />
       <TopWords title="Top interceptadas" words={stats.interceptedWords} />
@@ -1104,7 +1126,7 @@ function ProfileHistory({ matches, selectedMatch, setSelectedMatch }) {
           <button key={match.id} className={selectedMatch?.id === match.id ? "active" : ""} onClick={() => setSelectedMatch(match)}>
             <strong>{new Date(match.finishedAt).toLocaleString()}</strong>
             <span>{match.id}</span>
-            <em>{match.playerCount} jogadores • {match.outcome === "win" ? "vitoria" : match.outcome === "abandoned" ? "abandonada" : "derrota"}</em>
+            <em>{match.playerCount} jogadores - {match.outcome === "win" ? "vitoria" : match.outcome === "draw" ? "empate" : match.outcome === "abandoned" ? "abandonada" : "derrota"}</em>
           </button>
         )) : <p>Nenhuma partida registrada.</p>}
       </div>
@@ -2235,10 +2257,11 @@ function GameOver({ room, playerId, constants, winner, action }) {
   const me = room.players.find((player) => player.id === playerId);
   const voters = room.players.filter((player) => player.connected && !player.spectator);
   useFinalSounds(room, winner, playerId);
+  const isDraw = !winner;
   return (
-    <div className={`phase-card reveal team-surface ${winner}`}>
+    <div className={`phase-card reveal team-surface ${winner || me?.team || ""}`}>
       <p className="eyebrow"><IconImg src={ICONS.leader} alt="Vencedor" className="status-icon" /> fim de jogo</p>
-      <h1>{constants.TEAM_NAMES[winner]} venceu.</h1>
+      <h1>{isDraw ? "Empate." : `${constants.TEAM_NAMES[winner]} venceu.`}</h1>
       <div className="result-grid two">
         {TEAMS.map((team) => (
           <FinalScoreTile key={team} team={team} room={room} constants={constants} winner={winner} />
@@ -2529,7 +2552,7 @@ function MatrixRain() {
   const columns = useRef(null);
   if (!columns.current) {
     const glyphs = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZアイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン";
-    columns.current = Array.from({ length: 34 }, (_, index) => ({
+    columns.current = Array.from({ length: 42 }, (_, index) => ({
       text: Array.from({ length: 22 + (index % 8) }, () => glyphs[Math.floor(Math.random() * glyphs.length)]).join(""),
       flipped: index % 7 === 0 || index % 11 === 0,
       duration: `${4.2 + (index % 7) * 0.55}s`
@@ -2589,11 +2612,12 @@ function resizeAvatar(file) {
 
 function getWinner(room, constants) {
   if (room.final?.winner) return room.final.winner;
+  if (room.phase === "gameOver" && room.final && !room.final.winner) return null;
   return TEAMS.find((team) => {
     const score = room.teams[team].score;
     const rival = room.teams[otherTeam(team)].score;
     return score.correct >= constants.WIN_CORRECT || score.interceptions >= winInterceptLimit(room, constants) || rival.lives <= 0;
-  }) || "red";
+  }) || null;
 }
 
 function setSlot(value, slot, number) {
@@ -2650,15 +2674,14 @@ function imageSearchQuery(word, category) {
   const cleanWord = String(word || "").trim();
   if (category === "Filmes") return movieTitleAlias(cleanWord);
   const alias = imageAlias(cleanWord);
-  if (category === "Geral") return alias;
+  if (category === "Geral" || category === "Famosos") return alias;
   const origin = IMAGE_ORIGIN[category]?.[alias] || IMAGE_ORIGIN[category]?.[cleanWord];
   if (["Anime", "Jogos", "Geek"].includes(category) && origin) return `${alias} ${origin}`;
   const categoryHint = {
     Anime: "anime character",
     Filmes: "movie",
     Jogos: "video game character",
-    Geek: "fictional character",
-    Famosos: "famous person"
+    Geek: "fictional character"
   }[category] || "";
   return `${alias} ${categoryHint}`.trim();
 }
@@ -2935,4 +2958,5 @@ function useLocalState(key, initial) {
 }
 
 createRoot(document.getElementById("root")).render(<App />);
+
 

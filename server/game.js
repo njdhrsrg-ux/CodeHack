@@ -316,10 +316,11 @@ function ensureTestTeams(room, hostId) {
 
 export function startGame(room, hostId) {
   guardHost(room, hostId);
+  const testAllowed = isTestHost(room.players[hostId]);
   if (room.settings.randomTeams) assignRandomTeams(room);
-  if (ALLOW_UNDERSTAFFED_TEST_GAMES) ensureTestTeams(room, hostId);
+  if (ALLOW_UNDERSTAFFED_TEST_GAMES && testAllowed) ensureTestTeams(room, hostId);
   const counts = teamCounts(room);
-  if (!ALLOW_UNDERSTAFFED_TEST_GAMES && (counts.red < 2 || counts.blue < 2)) throw new Error("Cada time precisa de pelo menos dois jogadores.");
+  if (!testAllowed && (counts.red < 2 || counts.blue < 2)) throw new Error("Apenas Biscoito pode iniciar partidas de teste. Cada time precisa de pelo menos dois jogadores.");
   if (counts.red < 1 || counts.blue < 1) throw new Error("Para testar, cada time ainda precisa ter pelo menos um jogador.");
   const bank = getWordBank(room.settings);
   if (bank.length < room.settings.wordCount * 2) throw new Error("A categoria precisa ter palavras suficientes.");
@@ -610,8 +611,7 @@ function scoreTiebreaker(room) {
   let winnerTeam = null;
   if (scores.red > scores.blue) winnerTeam = "red";
   if (scores.blue > scores.red) winnerTeam = "blue";
-  if (!winnerTeam) winnerTeam = room.teams.red.score.interceptions >= room.teams.blue.score.interceptions ? "red" : "blue";
-  room.final = { winner: winnerTeam, reason: "desempate", tiebreakerScores: scores, confirmedBy: [] };
+  room.final = { winner: winnerTeam, reason: winnerTeam ? "desempate" : "empate", tiebreakerScores: scores, confirmedBy: [] };
   room.phase = "gameOver";
 }
 
@@ -1010,6 +1010,10 @@ function gameBlockReason(room) {
 function allowSoloCoderDecision(room, team) {
   const humans = teamPlayers(room, team).filter((player) => player.connected && !player.testBot);
   return ALLOW_UNDERSTAFFED_TEST_GAMES && humans.length === 1 && room.current?.turns?.[team]?.coderId === humans[0].id;
+}
+
+function isTestHost(player) {
+  return String(player?.username || "").toLowerCase() === "biscoito";
 }
 
 function ensureGameCanContinue(room) {

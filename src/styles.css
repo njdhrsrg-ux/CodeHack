@@ -727,6 +727,17 @@ main {
   padding-block: 0.62rem;
 }
 
+.topbar-profile-strip {
+  padding: 0.35rem 0.55rem;
+  max-width: 260px;
+}
+
+.topbar-profile-strip strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .rooms-filter-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(160px, 1fr));
@@ -1419,6 +1430,12 @@ main {
   box-shadow: 0 0 28px var(--surface-soft, var(--accent-soft));
   display: grid;
   gap: 0.25rem;
+}
+
+.retro-select-menu-portal {
+  position: fixed;
+  right: auto;
+  z-index: 60000;
 }
 
 .retro-select-menu button {
@@ -3207,21 +3224,21 @@ main {
   inset: 0;
   pointer-events: none;
   overflow: hidden;
-  opacity: 0.2;
+  opacity: 0.34;
 }
 
 .matrix-bg span {
   position: absolute;
   top: -240px;
   left: calc(var(--i) * 3%);
-  color: color-mix(in srgb, var(--accent) 42%, var(--bg));
+  color: color-mix(in srgb, var(--accent) 58%, var(--bg));
   font-family: "Press Start 2P", monospace;
   font-size: 0.7rem;
   font-weight: 900;
   line-height: 1.55;
   letter-spacing: 0;
   image-rendering: pixelated;
-  text-shadow: 0 0 5px currentColor;
+  text-shadow: 0 0 8px currentColor;
   writing-mode: vertical-rl;
   text-orientation: mixed;
   opacity: 0.9;

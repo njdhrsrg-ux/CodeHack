@@ -185,6 +185,7 @@ async function wikiImage(query) {
 function imageSearchTerms(query) {
   const trimmed = query.trim();
   const withoutCategory = trimmed.replace(/\s+(geral|anime|pokemon|filme|filmes|jogo|jogos|geek|famosos|movie|famous person|fictional character|video game character|anime character)$/i, "").trim();
+  if (/\s+(famosos|famous person)$/i.test(trimmed)) return [withoutCategory].filter(Boolean);
   if (/\s+geral$/i.test(trimmed)) return [...new Set([withoutCategory, trimmed].filter(Boolean))];
   return [...new Set([trimmed, withoutCategory].filter(Boolean))];
 }

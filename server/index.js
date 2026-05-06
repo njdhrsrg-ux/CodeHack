@@ -167,7 +167,7 @@ io.on("connection", (socket) => {
     const removed = removePlayer(room, socket.id);
     sessions.delete(socket.id);
     socket.leave(code);
-    if (Object.keys(room.players).length === 0) {
+    if (Object.keys(room.players).length === 0 || onlyTestBots(room)) {
       await discardActiveMatch(room);
       rooms.delete(code);
     }
@@ -314,7 +314,7 @@ io.on("connection", (socket) => {
       const liveRoom = rooms.get(code);
       const removed = removePlayer(liveRoom, socket.id);
       if (!removed) return;
-      if (Object.keys(liveRoom.players).length === 0) {
+      if (Object.keys(liveRoom.players).length === 0 || onlyTestBots(liveRoom)) {
         discardActiveMatch(liveRoom).catch((error) => console.error("discardMatch failed", error));
         rooms.delete(code);
       }
@@ -409,6 +409,11 @@ function clearPendingDisconnect(clientId) {
   clearTimeout(timer);
   pendingDisconnects.delete(key);
   return true;
+}
+
+function onlyTestBots(room) {
+  const players = Object.values(room.players || {});
+  return players.length > 0 && players.every((player) => player.testBot);
 }
 
 function detachPreviousSocket(previousId, code) {
@@ -577,6 +582,7 @@ async function wikiImage(query) {
 function imageSearchTerms(query) {
   const trimmed = query.trim();
   const withoutCategory = trimmed.replace(/\s+(geral|anime|pokemon|filme|filmes|jogo|jogos|geek|famosos|movie|famous person|fictional character|video game character|anime character)$/i, "").trim();
+  if (/\s+(famosos|famous person)$/i.test(trimmed)) return [withoutCategory].filter(Boolean);
   if (/\s+geral$/i.test(trimmed)) return [...new Set([withoutCategory, trimmed].filter(Boolean))];
   return [...new Set([trimmed, withoutCategory].filter(Boolean))];
 }

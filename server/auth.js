@@ -50,7 +50,7 @@ function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
 }
 
 function makeStats() {
-  return { wins: 0, losses: 0, abandoned: 0, decryptedWords: {}, interceptedWords: {} };
+  return { wins: 0, losses: 0, draws: 0, abandoned: 0, decryptedWords: {}, interceptedWords: {} };
 }
 
 function visibleMatches(matches = []) {
@@ -228,7 +228,7 @@ export async function syncActiveMatch(room) {
     room.matchSession.recordedRounds.push(room.round);
   }
   await updateActiveMatchSnapshots(room);
-  if (room.final?.winner && room.phase === "gameOver") await finalizeActiveMatch(room);
+  if (room.final && room.phase === "gameOver") await finalizeActiveMatch(room);
 }
 
 export async function discardActiveMatch(room) {
@@ -340,10 +340,11 @@ async function finalizeActiveMatch(room) {
     if (!user) continue;
     const participant = room.matchSession.players[userId];
     const stillHere = Object.values(room.players).some((player) => player.userId === userId && player.connected && player.team === participant.team);
-    const outcome = stillHere ? (participant.team === room.final.winner ? "win" : "loss") : "abandoned";
+    const outcome = stillHere ? (!room.final.winner ? "draw" : participant.team === room.final.winner ? "win" : "loss") : "abandoned";
     const stats = normalizeStats(user.stats);
     if (outcome === "win") stats.wins += 1;
     else if (outcome === "loss") stats.losses += 1;
+    else if (outcome === "draw") stats.draws += 1;
     else stats.abandoned += 1;
     const matches = upsertMatch(user.matches || [], makeMatchEntry(room, participant, room.matchSession.id, finishedAt, outcome === "win", outcome));
     await saveUserStatsAndMatches(user.id, stats, matches);
