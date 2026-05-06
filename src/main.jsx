@@ -5,11 +5,15 @@ import { io } from "socket.io-client";
 import {
   BadgeCheck,
   Check,
+  ClipboardPaste,
+  Copy,
   LogIn,
   LogOut,
+  Pencil,
   Play,
   RadioTower,
   RotateCcw,
+  Settings,
   Shuffle,
   Sparkles,
   Trash2,
@@ -40,42 +44,124 @@ const DEFAULT_CONSTANTS = {
   MAX_ROUNDS: 8
 };
 
+function hydrateRoom(nextRoom) {
+  if (!nextRoom) return nextRoom;
+  const avatars = nextRoom.avatars || {};
+  return {
+    ...nextRoom,
+    players: (nextRoom.players || []).map((player) => ({
+      ...player,
+      avatar: player.avatar || avatars[player.id] || ""
+    }))
+  };
+}
+
 function App() {
+  const clientIdRef = useRef(getGhostClientId());
   const [constants, setConstants] = useState(DEFAULT_CONSTANTS);
   const [room, setRoom] = useState(null);
   const [playerId, setPlayerId] = useState("");
   const [toast, setToast] = useState("");
+  const [roomEvents, setRoomEvents] = useState([]);
+  const [joinChoice, setJoinChoice] = useState(null);
+  const [passwordJoin, setPasswordJoin] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [homeView, setHomeView] = useState("home");
+  const [roomDirectory, setRoomDirectory] = useState([]);
   const [soundMuted, setSoundMuted] = useLocalState("codehack:soundMuted", false);
+  const [matrixEnabled, setMatrixEnabled] = useLocalState("codehack:matrixEnabled", true);
+  const [playerAvatar, setPlayerAvatar] = useLocalState("codehack:avatar", "");
+  const [playerSettingsOpen, setPlayerSettingsOpen] = useState(false);
+  const [roomCodeCopied, setRoomCodeCopied] = useState(false);
+  const [draggedPlayerId, setDraggedPlayerId] = useState("");
+  const [draggedPlayerSnapshot, setDraggedPlayerSnapshot] = useState(null);
+  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const me = room?.players.find((p) => p.id === playerId);
   useGameSounds(room, playerId);
 
-  useEffect(() => {
-    socket.on("constants", setConstants);
-    socket.on("room:update", setRoom);
-    socket.on("room:kicked", () => {
-      setRoom(null);
-      setToast("Voce foi removido da sala.");
-    });
-    return () => {
-      socket.off("constants");
-      socket.off("room:update");
-      socket.off("room:kicked");
-    };
-  }, []);
-
   const action = (event, payload = {}) => new Promise((resolve) => {
-    socket.emit(event, payload, (reply) => {
+    const enrichedPayload = { ...payload, clientId: clientIdRef.current };
+    socket.emit(event, enrichedPayload, (reply) => {
       if (!reply?.ok) setToast(reply?.error || "Falha de transmissao.");
       else setToast("");
-      if (reply?.playerId) setPlayerId(reply.playerId);
+      if (reply?.needsRoleChoice) {
+        setJoinChoice({ ...reply, payload: enrichedPayload });
+        resolve(reply);
+        return;
+      }
+      if (reply?.playerId || reply?.room?.viewerId) setPlayerId(reply.playerId || reply.room.viewerId);
       if (reply?.room) {
-        rememberSession(reply.room, payload);
-        setRoom(reply.room);
+        rememberSession(reply.room, enrichedPayload, clientIdRef.current);
+        setRoom(hydrateRoom(reply.room));
       }
       resolve(reply);
     });
   });
+
+  useEffect(() => {
+    socket.on("constants", setConstants);
+    socket.on("rooms:update", setRoomDirectory);
+    socket.emit("rooms:list", {}, (reply) => {
+      if (reply?.ok && Array.isArray(reply.rooms)) setRoomDirectory(reply.rooms);
+    });
+    socket.on("room:update", (nextRoom) => {
+      if (nextRoom?.viewerId) setPlayerId(nextRoom.viewerId);
+      setRoom(hydrateRoom(nextRoom));
+    });
+    socket.on("player:avatarUpdate", ({ playerId: updatedPlayerId, avatar }) => {
+      setRoom((currentRoom) => {
+        if (!currentRoom) return currentRoom;
+        return {
+          ...currentRoom,
+          players: currentRoom.players.map((player) => (
+            player.id === updatedPlayerId ? { ...player, avatar } : player
+          ))
+        };
+      });
+    });
+    socket.on("room:kicked", () => {
+      setRoom(null);
+      clearActiveRoomSession();
+      setToast("Voce foi removido da sala.");
+    });
+    socket.on("room:event", (event) => {
+      setRoomEvents((events) => [...events, event].slice(-5));
+      setTimeout(() => {
+        setRoomEvents((events) => events.filter((item) => item.id !== event.id));
+      }, 3300);
+    });
+    return () => {
+      socket.off("constants");
+      socket.off("rooms:update");
+      socket.off("room:update");
+      socket.off("player:avatarUpdate");
+      socket.off("room:kicked");
+      socket.off("room:event");
+    };
+  }, []);
+
+  useEffect(() => {
+    let restored = false;
+    function restoreActiveRoom() {
+      if (restored) return;
+      const active = readActiveRoomSession();
+      if (!active?.code || !active?.name || active.clientId !== clientIdRef.current) return;
+      restored = true;
+      socket.emit("room:resume", { ...active, avatar: playerAvatar }, (reply) => {
+        if (!reply?.ok) {
+          clearActiveRoomSession();
+          setToast(reply?.error || "");
+          return;
+        }
+        setToast("");
+        if (reply?.playerId || reply?.room?.viewerId) setPlayerId(reply.playerId || reply.room.viewerId);
+        if (reply?.room) setRoom(hydrateRoom(reply.room));
+      });
+    }
+    if (socket.connected) restoreActiveRoom();
+    socket.on("connect", restoreActiveRoom);
+    return () => socket.off("connect", restoreActiveRoom);
+  }, [playerAvatar]);
 
   function askConfirm(config) {
     setConfirmDialog(config);
@@ -84,33 +170,63 @@ function App() {
   async function confirmLeaveRoom() {
     const reply = await action("room:leave");
     if (reply?.ok) {
+      clearActiveRoomSession();
       setRoom(null);
       setPlayerId("");
     }
   }
 
   return (
-    <div className={`app-shell ${!room ? "home-screen" : ""} ${me?.team || "neutral"}`}>
-      <MatrixRain />
+    <div className={`app-shell ${!room && homeView === "home" ? "home-screen" : ""} ${room?.phase === "lobby" ? "neutral" : me?.team || "neutral"}`}>
+      {matrixEnabled && <MatrixRain />}
       {!room ? (
-        <main className="home-layout">
-          <div className="home-logo-frame">
-            <div className="home-logo" aria-label="Logo do jogo">
-              <IconImg src={ICONS.logo} alt="Logo do jogo" className="home-logo-img" />
+        homeView === "rooms" ? (
+          <RoomDirectory
+            rooms={roomDirectory}
+            constants={constants}
+            action={action}
+            toast={toast}
+            playerAvatar={playerAvatar}
+            onBack={() => setHomeView("home")}
+            onOpenSettings={() => setPlayerSettingsOpen(true)}
+            onPasswordJoin={setPasswordJoin}
+          />
+        ) : (
+          <main className="home-layout">
+            <div className="home-logo-frame">
+              <div className="home-logo" aria-label="Logo do jogo">
+                <IconImg src={ICONS.logo} alt="Logo do jogo" className="home-logo-img" />
+              </div>
             </div>
-          </div>
-          <Home action={action} toast={toast} />
-        </main>
+            <Home
+              action={action}
+              toast={toast}
+              playerAvatar={playerAvatar}
+              roomDirectory={roomDirectory}
+              onOpenRooms={() => setHomeView("rooms")}
+              onPasswordJoin={setPasswordJoin}
+            />
+          </main>
+        )
       ) : (
         <>
           <header className="topbar">
           <div className="brand">
             <div className="logo-mark"><IconImg src={ICONS.logo} alt="Logo do jogo" className="logo-img" /></div>
-            <div>
-              <strong>CODE HACK</strong>
-              <span>combate de hackers</span>
-            </div>
           </div>
+          <button
+            className={`room-code-copy ${roomCodeCopied ? "copied" : ""}`}
+            title="Copiar codigo da sala"
+            onClick={() => {
+              navigator.clipboard?.writeText(room.code);
+              setRoomCodeCopied(true);
+              setTimeout(() => setRoomCodeCopied(false), 2000);
+            }}
+          >
+            <span>{room.code}</span>
+            <Copy size={18} />
+            <em>Copiado</em>
+          </button>
           <div className="topbar-game-info">
             <div className="topbar-actions">
               <button onClick={() => askConfirm({
@@ -118,11 +234,7 @@ function App() {
                 text: "Voce sairá desta sala. Se a partida estiver em andamento, podera voltar usando o mesmo nome.",
                 confirmLabel: "Voltar",
                 onConfirm: confirmLeaveRoom
-              })}><LogOut size={17} /> Tela inicial</button>
-              <button onClick={() => setSoundMuted(!soundMuted)}>
-                {soundMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
-                {soundMuted ? "Som desligado" : "Som ligado"}
-              </button>
+              })}><LogOut size={17} /> Menu principal</button>
               {room.hostId === playerId && room.phase !== "lobby" && (
                 <button onClick={() => askConfirm({
                   title: "Voltar todos para o lobby?",
@@ -131,17 +243,30 @@ function App() {
                   onConfirm: () => action("host:returnLobby")
                 })}><RotateCcw size={17} /> Voltar ao lobby</button>
               )}
+              <button className="icon-only" title="Configuracoes" aria-label="Configuracoes" onClick={() => setPlayerSettingsOpen(true)}>
+                <Settings size={18} />
+              </button>
             </div>
-            {room.phase !== "lobby" && <RoundCounter room={room} constants={constants} />}
-            <ScoreBoard room={room} constants={constants} />
           </div>
           </header>
 
-          <main>
+          <main
+            onDrag={(event) => {
+              if (draggedPlayerId && event.clientX && event.clientY) setDragPosition({ x: event.clientX, y: event.clientY });
+            }}
+            onDragOver={(event) => draggedPlayerId && event.preventDefault()}
+            onDrop={(event) => {
+              if (!draggedPlayerId || room?.phase !== "lobby" || room.hostId !== playerId) return;
+              event.preventDefault();
+              action("host:move", { playerId: draggedPlayerId, team: null });
+              setDraggedPlayerId("");
+              setDraggedPlayerSnapshot(null);
+            }}
+          >
             {room.phase === "lobby" ? (
-              <Lobby room={room} playerId={playerId} constants={constants} action={action} toast={toast} />
+              <Lobby room={room} playerId={playerId} constants={constants} action={action} toast={toast} playerAvatar={playerAvatar} draggedPlayerId={draggedPlayerId} setDraggedPlayerId={setDraggedPlayerId} setDraggedPlayerSnapshot={setDraggedPlayerSnapshot} setDragPosition={setDragPosition} />
             ) : (
-              <Game room={room} playerId={playerId} constants={constants} action={action} toast={toast} />
+              <Game room={room} playerId={playerId} constants={constants} action={action} toast={toast} playerAvatar={playerAvatar} />
             )}
           </main>
         </>
@@ -155,6 +280,164 @@ function App() {
             setConfirmDialog(null);
           }}
         />
+      )}
+      <RoomEventStack events={roomEvents} />
+      {joinChoice && (
+        <JoinChoiceModal
+          joinChoice={joinChoice}
+          onCancel={() => setJoinChoice(null)}
+          onPick={async (role) => {
+            const reply = await action("room:join", { ...joinChoice.payload, role });
+            if (reply?.ok && !reply.needsRoleChoice) setJoinChoice(null);
+          }}
+        />
+      )}
+      {passwordJoin && (
+        <PasswordJoinModal
+          room={passwordJoin.room}
+          toast={toast}
+          onCancel={() => setPasswordJoin(null)}
+          onJoin={async (password) => {
+            const reply = await action("room:join", {
+              code: passwordJoin.room.code,
+              name: passwordJoin.name,
+              avatar: playerAvatar,
+              password
+            });
+            if (reply?.ok) setPasswordJoin(null);
+          }}
+        />
+      )}
+      {playerSettingsOpen && (
+        <PlayerSettingsModal
+          soundMuted={soundMuted}
+          setSoundMuted={setSoundMuted}
+          matrixEnabled={matrixEnabled}
+          setMatrixEnabled={setMatrixEnabled}
+          playerAvatar={playerAvatar}
+          onAvatarChange={async (avatar) => {
+            setPlayerAvatar(avatar);
+            if (room) await action("player:avatar", { avatar });
+          }}
+          onClose={() => setPlayerSettingsOpen(false)}
+        />
+      )}
+      {draggedPlayerSnapshot && (
+        <div className={`drag-ghost player-card team-surface ${draggedPlayerSnapshot.team || ""}`} style={{ "--drag-x": `${dragPosition.x}px`, "--drag-y": `${dragPosition.y}px` }}>
+          <PlayerIdentity player={draggedPlayerSnapshot} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlayerSettingsModal({ soundMuted, setSoundMuted, matrixEnabled, setMatrixEnabled, playerAvatar, onAvatarChange, onClose }) {
+  async function pickAvatar(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const avatar = await resizeAvatar(file);
+    await onAvatarChange(avatar);
+  }
+
+  return (
+    <div className="confirm-overlay" role="dialog" aria-modal="true">
+      <div className="player-settings-modal">
+        <div className="modal-title">
+          <strong>Configuracoes</strong>
+          <button className="icon-only" onClick={onClose} aria-label="Fechar configuracoes"><X size={18} /></button>
+        </div>
+        <div className="avatar-editor-block">
+          <label className="avatar-editor" title="Alterar avatar">
+            <span className="settings-avatar-preview">
+              {playerAvatar ? <img src={playerAvatar} alt="Avatar atual" /> : <Users size={42} />}
+            </span>
+            <span className="avatar-edit-overlay"><Pencil size={30} /></span>
+            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={pickAvatar} />
+          </label>
+          {playerAvatar && (
+            <button className="avatar-remove-button" title="Remover avatar" aria-label="Remover avatar" onClick={() => onAvatarChange("")}>
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        <SettingToggle
+          icon={soundMuted ? <VolumeX size={22} /> : <Volume2 size={22} />}
+          title="Sons"
+          checked={!soundMuted}
+          onChange={(checked) => setSoundMuted(!checked)}
+        />
+        <SettingToggle
+          icon={<RadioTower size={22} />}
+          title="Efeitos"
+          checked={matrixEnabled}
+          onChange={setMatrixEnabled}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SettingToggle({ icon, title, checked, onChange }) {
+  return (
+    <div className="setting-toggle-row">
+      <div className="setting-toggle-copy">
+        <span className="setting-toggle-icon">{icon}</span>
+        <div>
+          <strong>{title}</strong>
+        </div>
+      </div>
+      <button className={`toggle-switch ${checked ? "on" : ""}`} onClick={() => onChange(!checked)} aria-pressed={checked}>
+        <span />
+      </button>
+    </div>
+  );
+}
+
+function RetroSelect({ value, options, onChange, disabled = false }) {
+  const [open, setOpen] = useState(false);
+  const items = options.map((option) => (
+    typeof option === "string" ? { value: option, label: option } : option
+  ));
+  const selected = items.find((option) => option.value === value) || items[0];
+
+  return (
+    <div
+      className={`retro-select ${open ? "open" : ""} ${disabled ? "disabled" : ""}`}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+      }}
+    >
+      <button
+        type="button"
+        className="retro-select-trigger"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>{selected?.label || "Selecionar"}</span>
+        <i aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="retro-select-menu" role="listbox">
+          {items.map((option) => (
+            <button
+              type="button"
+              key={option.value}
+              className={option.value === value ? "selected" : ""}
+              role="option"
+              aria-selected={option.value === value}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -175,31 +458,301 @@ function ConfirmDialog({ title, text, confirmLabel, onCancel, onConfirm }) {
   );
 }
 
-function Home({ action, toast }) {
+function RoomEventStack({ events }) {
+  if (!events.length) return null;
+  return (
+    <div className="room-event-stack" aria-live="polite">
+      {events.map((event) => (
+        <div className="room-event-card" key={event.id}>
+          <span className="room-event-avatar">
+            {event.avatar ? <img src={event.avatar} alt={`Avatar de ${event.playerName}`} /> : initials(event.playerName)}
+          </span>
+          <span className="room-event-text">
+            <strong>{event.playerName}</strong>
+            {event.type === "leave" ? (
+              " saiu da partida."
+            ) : (
+              <>
+                {" entrou no "}
+                <em className={`team-name ${event.team || "neutral"}`}>{teamEventName(event.team)}</em>
+              </>
+            )}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function JoinChoiceModal({ joinChoice, onCancel, onPick }) {
+  const players = joinChoice.preview?.players || [];
+  return (
+    <div className="confirm-overlay" role="dialog" aria-modal="true">
+      <div className="confirm-modal join-choice-modal">
+        <strong>Entrar na partida</strong>
+        <p>A partida ja esta em andamento. Escolha como deseja entrar.</p>
+        <div className="join-preview-list">
+          {["red", "blue", null].map((team) => {
+            const list = players.filter((player) => player.team === team);
+            return (
+              <div className={`join-preview-team ${team ? `team-surface ${team}` : "spectator-preview"}`} key={team || "spectators"}>
+                <span>{team ? teamLabel(team) : "Espectadores"}</span>
+                {list.length ? list.map((player) => <PlayerIdentity key={player.id} player={player} />) : <small>Vazio</small>}
+              </div>
+            );
+          })}
+        </div>
+        <div className="inline-actions">
+          <button onClick={onCancel}>Cancelar</button>
+          <button onClick={() => onPick("spectator")}>Entrar como espectador</button>
+          <button className="primary" onClick={() => onPick("player")}>Entrar como jogador</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Home({ action, toast, playerAvatar, roomDirectory, onOpenRooms, onPasswordJoin }) {
   const [name, setName] = useLocalState("decrypto:name", "");
   const [code, setCode] = useLocalState("decrypto:lastRoomCode", "");
+  const [createOpen, setCreateOpen] = useState(false);
+  async function pasteRoomCode() {
+    try {
+      const text = await navigator.clipboard.readText();
+      setCode(String(text || "").trim().toUpperCase().slice(0, 6));
+    } catch {
+      // Clipboard access depends on browser permission.
+    }
+  }
+
+  async function joinByCode() {
+    const normalizedCode = code.trim().toUpperCase();
+    const listedRoom = roomDirectory.find((room) => room.code === normalizedCode);
+    if (listedRoom?.hasPassword) {
+      onPasswordJoin({ room: listedRoom, name });
+      return;
+    }
+    await action("room:join", { code: normalizedCode, name, avatar: playerAvatar });
+  }
+
   return (
     <section className="home-grid enter">
       <div className="console-panel">
         <label>Nome do operador</label>
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={18} placeholder="Seu nome" />
-        <button className="primary" onClick={() => action("room:create", { name })}><Play size={18} /> Criar sala</button>
+        <button className="primary" onClick={() => setCreateOpen(true)}><Play size={18} /> Criar sala</button>
+        <button onClick={onOpenRooms}><RadioTower size={18} /> Salas</button>
         <div className="join-row">
-          <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={6} placeholder="ABC123" />
-          <button onClick={() => action("room:join", { code, name })}><LogIn size={18} /> Entrar</button>
+          <div className="paste-input-wrap">
+            <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={6} placeholder="ABC123" />
+            <button type="button" className="input-icon-button" title="Colar codigo" aria-label="Colar codigo" onClick={pasteRoomCode}>
+              <ClipboardPaste size={18} />
+            </button>
+          </div>
+          <button onClick={joinByCode}><LogIn size={18} /> Entrar</button>
         </div>
         {toast && <p className="toast">{toast}</p>}
       </div>
+      {createOpen && (
+        <CreateRoomModal
+          playerName={name}
+          onCancel={() => setCreateOpen(false)}
+          onCreate={async (settings) => {
+            const reply = await action("room:create", { name, avatar: playerAvatar, ...settings });
+            if (reply?.ok) setCreateOpen(false);
+          }}
+        />
+      )}
     </section>
   );
 }
 
-function Lobby({ room, playerId, constants, action, toast }) {
+function RoomDirectory({ rooms, constants, action, toast, playerAvatar, onBack, onOpenSettings, onPasswordJoin }) {
+  const [name, setName] = useLocalState("decrypto:name", "");
+  const [phaseFilter, setPhaseFilter] = useState("all");
+  const [passwordFilter, setPasswordFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [sortMode, setSortMode] = useState("name");
+  const categories = Object.keys(constants.WORD_BANKS || {});
+  const visibleRooms = [...rooms]
+    .filter((room) => phaseFilter === "all" || (phaseFilter === "playing" ? room.inGame : !room.inGame))
+    .filter((room) => passwordFilter === "all" || (passwordFilter === "with" ? room.hasPassword : !room.hasPassword))
+    .filter((room) => categoryFilter === "all" || room.category === categoryFilter)
+    .sort((left, right) => {
+      if (sortMode === "players") return right.playerCount - left.playerCount || left.name.localeCompare(right.name);
+      return left.name.localeCompare(right.name) || right.playerCount - left.playerCount;
+    });
+
+  async function joinRoom(room) {
+    if (room.hasPassword) {
+      onPasswordJoin({ room, name });
+      return;
+    }
+    await action("room:join", { code: room.code, name, avatar: playerAvatar });
+  }
+
+  return (
+    <main className="rooms-page">
+      <header className="rooms-header panel">
+        <button onClick={onBack}><LogOut size={17} /> Menu principal</button>
+        <label>Nome do operador
+          <input value={name} onChange={(event) => setName(event.target.value)} maxLength={18} placeholder="Seu nome" />
+        </label>
+        <button className="icon-only" title="Configuracoes" aria-label="Configuracoes" onClick={onOpenSettings}><Settings size={18} /></button>
+      </header>
+
+      <section className="panel rooms-filter-panel">
+        <div className="rooms-filter-grid">
+          <label>Status
+            <RetroSelect
+              value={phaseFilter}
+              onChange={setPhaseFilter}
+              options={[
+                { value: "all", label: "Todas" },
+                { value: "lobby", label: "Lobby" },
+                { value: "playing", label: "Em andamento" }
+              ]}
+            />
+          </label>
+          <label>Senha
+            <RetroSelect
+              value={passwordFilter}
+              onChange={setPasswordFilter}
+              options={[
+                { value: "all", label: "Todas" },
+                { value: "with", label: "Com senha" },
+                { value: "without", label: "Sem senha" }
+              ]}
+            />
+          </label>
+          <label>Categoria
+            <RetroSelect
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              options={[
+                { value: "all", label: "Todas" },
+                ...categories.map((category) => ({ value: category, label: category })),
+                { value: "Personalizada", label: "Personalizada" }
+              ]}
+            />
+          </label>
+          <label>Ordenar
+            <RetroSelect
+              value={sortMode}
+              onChange={setSortMode}
+              options={[
+                { value: "name", label: "Ordem alfabetica" },
+                { value: "players", label: "Quantidade de jogadores" }
+              ]}
+            />
+          </label>
+        </div>
+      </section>
+
+      <section className="rooms-list-section">
+        <div className="rooms-list-head">
+          <strong>Salas disponiveis</strong>
+          <span>{visibleRooms.length} / {rooms.length}</span>
+        </div>
+        {visibleRooms.length ? (
+          <div className="room-card-grid">
+            {visibleRooms.map((room) => (
+              <button className="room-card" key={room.code} onClick={() => joinRoom(room)}>
+                <span className="room-card-title">{room.name}</span>
+                <span>Criada por {room.hostName}</span>
+                <span className="room-card-meta">
+                  <em><Users size={15} /> {room.playerCount}/12</em>
+                  <em>{room.inGame ? "Em andamento" : "Lobby"}</em>
+                  <em>{room.hasPassword ? "Com senha" : "Sem senha"}</em>
+                </span>
+                <span className="room-card-category">{room.category}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-rooms panel">
+            <RadioTower size={24} />
+            <p>Nenhuma sala publica encontrada.</p>
+          </div>
+        )}
+        {toast && <p className="toast">{toast}</p>}
+      </section>
+    </main>
+  );
+}
+
+function PasswordJoinModal({ room, toast, onCancel, onJoin }) {
+  const [password, setPassword] = useState("");
+  return (
+    <div className="confirm-overlay" role="dialog" aria-modal="true">
+      <div className="confirm-modal">
+        <strong>Senha da sala</strong>
+        <p>{room.name}</p>
+        <label>Senha
+          <input value={password} maxLength={32} onChange={(event) => setPassword(event.target.value)} autoFocus />
+        </label>
+        {toast && <p className="toast">{toast}</p>}
+        <div className="inline-actions">
+          <button onClick={onCancel}>Cancelar</button>
+          <button className="primary" onClick={() => onJoin(password)}><LogIn size={18} /> Entrar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CreateRoomModal({ playerName, onCancel, onCreate }) {
+  const defaultName = `Sala de ${String(playerName || "Operador").trim() || "Operador"}`;
+  const [roomName, setRoomName] = useState(defaultName);
+  const [password, setPassword] = useState("");
+  const [publicRoom, setPublicRoom] = useState(true);
+  const valid = roomName.trim().length > 0;
+
+  useEffect(() => {
+    setRoomName((current) => current.trim() ? current : defaultName);
+  }, [defaultName]);
+
+  return (
+    <div className="confirm-overlay" role="dialog" aria-modal="true">
+      <div className="confirm-modal create-room-modal">
+        <strong>Criar sala</strong>
+        <label>Nome da sala
+          <input value={roomName} maxLength={36} onChange={(event) => setRoomName(event.target.value)} placeholder={defaultName} />
+        </label>
+        <label>Senha
+          <input
+            value={publicRoom ? password : ""}
+            maxLength={32}
+            disabled={!publicRoom}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder={publicRoom ? "Opcional" : "Desativada em sala privada"}
+          />
+        </label>
+        <div className="setting-toggle-row">
+          <div className="setting-toggle-copy">
+            <span className="setting-toggle-icon"><RadioTower size={18} /></span>
+            <strong>{publicRoom ? "Sala publica" : "Sala privada"}</strong>
+          </div>
+          <button className={`toggle-switch ${publicRoom ? "on" : ""}`} onClick={() => setPublicRoom(!publicRoom)} aria-label="Alternar sala publica">
+            <span />
+          </button>
+        </div>
+        <div className="inline-actions">
+          <button onClick={onCancel}>Cancelar</button>
+          <button className="primary" disabled={!valid} onClick={() => onCreate({ roomName: roomName.trim(), password: publicRoom ? password.trim() : "", publicRoom })}><Play size={18} /> Confirmar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Lobby({ room, playerId, constants, action, toast, playerAvatar, draggedPlayerId, setDraggedPlayerId, setDraggedPlayerSnapshot, setDragPosition }) {
   const me = room.players.find((p) => p.id === playerId);
   const isHost = room.hostId === playerId;
   const [customCategories, setCustomCategories] = useLocalState("decrypto:customCategories", []);
   const [customName, setCustomName] = useState("");
   const [customWords, setCustomWords] = useState("");
+  const [customOpen, setCustomOpen] = useState(false);
   const categories = [...Object.keys(constants.WORD_BANKS), ...customCategories.map((cat) => cat.name), "Personalizada"];
   const selectedCustom = customCategories.find((cat) => cat.name === room.settings.category);
 
@@ -221,38 +774,32 @@ function Lobby({ room, playerId, constants, action, toast }) {
 
   return (
     <section className="lobby enter">
-      <div className="room-banner">
-        <div>
-          <span>Sala</span>
-          <strong>{room.code}</strong>
-        </div>
-        <div className="status-chip"><IconImg src={ICONS.leader} alt="Lider da sala" className="status-icon" /> Host: {room.players.find((p) => p.id === room.hostId)?.name}</div>
-      </div>
-
       <div className="lobby-grid">
-        <div className="panel">
-          <h2><Users size={20} /> Tripulacao</h2>
+        <div className="panel teams-panel">
           {!room.settings.randomTeams && (
             <>
-              <TeamColumn team="red" room={room} playerId={playerId} isHost={isHost} action={action} />
-              <TeamColumn team="blue" room={room} playerId={playerId} isHost={isHost} action={action} />
+              <TeamColumn team="red" room={room} playerId={playerId} isHost={isHost} action={action} playerAvatar={playerAvatar} draggedPlayerId={draggedPlayerId} setDraggedPlayerId={setDraggedPlayerId} setDraggedPlayerSnapshot={setDraggedPlayerSnapshot} setDragPosition={setDragPosition} />
+              <TeamColumn team="blue" room={room} playerId={playerId} isHost={isHost} action={action} playerAvatar={playerAvatar} draggedPlayerId={draggedPlayerId} setDraggedPlayerId={setDraggedPlayerId} setDraggedPlayerSnapshot={setDraggedPlayerSnapshot} setDragPosition={setDragPosition} />
             </>
           )}
-          <TeamColumn team={null} room={room} playerId={playerId} isHost={isHost} action={action} />
+          <TeamColumn team={null} room={room} playerId={playerId} isHost={isHost} action={action} playerAvatar={playerAvatar} draggedPlayerId={draggedPlayerId} setDraggedPlayerId={setDraggedPlayerId} setDraggedPlayerSnapshot={setDraggedPlayerSnapshot} setDragPosition={setDragPosition} />
           {isHost && (
             <div className="host-actions">
               <button className={room.settings.randomTeams ? "active-toggle" : ""} onClick={() => action("room:settings", { randomTeams: !room.settings.randomTeams })}><Shuffle size={17} /> Times aleatorios</button>
+              {toast && <p className="toast lobby-action-error">{toast}</p>}
               <button className="primary" onClick={() => action("game:start")}><Zap size={17} /> Iniciar</button>
             </div>
           )}
         </div>
 
         <div className="panel settings-panel">
-          <h2><Sparkles size={20} /> Configuracoes</h2>
           <label>Categoria</label>
-          <select disabled={!isHost} value={selectedCustom?.name || room.settings.category} onChange={(e) => applyCategory(e.target.value)}>
-            {categories.map((category) => <option key={category}>{category}</option>)}
-          </select>
+          <RetroSelect
+            disabled={!isHost}
+            value={selectedCustom?.name || room.settings.category}
+            onChange={applyCategory}
+            options={categories.map((category) => ({ value: category, label: category }))}
+          />
           <label>Dificuldade</label>
           <div className="segmented">
             {[4, 5, 6].map((count) => (
@@ -260,14 +807,14 @@ function Lobby({ room, playerId, constants, action, toast }) {
             ))}
           </div>
           <div className="number-settings">
-            <label>Vidas dos times
+            <label>Vidas
               <NumberStepper
                 value={room.settings.startingLives || constants.STARTING_LIVES}
                 disabled={!isHost}
                 onChange={(value) => action("room:settings", { startingLives: value })}
               />
             </label>
-            <label>Interceptacoes para vencer
+            <label>Interceptacoes
               <NumberStepper
                 value={room.settings.winIntercepts || constants.WIN_INTERCEPTS}
                 disabled={!isHost}
@@ -275,17 +822,22 @@ function Lobby({ room, playerId, constants, action, toast }) {
               />
             </label>
           </div>
-          <div className="custom-box">
-            <strong>Categoria local</strong>
-            <input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="Nome da categoria" />
-            <textarea value={customWords} onChange={(e) => setCustomWords(e.target.value)} placeholder="palavra, palavra, palavra..." />
-            <button onClick={saveCustom}><BadgeCheck size={17} /> Salvar categoria</button>
+          <div className={`custom-box collapsible ${customOpen ? "open" : ""}`}>
+            <button className="custom-toggle" onClick={() => setCustomOpen(!customOpen)}>
+              <strong>Categoria Personalizada</strong>
+              <span>{customOpen ? "-" : "+"}</span>
+            </button>
+            {customOpen && (
+              <div className="custom-content">
+                <input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="Nome da categoria" />
+                <textarea value={customWords} onChange={(e) => setCustomWords(e.target.value)} placeholder="palavra, palavra, palavra..." />
+                <button onClick={saveCustom}><BadgeCheck size={17} /> Salvar categoria</button>
+              </div>
+            )}
           </div>
-          <p className="small">Voce esta no {constants.TEAM_NAMES[me?.team] || "sem time"}.</p>
-          {toast && <p className="toast">{toast}</p>}
+          <ChatPanel room={room} playerId={playerId} action={action} scope="global" />
         </div>
       </div>
-      <ChatPanel room={room} playerId={playerId} action={action} scope="global" />
     </section>
   );
 }
@@ -308,53 +860,104 @@ function NumberStepper({ value, onChange, disabled }) {
   );
 }
 
-function TeamColumn({ team, room, playerId, isHost, action }) {
+function TeamColumn({ team, room, playerId, isHost, action, playerAvatar, draggedPlayerId, setDraggedPlayerId, setDraggedPlayerSnapshot, setDragPosition }) {
   const players = room.players.filter((player) => player.team === team);
   const randomLocked = room.settings.randomTeams;
   const me = room.players.find((player) => player.id === playerId);
-  const headerAction = team === null
-    ? { label: "Ficar sem time", nextTeam: null }
-    : { label: `Entrar no ${teamLabel(team)}`, nextTeam: team };
-  const canChooseHere = !randomLocked && me?.team !== team;
+  const canChooseHere = !randomLocked && me?.team !== team && room.phase === "lobby";
+  const canDropHere = isHost && !randomLocked && room.phase === "lobby";
+
+  function chooseHere() {
+    if (canChooseHere) action("player:team", { team });
+  }
+
+  function dropPlayer(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!canDropHere) return;
+    const draggedPlayerId = event.dataTransfer.getData("text/player-id");
+    if (draggedPlayerId) action("host:move", { playerId: draggedPlayerId, team });
+    setDraggedPlayerId("");
+    setDraggedPlayerSnapshot(null);
+  }
+
   return (
-    <div className={`team-box ${team || "unassigned"}`}>
+    <div
+      className={`team-box ${team ? `team-surface ${team}` : ""} ${team || "unassigned"} ${canChooseHere ? "clickable" : ""}`}
+      onClick={chooseHere}
+      onDragOver={(event) => canDropHere && event.preventDefault()}
+      onDrop={dropPlayer}
+    >
       <div className="team-header">
         <h3>{randomLocked && team === null ? "Times Aleatorios" : teamLabel(team)}</h3>
-        {!randomLocked && (
-          <button
-            className={me?.team === team ? "team-join active" : "team-join"}
-            disabled={!canChooseHere}
-            onClick={() => action("player:team", { team: headerAction.nextTeam })}
-          >
-            {headerAction.label}
-          </button>
-        )}
       </div>
-      {players.map((player) => (
-        <div className="player-row" key={player.id}>
-          <span className={player.connected ? "" : "offline"}>{player.isHost && <IconImg src={ICONS.leader} alt="Lider da sala" className="leader-icon" />} {player.name}</span>
-          {isHost && !randomLocked && (
-            <div className="row-actions">
-              {[
-                ["red", "Vermelho"],
-                ["blue", "Azul"],
-                [null, "Sem time"]
-              ].map(([nextTeam, label]) => (
-                <button
-                  key={`${player.id}-${label}`}
-                  className={player.team === nextTeam ? "active-choice" : ""}
-                  title={`Mover para ${label}`}
-                  onClick={() => action("host:move", { playerId: player.id, team: nextTeam })}
-                >
-                  {label}
-                </button>
-              ))}
-              {player.id !== playerId && <button title="Remover da sala" onClick={() => action("host:kick", { playerId: player.id })}><Trash2 size={15} /></button>}
-            </div>
-          )}
-        </div>
-      ))}
+      <div className="player-card-list">
+        {players.length ? players.map((player) => (
+          <PlayerCard
+            key={player.id}
+            player={player}
+            playerId={playerId}
+            isHost={isHost}
+            randomLocked={randomLocked}
+            action={action}
+            localAvatar={playerAvatar}
+            dragged={draggedPlayerId === player.id}
+            dragEnabled={isHost && !randomLocked}
+            setDraggedPlayerId={setDraggedPlayerId}
+            setDraggedPlayerSnapshot={setDraggedPlayerSnapshot}
+            setDragPosition={setDragPosition}
+          />
+        )) : <div className="empty-team">Time vazio</div>}
+      </div>
     </div>
+  );
+}
+
+function PlayerCard({ player, playerId, isHost, action, dragged, dragEnabled = false, marker = "", localAvatar = "", confirmState = "", setDraggedPlayerId, setDraggedPlayerSnapshot, setDragPosition }) {
+  const isSelf = player.id === playerId;
+  const visiblePlayer = isSelf && localAvatar ? { ...player, avatar: localAvatar } : player;
+  return (
+    <div
+      className={`player-card team-surface ${player.team || ""} ${isSelf ? "self" : ""} ${confirmState ? `vote-${confirmState}` : ""} ${dragged ? "dragging" : ""} ${player.connected ? "" : "offline"}`}
+      draggable={dragEnabled}
+      onClick={(event) => event.stopPropagation()}
+      onDragStart={(event) => {
+        if (!dragEnabled) return;
+        event.dataTransfer.setData("text/player-id", player.id);
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setDragImage(new Image(), 0, 0);
+        setDragPosition({ x: event.clientX, y: event.clientY });
+        setDraggedPlayerId(player.id);
+        setDraggedPlayerSnapshot(player);
+      }}
+      onDrag={(event) => {
+        if (dragEnabled && event.clientX && event.clientY) setDragPosition({ x: event.clientX, y: event.clientY });
+      }}
+      onDragEnd={() => {
+        setDraggedPlayerId?.("");
+        setDraggedPlayerSnapshot?.(null);
+      }}
+    >
+      <PlayerIdentity player={visiblePlayer} marker={marker} />
+      {isHost && player.id !== playerId && (
+        <button className="icon-only naked-icon" title="Remover da sala" aria-label="Remover da sala" onClick={() => action("host:kick", { playerId: player.id })}><Trash2 size={17} /></button>
+      )}
+    </div>
+  );
+}
+
+function PlayerIdentity({ player, marker = "" }) {
+  return (
+    <span className="player-identity">
+      <span className="player-avatar">{player.avatar ? <img src={player.avatar} alt={`Avatar de ${player.name}`} /> : initials(player.name)}</span>
+      <span className="player-copy">
+        <span className="player-name">
+          {player.name}
+          {player.isHost && <IconImg src={ICONS.leader} alt="Lider da sala" className="leader-icon" />}
+        </span>
+        {marker && <small className="player-marker">{marker}</small>}
+      </span>
+    </span>
   );
 }
 
@@ -363,14 +966,17 @@ function ChatPanel({ room, playerId, action, scope }) {
   const listRef = useRef(null);
   const me = room.players.find((player) => player.id === playerId);
   const isTeamChat = scope === "team";
+  const isSpectatorChat = scope === "spectator";
   const canUseTeamChat = isTeamChat && room.phase !== "lobby" && TEAMS.includes(me?.team);
-  const messages = isTeamChat ? room.chat?.team || [] : room.chat?.global || [];
+  const canUseSpectatorChat = isSpectatorChat && isSpectatorPlayer(me, room);
+  const messages = isSpectatorChat ? room.chat?.spectator || [] : isTeamChat ? room.chat?.team || [] : room.chat?.global || [];
 
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [messages.length]);
 
   if (isTeamChat && !canUseTeamChat) return null;
+  if (isSpectatorChat && !canUseSpectatorChat) return null;
 
   async function send(event) {
     event.preventDefault();
@@ -381,8 +987,8 @@ function ChatPanel({ room, playerId, action, scope }) {
   }
 
   return (
-    <section className={`chat-panel team-surface ${me?.team || ""} ${isTeamChat ? "team-chat" : "global-chat"}`}>
-      <h2>{isTeamChat ? "Chat do time" : "Chat da sala"}</h2>
+    <section className={`chat-panel ${isTeamChat ? `team-chat team-surface ${me?.team || ""}` : isSpectatorChat ? "spectator-chat" : "global-chat"}`}>
+      <h2>{isTeamChat ? "Chat do time" : isSpectatorChat ? "Chat dos espectadores" : "Chat da sala"}</h2>
       <div className="chat-messages" ref={listRef}>
         {messages.length ? messages.map((message) => (
           <div className={`chat-message ${message.playerId === playerId ? "mine" : ""}`} key={message.id}>
@@ -395,15 +1001,16 @@ function ChatPanel({ room, playerId, action, scope }) {
         )) : <p className="small">Nenhuma mensagem ainda.</p>}
       </div>
       <form className="chat-form" onSubmit={send}>
-        <input value={draft} maxLength={240} onChange={(event) => setDraft(event.target.value)} placeholder={isTeamChat ? "Mensagem para seu time" : "Mensagem para a sala"} />
+        <input value={draft} maxLength={240} onChange={(event) => setDraft(event.target.value)} placeholder={isTeamChat ? "Mensagem para seu time" : isSpectatorChat ? "Mensagem para espectadores" : "Mensagem para a sala"} />
         <button type="submit">Enviar</button>
       </form>
     </section>
   );
 }
 
-function Game({ room, playerId, constants, action, toast }) {
+function Game({ room, playerId, constants, action, toast, playerAvatar }) {
   const me = room.players.find((p) => p.id === playerId);
+  if (isSpectatorPlayer(me, room)) return <SpectatorGame room={room} playerId={playerId} constants={constants} action={action} toast={toast} playerAvatar={playerAvatar} />;
   const myTeam = me?.team;
   const rival = otherTeam(myTeam);
   const winner = getWinner(room, constants);
@@ -412,11 +1019,13 @@ function Game({ room, playerId, constants, action, toast }) {
     <section className="game-page enter">
       <div className="game-grid">
         <aside className="left-rail">
-          <WordsPanel title="Suas palavras" team={myTeam} words={room.teams[myTeam]?.words || []} category={room.settings.category} />
+          <RoundCounter room={room} constants={constants} compact />
+          <WordsPanel team={myTeam} words={room.teams[myTeam]?.words || []} category={room.settings.category} />
           <ChatPanel room={room} playerId={playerId} action={action} scope="team" />
         </aside>
 
         <div className="play-panel">
+          {room.blocked && <p className="toast game-blocker">{room.blocked}</p>}
           {room.phase === "playing" && <LiveRound room={room} playerId={playerId} constants={constants} action={action} />}
           {room.phase === "roundResult" && <RoundResult room={room} playerId={playerId} constants={constants} action={action} />}
           {room.phase === "tiebreaker" && <Tiebreaker room={room} playerId={playerId} constants={constants} action={action} />}
@@ -424,9 +1033,11 @@ function Game({ room, playerId, constants, action, toast }) {
           {toast && <p className="toast">{toast}</p>}
         </div>
 
-        <aside className={`right-rail team-surface ${rival || ""}`}>
-          <h2><BadgeCheck size={20} /> Confirmacoes adversarias</h2>
-          <ConfirmPanel room={room} playerId={playerId} constants={constants} />
+        <aside className="right-rail">
+          <div className="side-panel scoreboard-panel">
+            <ScoreBoard room={room} constants={constants} playerId={playerId} ordered />
+          </div>
+          <GamePlayersPanel room={room} playerId={playerId} constants={constants} action={action} playerAvatar={playerAvatar} />
         </aside>
       </div>
       <HintHistory room={room} constants={constants} playerId={playerId} />
@@ -434,17 +1045,127 @@ function Game({ room, playerId, constants, action, toast }) {
   );
 }
 
+function SpectatorGame({ room, playerId, constants, action, toast, playerAvatar }) {
+  const winner = getWinner(room, constants);
+  return (
+    <section className="game-page spectator-page enter">
+      <div className="spectator-game-grid">
+        <div className="spectator-main">
+          <RoundCounter room={room} constants={constants} compact />
+          {room.blocked && <p className="toast game-blocker">{room.blocked}</p>}
+          {room.phase === "playing" && <SpectatorRound room={room} playerId={playerId} constants={constants} />}
+          {room.phase === "roundResult" && <RoundResult room={room} playerId={playerId} constants={constants} action={() => Promise.resolve({ ok: false })} />}
+          {room.phase === "tiebreaker" && <StatusCard title="Desempate em andamento" text="Espectadores acompanham a decisao final sem confirmar." team="blue" />}
+          {room.phase === "gameOver" && <GameOver room={room} playerId={playerId} constants={constants} winner={winner} action={() => Promise.resolve({ ok: false })} />}
+          <SpectatorChats room={room} constants={constants} />
+          {toast && <p className="toast">{toast}</p>}
+        </div>
+        <aside className="right-rail">
+          <div className="side-panel scoreboard-panel">
+            <ScoreBoard room={room} constants={constants} playerId={playerId} ordered />
+          </div>
+          <GamePlayersPanel room={room} playerId={playerId} constants={constants} action={() => Promise.resolve({ ok: false })} playerAvatar={playerAvatar} />
+          <ChatPanel room={room} playerId={playerId} action={action} scope="spectator" />
+        </aside>
+      </div>
+      <HintHistory room={room} constants={constants} playerId={playerId} />
+    </section>
+  );
+}
+
+function SpectatorRound({ room, playerId, constants }) {
+  return (
+    <div className="spectator-team-grid">
+      {TEAMS.map((team) => (
+        <div className={`spectator-team-column team-surface ${team}`} key={team}>
+          <p className="eyebrow"><RadioTower size={16} /> {constants.TEAM_NAMES[team]}</p>
+          <WordsPanel team={team} words={room.teams[team]?.words || []} category={room.settings.category} />
+          <SpectatorHints hints={room.current?.turns?.[team]?.hints || []} />
+          <GuessPhase room={room} playerId={playerId} kind="team" targetTeam={team} title="Descriptografia" hints={room.current?.turns?.[team]?.hints || []} action={() => Promise.resolve({ ok: false })} />
+          <GuessPhase room={room} playerId={playerId} kind="intercept" targetTeam={team} title="Interceptacao" hints={room.current?.turns?.[team]?.hints || []} action={() => Promise.resolve({ ok: false })} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SpectatorHints({ hints }) {
+  return (
+    <div className={`spectator-round-section ${hints.length ? "" : "empty"}`}>
+      <strong>Dicas</strong>
+      {hints.length ? <HintsList hints={hints} /> : <p className="small">Aguardando dicas.</p>}
+    </div>
+  );
+}
+
+function SpectatorChats({ room, constants }) {
+  const teamChat = room.chat?.team || {};
+  return (
+    <div className="spectator-chats">
+      {TEAMS.map((team) => (
+        <section className={`chat-panel team-chat team-surface ${team}`} key={team}>
+          <h2>Chat do {constants.TEAM_NAMES[team]}</h2>
+          <div className="chat-messages">
+            {(teamChat[team] || []).map((message) => (
+              <div className="chat-message" key={message.id}>
+                <div className="chat-meta">
+                  <strong>{message.playerName}</strong>
+                </div>
+                <p>{message.text}</p>
+              </div>
+            ))}
+            {!(teamChat[team] || []).length && <p className="small">Nenhuma mensagem ainda.</p>}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function GamePlayersPanel({ room, playerId, constants, action, playerAvatar }) {
+  const isHost = room.hostId === playerId;
+  const me = room.players.find((player) => player.id === playerId);
+  const visibleTeams = me?.team ? [me.team, otherTeam(me.team), null] : [...TEAMS, null];
+  return (
+    <div className={`side-panel players-panel team-surface ${me?.team || ""}`}>
+      <h2><Users size={20} /> Jogadores</h2>
+      {visibleTeams.map((team) => (
+        <div className={`game-team-list ${team ? `team-surface ${team}` : "spectator-preview"}`} key={team || "spectators"}>
+          <strong>{team ? constants.TEAM_NAMES[team] : "Espectadores"}</strong>
+          <div className="player-card-list">
+            {room.players.filter((player) => player.team === team).length ? room.players.filter((player) => player.team === team).map((player) => (
+              <PlayerCard
+                key={player.id}
+                player={player}
+                playerId={playerId}
+                isHost={isHost}
+                action={action}
+                localAvatar={playerAvatar}
+                marker={playerCardMarker(room, player)}
+                confirmState={playerConfirmState(room, player)}
+              />
+            )) : <div className="empty-team">{team === null ? "Vazio" : "Time vazio"}</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function LiveRound({ room, playerId, constants, action }) {
   const me = room.players.find((p) => p.id === playerId);
   const myTeam = me?.team;
   const rival = otherTeam(myTeam);
-  const ownTurn = room.current.turns[myTeam];
-  const rivalTurn = room.current.turns[rival];
+  const ownTurn = room.current?.turns?.[myTeam];
+  const rivalTurn = room.current?.turns?.[rival];
   const isCoder = ownTurn?.coderId === playerId;
+  if (!TEAMS.includes(myTeam) || !ownTurn) {
+    return <StatusCard title="Sincronizando partida" text="Aguardando atribuicao de time e estado da rodada." team={myTeam} />;
+  }
 
   return (
     <div className="live-stack">
-      {isCoder && !ownTurn.hints.length ? (
+      {isCoder && !ownTurn?.hints.length ? (
         <HintsPhase room={room} targetTeam={myTeam} action={action} />
       ) : (
         <StatusCard
@@ -491,7 +1212,7 @@ function StatusCard({ title, text, team }) {
 function HintsPhase({ room, targetTeam, action }) {
   const [hints, setHints] = useState(["", "", ""]);
   const [reviewing, setReviewing] = useState(false);
-  const turn = room.current.turns[targetTeam];
+  const turn = room.current?.turns?.[targetTeam];
   const words = room.teams[targetTeam]?.words || [];
 
   useEffect(() => {
@@ -501,16 +1222,16 @@ function HintsPhase({ room, targetTeam, action }) {
   return (
     <div className={`phase-card compact team-surface ${targetTeam}`}>
       <p className="eyebrow"><Zap size={16} /> codigo confidencial</p>
-      <div className="secret-code">{turn.code.join("-")}</div>
+      <div className="secret-code">{turn?.code?.join("-") || "?"}</div>
       <div className="hint-grid">
-        {turn.code.map((number, index) => (
+        {(turn?.code || []).map((number, index) => (
           <label key={`${number}-${index}`}>Dica para {words[number - 1] || `#${number}`}
             <input value={hints[index]} onChange={(e) => setHints(hints.map((hint, i) => i === index ? e.target.value : hint))} placeholder="Digite uma pista curta" />
           </label>
         ))}
       </div>
       {!reviewing ? (
-        <button className="primary pulse" disabled={hints.filter((hint) => hint.trim()).length !== 3} onClick={() => setReviewing(true)}><BadgeCheck size={18} /> Revisar dicas</button>
+        <button className="primary pulse" disabled={Boolean(room.blocked) || hints.filter((hint) => hint.trim()).length !== 3} onClick={() => setReviewing(true)}><BadgeCheck size={18} /> Revisar dicas</button>
       ) : (
         <div className="inline-confirm confirmation-alert">
           <div className="confirm-warning">
@@ -523,7 +1244,7 @@ function HintsPhase({ room, targetTeam, action }) {
           <HintsList hints={hints} />
           <div className="inline-actions">
             <button onClick={() => setReviewing(false)}>Editar</button>
-            <button className="primary" onClick={() => action("game:hints", { hints })}><BadgeCheck size={18} /> Enviar dicas</button>
+            <button className="primary" disabled={Boolean(room.blocked)} onClick={() => action("game:hints", { hints })}><BadgeCheck size={18} /> Enviar dicas</button>
           </div>
         </div>
       )}
@@ -533,13 +1254,22 @@ function HintsPhase({ room, targetTeam, action }) {
 
 function GuessPhase({ room, playerId, kind, targetTeam, title, hints, action }) {
   const me = room.players.find((p) => p.id === playerId);
-  const turn = room.current.turns[targetTeam];
-  const proposal = turn.proposals[kind];
-  const isOwnCoderGuess = kind === "team" && turn.coderId === playerId;
+  const turn = room.current?.turns?.[targetTeam];
+  const proposal = turn?.proposals?.[kind] || { guess: [], confirmedBy: [], finalized: false };
+  const isOwnCoderGuess = kind === "team" && turn?.coderId === playerId;
   const expectedTeam = kind === "team" ? targetTeam : otherTeam(targetTeam);
-  const canAct = me?.team === expectedTeam && !isOwnCoderGuess && hints.length > 0 && !proposal?.finalized;
-  const canViewSharedGuess = me?.team === expectedTeam && hints.length > 0;
-  const voters = room.players.filter((player) => player.team === expectedTeam && player.connected && (kind !== "team" || player.id !== turn.coderId));
+  const canAct = !room.blocked && me?.team === expectedTeam && !isOwnCoderGuess && hints.length > 0 && !proposal?.finalized;
+  const canViewSharedGuess = (me?.spectator || me?.team === expectedTeam) && hints.length > 0;
+  const voters = room.players.filter((player) => !player.spectator && player.team === expectedTeam && player.connected && (kind !== "team" || player.id !== turn?.coderId));
+
+  if (!turn) {
+    return (
+      <div className={`decision-card team-surface ${targetTeam || ""}`}>
+        <p className="eyebrow"><RadioTower size={16} /> {title}</p>
+        <p className="small">Sincronizando estado da rodada.</p>
+      </div>
+    );
+  }
 
   function updateShared(nextGuess) {
     action("game:updateGuess", { kind, targetTeam, guess: nextGuess });
@@ -620,6 +1350,7 @@ function RoundResult({ room, playerId, constants, action }) {
   const confirmed = room.current.resultConfirmedBy || [];
   const me = room.players.find((player) => player.id === playerId);
   const orderedTeams = me?.team ? [me.team, otherTeam(me.team)] : TEAMS;
+  const voters = room.players.filter((player) => player.connected && !player.spectator);
   return (
     <div className="phase-card reveal">
       <p className="eyebrow"><Sparkles size={16} /> resultado simultaneo</p>
@@ -634,8 +1365,10 @@ function RoundResult({ room, playerId, constants, action }) {
           />
         ))}
       </div>
-      <ConfirmationRoster players={room.players.filter((player) => player.connected)} confirmedBy={confirmed} />
-      <button className="primary" disabled={confirmed.includes(playerId)} onClick={() => action("game:confirmResult")}><Play size={18} /> Confirmar resultado</button>
+      <ConfirmationRoster players={voters} confirmedBy={confirmed} />
+      {me?.spectator ? <p className="small">Espectadores acompanham o resultado sem confirmar.</p> : (
+        <button className="primary" disabled={confirmed.includes(playerId) || Boolean(room.blocked)} onClick={() => action("game:confirmResult")}><Play size={18} /> Confirmar resultado</button>
+      )}
     </div>
   );
 }
@@ -708,6 +1441,8 @@ function Tiebreaker({ room, playerId, constants, action }) {
 
 function GameOver({ room, playerId, constants, winner, action }) {
   const confirmed = room.final?.confirmedBy || [];
+  const me = room.players.find((player) => player.id === playerId);
+  const voters = room.players.filter((player) => player.connected && !player.spectator);
   useFinalSounds(room, winner, playerId);
   return (
     <div className={`phase-card reveal team-surface ${winner}`}>
@@ -719,16 +1454,20 @@ function GameOver({ room, playerId, constants, winner, action }) {
         ))}
       </div>
       <FinalWords room={room} constants={constants} />
-      <ConfirmationRoster players={room.players.filter((player) => player.connected)} confirmedBy={confirmed} />
-      <button className="primary" disabled={confirmed.includes(playerId)} onClick={() => action("game:confirmFinal")}><Play size={18} /> Voltar ao lobby</button>
+      <ConfirmationRoster players={voters} confirmedBy={confirmed} />
+      {me?.spectator ? <p className="small">Espectadores aguardam os jogadores voltarem ao lobby.</p> : (
+        <button className="primary" disabled={confirmed.includes(playerId)} onClick={() => action("game:confirmFinal")}><Play size={18} /> Voltar ao lobby</button>
+      )}
     </div>
   );
 }
 
-function ScoreBoard({ room, constants }) {
+function ScoreBoard({ room, constants, playerId, ordered = false }) {
+  const me = room.players.find((player) => player.id === playerId);
+  const teams = ordered && me?.team ? [me.team, otherTeam(me.team)] : TEAMS;
   return (
     <div className="scoreboard">
-      {TEAMS.map((team) => {
+      {teams.map((team) => {
         const score = room.teams[team].score;
         return (
           <div className={`score team-surface ${team}`} key={team}>
@@ -744,22 +1483,21 @@ function ScoreBoard({ room, constants }) {
   );
 }
 
-function RoundCounter({ room, constants }) {
+function RoundCounter({ room, constants, compact = false }) {
   return (
-    <div className="round-counter">
+    <div className={`round-counter ${compact ? "compact" : ""}`}>
       <span>Rodada</span>
       <strong>{room.round}/{constants.MAX_ROUNDS}</strong>
     </div>
   );
 }
 
-function WordsPanel({ title, team, words, category }) {
+function WordsPanel({ team, words, category }) {
   return (
     <div className={`words-panel team-surface ${team || ""}`}>
-      <h2>{title}</h2>
       {words.map((word, index) => (
-        <div className={category === "Pokemon" ? "word-card" : "word-card no-image"} key={`${word}-${index}`}>
-          {category === "Pokemon" && <WordImage word={word} index={index} />}
+        <div className="word-card" key={`${category}-${word}-${index}`}>
+          <WordImage word={word} index={index} category={category} />
           <div>
             <strong><span className="word-number">#{index + 1} </span>{word}</strong>
           </div>
@@ -769,11 +1507,35 @@ function WordsPanel({ title, team, words, category }) {
   );
 }
 
-function WordImage({ word, index }) {
+function WordImage({ word, index, category }) {
   const seed = Array.from(word).reduce((sum, char) => sum + char.charCodeAt(0), 0) + index * 23;
   const [failed, setFailed] = useState(word === "CRIPTOGRAFADA");
+  const [remoteUrl, setRemoteUrl] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const url = pokemonDbImageUrl(word);
+  const url = category === "Pokemon" ? pokemonDbImageUrl(word) : remoteUrl;
+
+  useEffect(() => {
+    if (category === "Pokemon" || word === "CRIPTOGRAFADA") return;
+    let active = true;
+    setFailed(false);
+    setRemoteUrl("");
+    const controller = new AbortController();
+    const query = category === "Geral" ? word : `${word} ${category || ""}`.trim();
+    fetch(`/api/image?q=${encodeURIComponent(query)}`, { signal: controller.signal })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!active) return;
+        if (data?.url) setRemoteUrl(data.url);
+        else setFailed(true);
+      })
+      .catch(() => {
+        if (active) setFailed(true);
+      });
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [word, category]);
 
   if (failed || !url) return <div className="mock-image" style={{ "--hue": seed % 360 }} aria-label={`Imagem relacionada a ${word}`}>{word.slice(0, 2).toUpperCase()}</div>;
   return (
@@ -799,11 +1561,12 @@ function ConfirmPanel({ room, playerId, constants }) {
   const me = room.players.find((player) => player.id === playerId);
   const rival = otherTeam(me?.team);
   const entries = TEAMS.flatMap((targetTeam) => ["team", "intercept"].map((kind) => {
-    const proposal = room.current.turns[targetTeam].proposals[kind];
+    const turn = room.current?.turns?.[targetTeam];
+    const proposal = turn?.proposals?.[kind];
     if (!proposal) return null;
     const votingTeam = kind === "team" ? targetTeam : otherTeam(targetTeam);
     if (votingTeam !== rival) return null;
-    const voters = room.players.filter((player) => player.team === votingTeam && player.connected && (kind !== "team" || player.id !== room.current.turns[targetTeam].coderId));
+    const voters = room.players.filter((player) => player.team === votingTeam && player.connected && (kind !== "team" || player.id !== turn?.coderId));
     return { targetTeam, kind, proposal, voters };
   })).filter(Boolean);
   if (!entries.length) return <p className="small">A equipe adversaria ainda nao iniciou uma confirmacao.</p>;
@@ -817,6 +1580,28 @@ function ConfirmPanel({ room, playerId, constants }) {
       ))}
     </div>
   );
+}
+
+function playerCardMarker(room, player) {
+  const labels = [];
+  if (room.current && room.current.turns?.[player.team]?.coderId === player.id) labels.push("Comunicador");
+  const state = playerConfirmState(room, player);
+  if (state === "both") labels.push("Descriptografia e interceptacao confirmadas");
+  else if (state === "team") labels.push("Descriptografia confirmada");
+  else if (state === "intercept") labels.push("Interceptacao confirmada");
+  return labels.join(" • ");
+}
+
+function playerConfirmState(room, player) {
+  if (room.phase !== "playing" || !room.current || !TEAMS.includes(player.team)) return "";
+  const ownTurn = room.current.turns[player.team];
+  const rivalTurn = room.current.turns[otherTeam(player.team)];
+  const teamConfirmed = ownTurn?.proposals?.team?.confirmedBy?.includes(player.id) || false;
+  const interceptConfirmed = rivalTurn?.proposals?.intercept?.confirmedBy?.includes(player.id) || false;
+  if (teamConfirmed && interceptConfirmed) return "both";
+  if (teamConfirmed) return "team";
+  if (interceptConfirmed) return "intercept";
+  return "";
 }
 
 function HintHistory({ room, constants, playerId }) {
@@ -927,11 +1712,65 @@ function CodeLine({ values = [], tone, status, className = "" }) {
 }
 
 function MatrixRain() {
-  return <div className="matrix-bg" aria-hidden="true">{Array.from({ length: 34 }).map((_, i) => <span key={i} style={{ "--i": i, "--d": `${3 + (i % 7)}s` }}>10110011</span>)}</div>;
+  const columns = useRef(null);
+  if (!columns.current) {
+    const glyphs = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZアイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン";
+    columns.current = Array.from({ length: 34 }, (_, index) => ({
+      text: Array.from({ length: 22 + (index % 8) }, () => glyphs[Math.floor(Math.random() * glyphs.length)]).join(""),
+      flipped: index % 7 === 0 || index % 11 === 0,
+      duration: `${4.2 + (index % 7) * 0.55}s`
+    }));
+  }
+  return (
+    <div className="matrix-bg" aria-hidden="true">
+      {columns.current.map((column, i) => (
+        <span
+          className={column.flipped ? "flipped" : ""}
+          key={i}
+          style={{ "--i": i, "--d": column.duration }}
+        >
+          {column.text}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function IconImg({ src, alt, className = "" }) {
   return <img src={src} alt={alt} className={className} aria-hidden={alt === "" ? "true" : undefined} />;
+}
+
+function initials(name = "") {
+  return String(name || "?").trim().slice(0, 1).toUpperCase() || "?";
+}
+
+function resizeAvatar(file) {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith("image/")) {
+      reject(new Error("Arquivo invalido."));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const size = 160;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext("2d");
+        const sourceSize = Math.min(image.width, image.height);
+        const sx = (image.width - sourceSize) / 2;
+        const sy = (image.height - sourceSize) / 2;
+        context.drawImage(image, sx, sy, sourceSize, sourceSize, 0, 0, size, size);
+        resolve(canvas.toDataURL("image/jpeg", 0.84));
+      };
+      image.onerror = reject;
+      image.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 function getWinner(room, constants) {
@@ -980,6 +1819,7 @@ function orderedHistory(history = []) {
 
 function pokemonDbImageUrl(word) {
   const slug = String(word || "")
+    .replace(/^Mr\.?\s+(Mime|Rime)$/i, "mr$1")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
@@ -989,16 +1829,51 @@ function pokemonDbImageUrl(word) {
     .replace(/♂/g, "-m")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-  return slug ? `https://img.pokemondb.net/artwork/large/${slug}.jpg` : "";
+  return slug ? `https://projectpokemon.org/images/normal-sprite/${slug}.gif` : "";
 }
 
-function rememberSession(room, payload = {}) {
+function rememberSession(room, payload = {}, clientId = getGhostClientId()) {
   try {
     const name = String(payload.name || "").trim();
     if (name) localStorage.setItem("decrypto:name", JSON.stringify(name));
     if (room?.code) localStorage.setItem("decrypto:lastRoomCode", JSON.stringify(room.code));
+    if (room?.code && name) {
+      sessionStorage.setItem("codehack:activeRoom", JSON.stringify({
+        code: room.code,
+        name,
+        clientId
+      }));
+    }
   } catch {
     // Local cache is a convenience only.
+  }
+}
+
+function readActiveRoomSession() {
+  try {
+    return JSON.parse(sessionStorage.getItem("codehack:activeRoom") || "null");
+  } catch {
+    return null;
+  }
+}
+
+function clearActiveRoomSession() {
+  try {
+    sessionStorage.removeItem("codehack:activeRoom");
+  } catch {
+    // Session cache is best-effort.
+  }
+}
+
+function getGhostClientId() {
+  try {
+    const existing = localStorage.getItem("codehack:ghostClientId");
+    if (existing) return existing;
+    const generated = `ghost:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 12)}`;
+    localStorage.setItem("codehack:ghostClientId", generated);
+    return generated;
+  } catch {
+    return `ghost:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 12)}`;
   }
 }
 
@@ -1059,7 +1934,7 @@ function collectConfirmationEntries(room) {
   if (room.phase === "playing" && room.current?.turns) {
     TEAMS.forEach((team) => {
       ["team", "intercept"].forEach((kind) => {
-        const proposal = room.current.turns[team].proposals[kind];
+        const proposal = room.current?.turns?.[team]?.proposals?.[kind];
         entries.push({ key: `play-${team}-${kind}`, count: proposal?.confirmedBy?.length || 0 });
       });
     });
@@ -1149,9 +2024,19 @@ function otherTeam(team) {
   return team === "red" ? "blue" : "red";
 }
 
+function isSpectatorPlayer(player, room) {
+  return Boolean(player && room?.phase !== "lobby" && (player.spectator || !TEAMS.includes(player.team)));
+}
+
 function teamLabel(team) {
-  if (team === null) return "Sem time";
+  if (team === null) return "Espectadores";
   return team === "red" ? "Time Vermelho" : "Time Azul";
+}
+
+function teamEventName(team) {
+  if (team === "red") return "Time Vermelho";
+  if (team === "blue") return "Time Azul";
+  return "Espectadores";
 }
 
 function useLocalState(key, initial) {

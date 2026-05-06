@@ -19,11 +19,12 @@ import {
   movePlayer,
   publicRoom,
   removePlayer,
+  roomJoinPreview,
   sendChatMessage,
-  setPlayerConnected,
   startGame,
   submitHints,
   updateGuess,
+  updatePlayerAvatar,
   updateSettings,
   updateTiebreaker
 } from "./game.js";
@@ -36,11 +37,13 @@ const distPath = path.resolve(__dirname, "../dist");
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: "*" }
+  cors: { origin: "*" },
+  maxHttpBufferSize: 5e6
 });
 
 const rooms = new Map();
 const sessions = new Map();
+const pendingDisconnects = new Map();
 const imageCache = new Map();
 
 app.use((req, res, next) => {
@@ -60,6 +63,10 @@ app.get("/api/image", async (req, res) => {
   if (imageCache.has(cacheKey)) return res.json(imageCache.get(cacheKey));
   const pokemon = await pokemonImage(query);
   if (pokemon) return cacheImage(cacheKey, res, { url: pokemon, source: "pokeapi" });
+  if (!/\bpokemon\b/i.test(query)) {
+    const google = await googleImage(query);
+    if (google) return cacheImage(cacheKey, res, { url: google, source: "google" });
+  }
   const wiki = await wikiImage(query);
   if (wiki) return cacheImage(cacheKey, res, { url: wiki, source: "wikimedia" });
   cacheImage(cacheKey, res, { url: null, source: "fallback" });
@@ -69,33 +76,61 @@ app.get("/{*splat}", (_req, res) => res.sendFile(path.join(distPath, "index.html
 
 io.on("connection", (socket) => {
   socket.emit("constants", CONSTANTS);
+  socket.emit("rooms:update", publicRoomList());
 
-  socket.on("room:create", ({ name }, reply) => safe(reply, () => {
-    const room = uniqueRoom(socket.id, name);
+  socket.on("rooms:list", (_payload, reply) => safe(reply, () => ({ rooms: publicRoomList() })));
+
+  socket.on("room:create", ({ name, avatar, clientId, roomName, password, publicRoom: isPublicRoom }, reply) => safe(reply, () => {
+    clearPendingDisconnect(clientId);
+    const room = uniqueRoom(socket.id, name, avatar, clientId, { roomName, password: isPublicRoom === false ? "" : password, publicRoom: isPublicRoom });
     sessions.set(socket.id, room.code);
     socket.join(room.code);
     emitRoom(room);
+    emitRoomList();
     return { room: publicRoom(room, socket.id), playerId: socket.id };
   }));
 
-  socket.on("room:join", ({ code, name }, reply) => safe(reply, () => {
+  socket.on("room:join", ({ code, name, avatar, clientId, role, password }, reply) => safe(reply, () => {
     const room = getRoom(code);
-    const joinedId = addPlayer(room, socket.id, name);
+    validateRoomPassword(room, password);
+    const allowActiveTakeover = clearPendingDisconnect(clientId);
+    const join = addPlayer(room, socket.id, name, avatar, clientId, role, { allowActiveTakeover });
+    if (join.needsRoleChoice) return { needsRoleChoice: true, preview: roomJoinPreview(room), name: join.playerName, code: room.code };
+    detachPreviousSocket(join.previousId, room.code);
     sessions.set(socket.id, room.code);
     socket.join(room.code);
     emitRoom(room);
-    return { room: publicRoom(room, joinedId), playerId: joinedId };
+    emitRoomList();
+    if (join.eventType !== "resume") emitRoomEvent(room, socket.id, "join", room.players[join.playerId]);
+    return { room: publicRoom(room, join.playerId), playerId: join.playerId };
+  }));
+
+  socket.on("room:resume", ({ code, name, avatar, clientId, role }, reply) => safe(reply, () => {
+    const room = getRoom(code);
+    const allowActiveTakeover = clearPendingDisconnect(clientId);
+    const join = addPlayer(room, socket.id, name, avatar, clientId, role, { allowActiveTakeover });
+    if (join.needsRoleChoice) return { needsRoleChoice: true, preview: roomJoinPreview(room), name: join.playerName, code: room.code };
+    detachPreviousSocket(join.previousId, room.code);
+    sessions.set(socket.id, room.code);
+    socket.join(room.code);
+    emitRoom(room);
+    emitRoomList();
+    if (join.eventType !== "resume") emitRoomEvent(room, socket.id, "join", room.players[join.playerId]);
+    return { room: publicRoom(room, join.playerId), playerId: join.playerId };
   }));
 
   socket.on("room:leave", (_payload, reply) => safe(reply, () => {
     const room = currentRoom(socket);
     const code = room.code;
-    if (room.phase === "lobby") removePlayer(room, socket.id);
-    else setPlayerConnected(room, socket.id, false);
+    const removed = removePlayer(room, socket.id);
     sessions.delete(socket.id);
     socket.leave(code);
     if (Object.keys(room.players).length === 0) rooms.delete(code);
-    else emitRoom(room);
+    else {
+      emitRoom(room);
+      if (removed) emitRoomEvent(room, socket.id, "leave", removed);
+    }
+    emitRoomList();
     return { ok: true };
   }));
 
@@ -103,6 +138,7 @@ io.on("connection", (socket) => {
     const room = currentRoom(socket);
     updateSettings(room, socket.id, settings);
     emitRoom(room);
+    emitRoomList();
     return { ok: true };
   }));
 
@@ -120,11 +156,20 @@ io.on("connection", (socket) => {
     return { ok: true };
   }));
 
+  socket.on("player:avatar", ({ avatar }, reply) => safe(reply, () => {
+    const room = currentRoom(socket);
+    const updatedAvatar = updatePlayerAvatar(room, socket.id, avatar);
+    io.to(room.code).emit("player:avatarUpdate", { playerId: socket.id, avatar: updatedAvatar });
+    emitRoom(room);
+    return { room: publicRoom(room, socket.id) };
+  }));
+
   socket.on("host:kick", ({ playerId }, reply) => safe(reply, () => {
     const room = currentRoom(socket);
     kickPlayer(room, socket.id, playerId);
     io.to(playerId).emit("room:kicked");
     emitRoom(room);
+    emitRoomList();
     return { ok: true };
   }));
 
@@ -132,6 +177,7 @@ io.on("connection", (socket) => {
     const room = currentRoom(socket);
     hostReturnLobby(room, socket.id);
     emitRoom(room);
+    emitRoomList();
     return { ok: true };
   }));
 
@@ -153,6 +199,7 @@ io.on("connection", (socket) => {
     const room = currentRoom(socket);
     startGame(room, socket.id);
     emitRoom(room);
+    emitRoomList();
     return { ok: true };
   }));
 
@@ -209,24 +256,29 @@ io.on("connection", (socket) => {
     const code = sessions.get(socket.id);
     if (!code || !rooms.has(code)) return;
     const room = rooms.get(code);
-    setPlayerConnected(room, socket.id, false);
-    emitRoom(room);
-    setTimeout(() => {
-      const latest = rooms.get(code);
-      if (!latest) return;
-      if (latest && latest.phase !== "lobby") return;
-      if (!latest?.players[socket.id]?.connected) {
-        removePlayer(latest, socket.id);
-        if (Object.keys(latest.players).length === 0) rooms.delete(code);
-        else emitRoom(latest);
+    const player = room.players[socket.id];
+    const clientId = player?.clientId || socket.id;
+    sessions.delete(socket.id);
+    const timer = setTimeout(() => {
+      pendingDisconnects.delete(clientId);
+      if (!rooms.has(code)) return;
+      const liveRoom = rooms.get(code);
+      const removed = removePlayer(liveRoom, socket.id);
+      if (!removed) return;
+      if (Object.keys(liveRoom.players).length === 0) rooms.delete(code);
+      else {
+        emitRoom(liveRoom);
+        emitRoomEvent(liveRoom, socket.id, "leave", removed);
       }
-    }, 30000);
+      emitRoomList();
+    }, 1500);
+    pendingDisconnects.set(clientId, timer);
   });
 });
 
-function uniqueRoom(playerId, name) {
-  let room = makeRoom(playerId, name);
-  while (rooms.has(room.code)) room = makeRoom(playerId, name);
+function uniqueRoom(playerId, name, avatar, clientId, roomOptions) {
+  let room = makeRoom(playerId, name, avatar, clientId, roomOptions);
+  while (rooms.has(room.code)) room = makeRoom(playerId, name, avatar, clientId, roomOptions);
   rooms.set(room.code, room);
   return room;
 }
@@ -246,6 +298,61 @@ function emitRoom(room) {
   Object.keys(room.players).forEach((playerId) => {
     io.to(playerId).emit("room:update", publicRoom(room, playerId));
   });
+}
+
+function emitRoomList() {
+  io.emit("rooms:update", publicRoomList());
+}
+
+function publicRoomList() {
+  return Array.from(rooms.values())
+    .filter((room) => room.publicRoom !== false)
+    .map((room) => {
+      const players = Object.values(room.players);
+      const host = room.players[room.hostId] || players.find((player) => player.isHost);
+      return {
+        code: room.code,
+        name: room.name || room.code,
+        hostName: host?.name || "Host",
+        playerCount: players.length,
+        phase: room.phase,
+        inGame: room.phase !== "lobby",
+        hasPassword: Boolean(room.password),
+        category: room.settings?.category || "Geral",
+        updatedAt: room.updatedAt || room.createdAt || 0
+      };
+    });
+}
+
+function validateRoomPassword(room, password) {
+  if (!room.password) return;
+  if (String(password || "") !== room.password) throw new Error("Senha incorreta.");
+}
+
+function emitRoomEvent(room, exceptPlayerId, type, player) {
+  io.to(room.code).except(exceptPlayerId).emit("room:event", {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    playerName: player?.name || "Jogador",
+    avatar: player?.avatar || "",
+    team: player?.team || null,
+    at: Date.now()
+  });
+}
+
+function clearPendingDisconnect(clientId) {
+  const key = String(clientId || "");
+  const timer = pendingDisconnects.get(key);
+  if (!timer) return false;
+  clearTimeout(timer);
+  pendingDisconnects.delete(key);
+  return true;
+}
+
+function detachPreviousSocket(previousId, code) {
+  if (!previousId) return;
+  sessions.delete(previousId);
+  io.sockets.sockets.get(previousId)?.leave(code);
 }
 
 function safe(reply, fn) {

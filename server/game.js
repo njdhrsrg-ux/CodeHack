@@ -8,11 +8,14 @@ const WIN_INTERCEPTS = 2;
 const STARTING_LIVES = 2;
 const MAX_ROUNDS = 8;
 
-export function makeRoom(hostId, hostName) {
+export function makeRoom(hostId, hostName, hostAvatar = "", hostClientId = hostId, roomOptions = {}) {
   const code = makeCode();
-  const host = makePlayer(hostId, hostName, true);
+  const host = makePlayer(hostId, hostName, true, hostAvatar, hostClientId);
   return {
     code,
+    name: cleanRoomName(roomOptions.roomName, host.name),
+    password: cleanRoomPassword(roomOptions.password),
+    publicRoom: roomOptions.publicRoom !== false,
     hostId,
     players: { [hostId]: host },
     settings: {
@@ -32,6 +35,7 @@ export function makeRoom(hostId, hostName) {
     current: null,
     tiebreaker: null,
     final: null,
+    departedPlayers: {},
     chat: makeChatState(),
     log: [],
     createdAt: Date.now(),
@@ -39,48 +43,131 @@ export function makeRoom(hostId, hostName) {
   };
 }
 
-export function makePlayer(id, name = "Operador", isHost = false) {
+export function makePlayer(id, name = "Operador", isHost = false, avatar = "", clientId = id) {
   return {
     id,
+    clientId: cleanClientId(clientId) || id,
     name: cleanName(name),
+    avatar: cleanAvatar(avatar),
     team: null,
+    spectator: false,
     isHost,
     connected: true,
+    joinedRound: null,
     joinedAt: Date.now()
   };
 }
 
 export function publicRoom(room, viewerId) {
   const viewer = room.players[viewerId];
+  const { departedPlayers: _departedPlayers, password: _password, ...visibleRoom } = room;
+  const players = Object.values(room.players);
   return {
-    ...room,
-    players: Object.values(room.players),
+    ...visibleRoom,
+    hasPassword: Boolean(room.password),
+    viewerId,
+    players,
+    avatars: Object.fromEntries(players.map((player) => [player.id, player.avatar || ""])),
     teams: {
       red: maskTeam(room, "red", viewer),
       blue: maskTeam(room, "blue", viewer)
     },
     current: maskCurrent(room, viewer),
     tiebreaker: maskTiebreaker(room, viewer),
-    chat: maskChat(room, viewer)
+    chat: maskChat(room, viewer),
+    blocked: gameBlockReason(room)
   };
 }
 
-export function addPlayer(room, id, name) {
+export function addPlayer(room, id, name, avatar = "", clientId = id, role = null, options = {}) {
   const cleaned = cleanName(name);
-  if (room.phase !== "lobby") {
-    const existing = Object.values(room.players).find((player) => player.name === cleaned);
-    if (!existing) throw new Error("Partida em andamento. Entre com o mesmo nome usado antes de sair.");
-    if (existing.connected) throw new Error("Ja existe um jogador conectado com este nome nesta partida.");
-    reconnectPlayer(room, existing.id, id);
+  const cleanedClientId = cleanClientId(clientId) || id;
+  if (Object.keys(room.players).length >= 12) throw new Error("A sala ja atingiu o limite de 12 jogadores.");
+  const existingByClient = Object.values(room.players).find((player) => player.clientId === cleanedClientId);
+  if (existingByClient) {
+    const previousId = existingByClient.id;
+    if (previousId !== id && existingByClient.connected && !options.allowActiveTakeover) {
+      throw new Error("Este jogador ja esta conectado nesta sala em outra aba.");
+    }
+    room.players[id] = {
+      ...existingByClient,
+      id,
+      clientId: cleanedClientId,
+      avatar: cleanAvatar(avatar) || existingByClient.avatar,
+      connected: true,
+      rejoinedAt: Date.now()
+    };
+    if (previousId !== id) {
+      delete room.players[previousId];
+      replacePlayerReference(room, previousId, id);
+      if (room.hostId === previousId) room.hostId = id;
+      syncHostFlags(room);
+    }
+    if (room.phase !== "lobby") refreshProgressAfterPlayerRemoval(room);
     touch(room);
-    return id;
+    return { playerId: id, previousId, playerName: room.players[id].name, eventType: "resume" };
   }
   if (Object.values(room.players).some((player) => player.name === cleaned)) {
     throw new Error("Ja existe um jogador com esse nome nesta partida.");
   }
-  room.players[id] = makePlayer(id, cleaned, false);
+  const departed = room.phase !== "lobby"
+    ? Object.values(room.departedPlayers || {}).find((player) => player.clientId === cleanedClientId || player.name === cleaned)
+    : null;
+  if (!departed && room.phase !== "lobby" && !["player", "spectator"].includes(role)) {
+    return { needsRoleChoice: true, playerName: cleaned };
+  }
+  if (departed) {
+    room.players[id] = {
+      ...departed,
+      id,
+      clientId: cleanedClientId,
+      avatar: cleanAvatar(avatar) || departed.avatar,
+      isHost: false,
+      connected: true,
+      rejoinedAt: Date.now()
+    };
+    delete room.departedPlayers[departed.name];
+    replacePlayerReference(room, departed.id, id);
+  } else {
+    const player = makePlayer(id, cleaned, false, avatar, cleanedClientId);
+    if (room.phase !== "lobby") {
+      if (role === "spectator") {
+        player.team = null;
+        player.spectator = true;
+      } else {
+        player.team = balancedJoinTeam(room);
+        if (!TEAMS.includes(player.team)) throw new Error("Os times de jogadores estao cheios. Entre como espectador.");
+      }
+      player.joinedRound = room.round;
+    }
+    room.players[id] = player;
+  }
+  if (room.phase !== "lobby") refreshProgressAfterPlayerRemoval(room);
   touch(room);
-  return id;
+  return { playerId: id, previousId: departed?.id || null, playerName: room.players[id].name, eventType: departed ? "rejoin" : "join" };
+}
+
+export function roomJoinPreview(room) {
+  return {
+    code: room.code,
+    phase: room.phase,
+    players: Object.values(room.players).map((player) => ({
+      id: player.id,
+      name: player.name,
+      avatar: player.avatar,
+      team: player.team,
+      spectator: player.spectator,
+      isHost: player.isHost
+    }))
+  };
+}
+
+export function updatePlayerAvatar(room, playerId, avatar) {
+  const player = room.players[playerId];
+  if (!player) throw new Error("Jogador nao encontrado.");
+  player.avatar = cleanAvatar(avatar);
+  touch(room);
+  return player.avatar;
 }
 
 export function sendChatMessage(room, playerId, scope, text) {
@@ -91,6 +178,7 @@ export function sendChatMessage(room, playerId, scope, text) {
   if (!room.chat) room.chat = makeChatState();
   room.chat.global ||= [];
   room.chat.team ||= { red: [], blue: [] };
+  room.chat.spectator ||= [];
   TEAMS.forEach((team) => {
     room.chat.team[team] ||= [];
   });
@@ -104,41 +192,41 @@ export function sendChatMessage(room, playerId, scope, text) {
   };
   if (scope === "global") {
     if (room.phase !== "lobby") throw new Error("Chat da sala fica disponivel apenas no lobby.");
+    if (player.spectator) throw new Error("Espectadores nao enviam mensagens no chat da sala durante a partida.");
     room.chat.global.push(message);
     room.chat.global = room.chat.global.slice(-80);
   } else if (scope === "team") {
+    if (player.spectator) throw new Error("Espectadores podem ler chats dos times, mas nao enviar mensagens neles.");
     if (room.phase === "lobby") throw new Error("Chat do time fica disponivel durante o jogo.");
     if (!TEAMS.includes(player.team)) throw new Error("Entre em um time para usar o chat do time.");
     room.chat.team[player.team].push(message);
     room.chat.team[player.team] = room.chat.team[player.team].slice(-80);
+  } else if (scope === "spectator") {
+    if (!isSpectatorViewer(room, player)) throw new Error("Apenas espectadores podem usar este chat.");
+    if (room.phase === "lobby") throw new Error("Chat dos espectadores fica disponivel durante o jogo.");
+    room.chat.spectator.push(message);
+    room.chat.spectator = room.chat.spectator.slice(-80);
   } else {
     throw new Error("Canal de chat invalido.");
   }
   touch(room);
 }
 
-export function removePlayer(room, playerId) {
+export function removePlayer(room, playerId, options = {}) {
   const player = room.players[playerId];
-  if (!player) return;
+  if (!player) return null;
+  if (options.archive !== false) archiveDepartedPlayer(room, player);
   delete room.players[playerId];
   if (room.hostId === playerId) transferHost(room);
-  if (room.current) {
-    TEAMS.forEach((team) => {
-      if (room.current.turns[team]?.coderId === playerId) chooseCoder(room, team);
-    });
-  }
+  refreshProgressAfterPlayerRemoval(room);
   touch(room);
+  return player;
 }
 
 export function setPlayerConnected(room, playerId, connected) {
   if (!room.players[playerId]) return;
   room.players[playerId].connected = connected;
   if (!connected && room.hostId === playerId) transferHost(room);
-  if (!connected && room.current) {
-    TEAMS.forEach((team) => {
-      if (room.current.turns[team]?.coderId === playerId) chooseCoder(room, team);
-    });
-  }
   touch(room);
 }
 
@@ -180,14 +268,18 @@ function setPlayerTeam(room, playerId, team, byHost) {
   if (room.settings.randomTeams) throw new Error("Times aleatorios estao ativos.");
   if (!TEAMS.includes(team) && team !== null) throw new Error("Time invalido.");
   if (!room.players[playerId]) throw new Error("Jogador nao encontrado.");
+  if (TEAMS.includes(team) && teamPlayers(room, team).filter((player) => player.id !== playerId).length >= 4) {
+    throw new Error("Este time ja tem o limite de 4 jogadores.");
+  }
   room.players[playerId].team = team;
+  room.players[playerId].spectator = team === null;
   touch(room);
 }
 
 export function kickPlayer(room, hostId, playerId) {
   guardHost(room, hostId);
   if (playerId === room.hostId) throw new Error("O host atual nao pode se remover.");
-  removePlayer(room, playerId);
+  removePlayer(room, playerId, { archive: false });
 }
 
 export function autoTeams(room, hostId) {
@@ -197,7 +289,7 @@ export function autoTeams(room, hostId) {
 }
 
 function assignRandomTeams(room) {
-  const players = Object.values(room.players).sort((a, b) => a.joinedAt - b.joinedAt);
+  const players = Object.values(room.players).filter((player) => !player.spectator).sort((a, b) => a.joinedAt - b.joinedAt);
   shuffle(players).forEach((player, index) => {
     player.team = index % 2 === 0 ? "red" : "blue";
   });
@@ -216,19 +308,26 @@ export function startGame(room, hostId) {
   TEAMS.forEach((team) => {
     room.teams[team].hintHistory = [];
     room.teams[team].score = { correct: 0, interceptions: 0, lives: room.settings.startingLives || STARTING_LIVES };
-    room.teams[team].codexIndex = -1;
+    const players = teamPlayers(room, team);
+    room.teams[team].codexIndex = players.length ? Math.floor(Math.random() * players.length) - 1 : -1;
   });
   room.round = 0;
   room.log = [];
   room.tiebreaker = null;
   room.final = null;
+  room.departedPlayers = {};
   room.chat = room.chat || makeChatState();
   room.chat.team = { red: [], blue: [] };
+  room.chat.spectator = [];
+  Object.values(room.players).forEach((player) => {
+    player.joinedRound = null;
+  });
   beginRound(room);
 }
 
 export function submitHints(room, playerId, hints) {
   if (room.phase !== "playing") throw new Error("Nao e hora de enviar dicas.");
+  ensureGameCanContinue(room);
   const player = room.players[playerId];
   const team = player?.team;
   const turn = room.current?.turns?.[team];
@@ -243,6 +342,7 @@ export function submitHints(room, playerId, hints) {
 
 export function updateGuess(room, playerId, kind, guess, targetTeam) {
   if (room.phase !== "playing") throw new Error("Acao fora da fase atual.");
+  ensureGameCanContinue(room);
   const target = normalizeTargetTeam(kind, room.players[playerId], targetTeam);
   const turn = room.current.turns[target];
   guardDecision(room, playerId, kind, target, turn);
@@ -256,6 +356,7 @@ export function updateGuess(room, playerId, kind, guess, targetTeam) {
 
 export function confirmDecision(room, playerId, kind, targetTeam) {
   if (room.phase !== "playing") throw new Error("Confirmacao fora da fase atual.");
+  ensureGameCanContinue(room);
   const target = normalizeTargetTeam(kind, room.players[playerId], targetTeam);
   const turn = room.current.turns[target];
   guardDecision(room, playerId, kind, target, turn);
@@ -268,6 +369,8 @@ export function confirmDecision(room, playerId, kind, targetTeam) {
 
 export function confirmResult(room, playerId) {
   if (room.phase !== "roundResult") throw new Error("Resultado nao esta em confirmacao.");
+  if (room.players[playerId]?.spectator) throw new Error("Espectadores nao confirmam resultados.");
+  ensureGameCanContinue(room);
   if (!room.current.resultConfirmedBy.includes(playerId)) room.current.resultConfirmedBy.push(playerId);
   if (allConnectedConfirmed(room.current.resultConfirmedBy, room)) {
     advanceAfterRoundResult(room);
@@ -304,6 +407,7 @@ export function confirmTiebreaker(room, playerId) {
 
 export function confirmFinal(room, playerId) {
   if (room.phase !== "gameOver") throw new Error("Final de jogo nao esta ativo.");
+  if (room.players[playerId]?.spectator) throw new Error("Espectadores nao confirmam resultados.");
   if (!room.final.confirmedBy.includes(playerId)) room.final.confirmedBy.push(playerId);
   if (allConnectedConfirmed(room.final.confirmedBy, room)) returnToLobby(room);
   touch(room);
@@ -334,7 +438,7 @@ function beginRound(room) {
 
 function chooseCoder(room, team) {
   if (!room.current) return;
-  const players = teamPlayers(room, team).filter((player) => player.connected);
+  const players = teamPlayers(room, team).filter((player) => player.connected && player.joinedRound !== room.round);
   if (!players.length) {
     room.current.turns[team].coderId = null;
     return;
@@ -344,11 +448,47 @@ function chooseCoder(room, team) {
 }
 
 function maybeFinalizeProposal(room, targetTeam, kind) {
+  if (room.phase !== "playing") return;
+  if (gameBlockReason(room)) return;
   const proposal = room.current.turns[targetTeam].proposals[kind];
   const players = eligibleDecisionPlayers(room, kind, targetTeam);
+  if (!players.length) return;
+  const eligibleIds = new Set(players.map((player) => player.id));
+  proposal.confirmedBy = proposal.confirmedBy.filter((id) => eligibleIds.has(id));
   if (proposal.confirmedBy.length < players.length) return;
   proposal.finalized = true;
   if (allDecisionsFinalized(room)) scoreRound(room);
+}
+
+function refreshProgressAfterPlayerRemoval(room) {
+  if (gameBlockReason(room)) return;
+  if (room.phase === "playing" && room.current) {
+    TEAMS.forEach((team) => {
+      ["team", "intercept"].forEach((kind) => {
+        if (room.phase !== "playing") return;
+        const proposal = room.current.turns[team].proposals[kind];
+        if (isCompleteGuess(proposal.guess, room.settings.wordCount)) maybeFinalizeProposal(room, team, kind);
+      });
+    });
+  }
+  if (room.phase === "roundResult" && room.current && allConnectedConfirmed(room.current.resultConfirmedBy, room)) {
+    advanceAfterRoundResult(room);
+  }
+  if (room.phase === "tiebreaker" && room.tiebreaker && TEAMS.every((team) => tiebreakerFinalizedOrReady(room, team))) {
+    scoreTiebreaker(room);
+  }
+  if (room.phase === "gameOver" && room.final && allConnectedConfirmed(room.final.confirmedBy, room)) {
+    returnToLobby(room);
+  }
+}
+
+function isCompleteGuess(guess, wordCount) {
+  try {
+    normalizeGuess(guess, wordCount);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function scoreRound(room) {
@@ -433,7 +573,9 @@ function scoreTiebreaker(room) {
 }
 
 function returnToLobby(room) {
+  const teamByPlayer = Object.fromEntries(Object.values(room.players).map((player) => [player.id, player.team]));
   room.phase = "lobby";
+  room.settings.randomTeams = false;
   room.round = 0;
   room.current = null;
   room.tiebreaker = null;
@@ -443,18 +585,26 @@ function returnToLobby(room) {
     room.teams[team] = makeTeamState();
     room.teams[team].score.lives = room.settings.startingLives || STARTING_LIVES;
   });
+  Object.values(room.players).forEach((player) => {
+    player.team = teamByPlayer[player.id] ?? player.team ?? null;
+    player.connected = true;
+    player.joinedRound = null;
+  });
+  room.departedPlayers = {};
 }
 
-function reconnectPlayer(room, oldId, newId) {
-  const player = room.players[oldId];
-  if (!player) throw new Error("Jogador nao encontrado para reconexao.");
-  room.players[newId] = { ...player, id: newId, connected: true };
-  delete room.players[oldId];
-  replacePlayerReference(room, oldId, newId);
+function archiveDepartedPlayer(room, player) {
+  if (room.phase === "lobby") return;
+  room.departedPlayers ||= {};
+  room.departedPlayers[player.name] = {
+    ...player,
+    connected: false,
+    isHost: false,
+    leftAt: Date.now()
+  };
 }
 
 function replacePlayerReference(room, oldId, newId) {
-  if (room.hostId === oldId) room.hostId = newId;
   if (room.current) {
     TEAMS.forEach((team) => {
       const turn = room.current.turns[team];
@@ -476,9 +626,6 @@ function replacePlayerReference(room, oldId, newId) {
   if (room.final) {
     room.final.confirmedBy = room.final.confirmedBy.map((id) => id === oldId ? newId : id);
   }
-  Object.values(room.players).forEach((player) => {
-    player.isHost = player.id === room.hostId;
-  });
 }
 
 function allDecisionsFinalized(room) {
@@ -506,7 +653,7 @@ function rankAfterMaxRounds(room) {
 }
 
 function maskTeam(room, team, viewer) {
-  const ownTeam = viewer?.team === team || room.phase === "gameOver";
+  const ownTeam = viewer?.team === team || isSpectatorViewer(room, viewer) || room.phase === "gameOver";
   const score = room.phase === "lobby"
     ? { ...room.teams[team].score, lives: room.settings.startingLives || STARTING_LIVES }
     : room.teams[team].score;
@@ -519,10 +666,11 @@ function maskTeam(room, team, viewer) {
 
 function maskCurrent(room, viewer) {
   if (!room.current) return null;
+  const spectator = isSpectatorViewer(room, viewer);
   const turns = {};
   TEAMS.forEach((team) => {
     const turn = room.current.turns[team];
-    const canSeeCode = viewer?.id === turn.coderId || room.phase === "roundResult" || room.phase === "gameOver";
+    const canSeeCode = viewer?.id === turn.coderId || spectator || room.phase === "roundResult" || room.phase === "gameOver";
     turns[team] = {
       ...turn,
       code: canSeeCode ? turn.code : turn.code.map(() => "?")
@@ -545,11 +693,26 @@ function maskTiebreaker(room, viewer) {
 
 function maskChat(room, viewer) {
   const chat = room.chat || makeChatState();
+  if (isSpectatorViewer(room, viewer) && room.phase !== "lobby") {
+    return {
+      global: chat.global || [],
+      spectator: chat.spectator || [],
+      team: {
+        red: chat.team?.red || [],
+        blue: chat.team?.blue || []
+      }
+    };
+  }
   const teamMessages = TEAMS.includes(viewer?.team) ? chat.team?.[viewer.team] || [] : [];
   return {
     global: chat.global || [],
+    spectator: [],
     team: room.phase === "lobby" ? [] : teamMessages
   };
+}
+
+function isSpectatorViewer(room, viewer) {
+  return Boolean(viewer && room.phase !== "lobby" && (viewer.spectator || !TEAMS.includes(viewer.team)));
 }
 
 function maskTiebreakerEntry(room, viewer, team) {
@@ -597,7 +760,7 @@ function tiebreakerFinalizedOrReady(room, team) {
 }
 
 function allConnectedConfirmed(confirmedBy, room) {
-  const players = Object.values(room.players).filter((player) => player.connected);
+  const players = Object.values(room.players).filter((player) => player.connected && !player.spectator);
   return players.length > 0 && players.every((player) => confirmedBy.includes(player.id));
 }
 
@@ -667,12 +830,32 @@ function makeProposal() {
 function makeChatState() {
   return {
     global: [],
-    team: { red: [], blue: [] }
+    team: { red: [], blue: [] },
+    spectator: []
   };
 }
 
 function cleanName(name) {
   return String(name || "Operador").trim().replace(/\s+/g, " ").slice(0, 18) || "Operador";
+}
+
+function cleanRoomName(name, hostName = "Operador") {
+  return String(name || `Sala de ${hostName}`).trim().replace(/\s+/g, " ").slice(0, 36) || `Sala de ${hostName}`;
+}
+
+function cleanRoomPassword(password) {
+  return String(password || "").trim().slice(0, 32);
+}
+
+function cleanClientId(clientId) {
+  return String(clientId || "").trim().replace(/[^a-zA-Z0-9:_-]/g, "").slice(0, 80);
+}
+
+function cleanAvatar(avatar) {
+  const value = String(avatar || "");
+  if (!value) return "";
+  if (!/^data:image\/[a-z0-9.+-]+;base64,/i.test(value)) return "";
+  return value.length <= 5000000 ? value : "";
 }
 
 function cleanWord(word) {
@@ -694,6 +877,39 @@ function teamCounts(room) {
   };
 }
 
+function gameBlockReason(room) {
+  if (!["playing", "roundResult", "tiebreaker"].includes(room.phase)) return "";
+  const counts = teamCounts(room);
+  if (counts.red < 2 || counts.blue < 2) {
+    return "A partida esta pausada: cada time precisa ter pelo menos dois jogadores conectados.";
+  }
+  if (room.phase === "playing" && room.current) {
+    const missingCoder = TEAMS.find((team) => {
+      const turn = room.current.turns[team];
+      return turn && !turn.hints.length && (!turn.coderId || !room.players[turn.coderId]);
+    });
+    if (missingCoder) {
+      return `A partida esta pausada: o comunicador do ${TEAM_NAMES[missingCoder]} saiu antes de enviar as dicas.`;
+    }
+  }
+  return "";
+}
+
+function ensureGameCanContinue(room) {
+  const reason = gameBlockReason(room);
+  if (reason) throw new Error(reason);
+}
+
+function balancedJoinTeam(room) {
+  const counts = teamCounts(room);
+  if (counts.red >= 4 && counts.blue >= 4) return null;
+  if (counts.red >= 4) return "blue";
+  if (counts.blue >= 4) return "red";
+  if (counts.red < counts.blue) return "red";
+  if (counts.blue < counts.red) return "blue";
+  return Math.random() < 0.5 ? "red" : "blue";
+}
+
 function teamPlayers(room, team) {
   return Object.values(room.players).filter((player) => player.team === team);
 }
@@ -702,10 +918,14 @@ function transferHost(room) {
   const candidates = Object.values(room.players).filter((player) => player.connected);
   const next = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : Object.values(room.players)[0];
   room.hostId = next?.id || null;
+  syncHostFlags(room);
+  if (next) room.log.unshift({ system: `${next.name} assumiu como host.`, at: Date.now() });
+}
+
+function syncHostFlags(room) {
   Object.values(room.players).forEach((player) => {
     player.isHost = player.id === room.hostId;
   });
-  if (next) room.log.unshift({ system: `${next.name} assumiu como host.`, at: Date.now() });
 }
 
 function guardHost(room, playerId) {
