@@ -1129,11 +1129,14 @@ function GamePlayersPanel({ room, playerId, constants, action, playerAvatar }) {
   return (
     <div className={`side-panel players-panel team-surface ${me?.team || ""}`}>
       <h2><Users size={20} /> Jogadores</h2>
-      {visibleTeams.map((team) => (
+      {visibleTeams.map((team) => {
+        const teamPlayers = room.players.filter((player) => player.team === team);
+        if (team === null && !teamPlayers.length) return null;
+        return (
         <div className={`game-team-list ${team ? `team-surface ${team}` : "spectator-preview"}`} key={team || "spectators"}>
           <strong>{team ? constants.TEAM_NAMES[team] : "Espectadores"}</strong>
           <div className="player-card-list">
-            {room.players.filter((player) => player.team === team).length ? room.players.filter((player) => player.team === team).map((player) => (
+            {teamPlayers.length ? teamPlayers.map((player) => (
               <PlayerCard
                 key={player.id}
                 player={player}
@@ -1147,7 +1150,8 @@ function GamePlayersPanel({ room, playerId, constants, action, playerAvatar }) {
             )) : <div className="empty-team">{team === null ? "Vazio" : "Time vazio"}</div>}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -1169,8 +1173,8 @@ function LiveRound({ room, playerId, constants, action }) {
         <HintsPhase room={room} targetTeam={myTeam} action={action} />
       ) : (
         <StatusCard
-          title={ownTurn?.hints.length ? "Suas dicas foram transmitidas" : "Aguardando seu codificador"}
-          text={ownTurn?.hints.length ? "Seu time ja pode descriptografar e o adversario ja pode interceptar." : "Quando as dicas sairem, a descriptografia fica disponivel para seu time."}
+          title={ownTurn?.hints.length ? "Dicas transmitidas" : "Aguardando comunicador"}
+          text={ownTurn?.hints.length ? "Escolha o codigo do seu time e acompanhe a interceptacao." : "As escolhas liberam assim que as dicas chegarem."}
           team={myTeam}
         />
       )}
@@ -1181,7 +1185,7 @@ function LiveRound({ room, playerId, constants, action }) {
           playerId={playerId}
           kind="team"
           targetTeam={myTeam}
-          title="Descriptografar seu codigo"
+          title="Descriptografar"
           hints={ownTurn?.hints || []}
           action={action}
         />
@@ -1190,7 +1194,7 @@ function LiveRound({ room, playerId, constants, action }) {
           playerId={playerId}
           kind="intercept"
           targetTeam={rival}
-          title={`Interceptar ${constants.TEAM_NAMES[rival]}`}
+          title="Interceptar"
           hints={rivalTurn?.hints || []}
           action={action}
         />
@@ -1202,7 +1206,6 @@ function LiveRound({ room, playerId, constants, action }) {
 function StatusCard({ title, text, team }) {
   return (
     <div className={`status-card team-surface ${team || ""}`}>
-      <p className="eyebrow"><RadioTower size={16} /> sincronizacao</p>
       <h1>{title}</h1>
       <p>{text}</p>
     </div>
@@ -1277,7 +1280,10 @@ function GuessPhase({ room, playerId, kind, targetTeam, title, hints, action }) 
 
   return (
     <div className={`decision-card team-surface ${targetTeam} ${canAct ? "ready" : ""}`}>
-      <p className="eyebrow"><RadioTower size={16} /> {title}</p>
+      <div className="decision-title">
+        <strong>{title}</strong>
+        {proposal?.finalized && <span>Fechado</span>}
+      </div>
       {!hints.length && <p className="small">Aguardando dicas deste codigo.</p>}
       {canViewSharedGuess ? (
         <>
@@ -1352,8 +1358,8 @@ function RoundResult({ room, playerId, constants, action }) {
   const orderedTeams = me?.team ? [me.team, otherTeam(me.team)] : TEAMS;
   const voters = room.players.filter((player) => player.connected && !player.spectator);
   return (
-    <div className="phase-card reveal">
-      <p className="eyebrow"><Sparkles size={16} /> resultado simultaneo</p>
+    <div className={`phase-card result-phase team-surface ${me?.team || ""} reveal`}>
+      <p className="eyebrow"><Sparkles size={16} /> resultados</p>
       <div className="result-grid two">
         {orderedTeams.map((team) => (
           <ResultTeamTile
@@ -1379,15 +1385,17 @@ function ResultTeamTile({ team, result, constants, viewerTeam }) {
     <div className={`result-tile team-surface ${team}`} key={team}>
             <span>{constants.TEAM_NAMES[team]}</span>
             <div className="result-code-list">
-        <CodeLine values={result.code} tone="correct" />
         <CodeLine
           values={result.interceptGuess}
           tone={otherTeam(team)}
           status={result.intercepted}
           className="intercept-reveal"
+          revealDelay={0.2}
+          statusDelay={5.2}
+          reading
         />
         {result.decryptionSkipped ? (
-          <div className="result-code-line skipped decrypt-reveal">
+          <div className="result-code-line skipped decrypt-reveal" style={{ "--reveal-delay": "5.6s" }}>
             <strong>Descriptografia ignorada</strong>
           </div>
         ) : (
@@ -1396,8 +1404,12 @@ function ResultTeamTile({ team, result, constants, viewerTeam }) {
             tone={team}
             status={result.teamCorrect}
             className="decrypt-reveal"
+            revealDelay={5.6}
+            statusDelay={10.6}
+            reading
           />
         )}
+        <CodeLine values={result.code} tone="correct" className="correct-reveal" revealDelay={11} />
             </div>
           </div>
   );
@@ -1632,9 +1644,9 @@ function HintHistory({ room, constants, playerId }) {
                   {[0, 1, 2].map((slot) => (
                     <div className="round-code-row" key={`${entry.round}-${slot}`}>
                       <span className="round-hint">{entry.hints[slot]}</span>
-                      <span className="code-chip correct-code">{entry.code[slot] || "?"}</span>
                       <span className={`code-chip ${team}`}>{entry.teamGuess?.[slot] || "?"}</span>
                       <span className={`code-chip ${otherTeam(team)}`}>{entry.interceptGuess?.[slot] || "?"}</span>
+                      <span className="code-chip correct-code">{entry.code[slot] || "?"}</span>
                     </div>
                   ))}
                 </div>
@@ -1698,10 +1710,11 @@ function FinalWords({ room, constants }) {
   );
 }
 
-function CodeLine({ values = [], tone, status, className = "" }) {
+function CodeLine({ values = [], tone, status, className = "", revealDelay = 0, statusDelay = 0, reading = false }) {
   return (
-    <div className={`result-code-line ${tone} ${className}`}>
+    <div className={`result-code-line ${tone} ${className}`} style={{ "--reveal-delay": `${revealDelay}s`, "--status-delay": `${statusDelay}s` }}>
       <strong>{displayGuess(values)}</strong>
+      {reading && <span className="reading-indicator" aria-label="Lendo palpite" />}
       {typeof status === "boolean" && (
         <span className={status ? "result-mark ok" : "result-mark bad"} aria-label={status ? "correto" : "incorreto"}>
           {status ? <Check size={18} /> : <X size={18} />}
@@ -1958,9 +1971,9 @@ function useResultSounds(result, team, viewerTeam) {
     const key = `${team}-${result.intercepted}-${result.teamCorrect}-${result.code.join("-")}`;
     if (playedKey.current === key) return;
     playedKey.current = key;
-    window.setTimeout(() => playTone(result.intercepted ? "intercepted" : "notIntercepted"), 450);
+    window.setTimeout(() => playTone(result.intercepted ? "intercepted" : "notIntercepted"), 5200);
     if (!result.intercepted) {
-      window.setTimeout(() => playTone(result.teamCorrect ? "decryptOk" : "decryptBad"), 1700);
+      window.setTimeout(() => playTone(result.teamCorrect ? "decryptOk" : "decryptBad"), 10800);
     }
   }, [result, team, viewerTeam]);
 }
