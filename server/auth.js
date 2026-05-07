@@ -29,6 +29,7 @@ async function ensureSchema() {
       password_hash text not null,
       stats jsonb not null default '{"wins":0,"losses":0,"decryptedWords":{},"interceptedWords":{}}'::jsonb,
       matches jsonb not null default '[]'::jsonb,
+      preferences jsonb not null default '{"soundMuted":false,"matrixEnabled":true,"customCategories":[]}'::jsonb,
       created_at bigint not null
     );
     create table if not exists codehack_sessions (
@@ -61,6 +62,10 @@ function visibleMatches(matches = []) {
   return (matches || []).filter((match) => match.status !== "active");
 }
 
+function makeDefaultPreferences() {
+  return { soundMuted: false, matrixEnabled: true, customCategories: [] };
+}
+
 function publicUser(user, includePrivate = false) {
   if (!user) return null;
   const base = {
@@ -69,7 +74,8 @@ function publicUser(user, includePrivate = false) {
     displayName: user.displayName,
     avatar: user.avatar || "",
     stats: publicStats(user.stats),
-    matches: visibleMatches(user.matches || [])
+    matches: visibleMatches(user.matches || []),
+    preferences: user.preferences || makeDefaultPreferences()
   };
   return includePrivate ? { ...base, createdAt: user.createdAt } : base;
 }
@@ -85,6 +91,7 @@ function rowToUser(row) {
     passwordHash: row.password_hash,
     stats: normalizeStats(row.stats),
     matches: row.matches || [],
+    preferences: row.preferences || makeDefaultPreferences(),
     createdAt: Number(row.created_at)
   };
 }
@@ -123,13 +130,14 @@ export async function registerUser({ username, displayName, password }) {
     passwordHash: credentials.hash,
     stats: makeStats(),
     matches: [],
+    preferences: makeDefaultPreferences(),
     createdAt: Date.now()
   };
   try {
     await pool.query(`
-      insert into codehack_users (id, username, display_name, avatar, password_salt, password_hash, stats, matches, created_at)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-    `, [user.id, user.username, user.displayName, user.avatar, user.passwordSalt, user.passwordHash, user.stats, user.matches, user.createdAt]);
+      insert into codehack_users (id, username, display_name, avatar, password_salt, password_hash, stats, matches, preferences, created_at)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `, [user.id, user.username, user.displayName, user.avatar, user.passwordSalt, user.passwordHash, user.stats, user.matches, user.preferences, user.createdAt]);
   } catch (error) {
     if (error?.code === "23505") throw new Error("Usuario ja existe.");
     throw error;
@@ -170,6 +178,25 @@ export async function updateUserProfile(token, { displayName, avatar }) {
     [current.id, nextName, nextAvatar]
   );
   return { token, user: publicUser(rowToUser(rows[0]), true) };
+}
+
+export async function updateUserPreferences(token, preferences) {
+  const current = await authUserByToken(token);
+  if (!current) throw new Error("Login necessario.");
+  await ensureSchema();
+  const pool = getPool();
+  const merged = { ...makeDefaultPreferences(), ...current.preferences, ...preferences };
+  const { rows } = await pool.query(
+    "update codehack_users set preferences = $2 where id = $1 returning *",
+    [current.id, merged]
+  );
+  return { ok: true, preferences: rowToUser(rows[0]).preferences };
+}
+
+export async function getUserPreferences(token) {
+  const current = await authUserByToken(token);
+  if (!current) throw new Error("Login necessario.");
+  return { preferences: current.preferences || makeDefaultPreferences() };
 }
 
 export async function changeUserPassword(token, { currentPassword, newPassword }) {

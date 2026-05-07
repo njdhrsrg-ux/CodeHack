@@ -486,6 +486,13 @@ function App() {
         setAuthUser(reply.user);
         setAuthSavedAt(Date.now());
         setPlayerAvatar(reply.user.avatar || "");
+        if (reply.user.preferences) {
+          setSoundMuted(reply.user.preferences.soundMuted ?? false);
+          setMatrixEnabled(reply.user.preferences.matrixEnabled ?? true);
+          if (Array.isArray(reply.user.preferences.customCategories)) {
+            setCustomCategories(reply.user.preferences.customCategories);
+          }
+        }
       } else {
         setAuthToken("");
         setAuthUser(null);
@@ -494,6 +501,19 @@ function App() {
       }
     });
   }, [authToken]);
+
+  useEffect(() => {
+    if (!authToken || !authUser?.id) return;
+    const prefs = { soundMuted, matrixEnabled, customCategories };
+    const timer = setTimeout(() => {
+      socket.emit("auth:updatePreferences", { token: authToken, preferences: prefs }, (reply) => {
+        if (!reply?.ok) {
+          console.warn("Failed to sync preferences to Supabase");
+        }
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [soundMuted, matrixEnabled, customCategories, authToken, authUser]);
 
   useEffect(() => {
     let restored = false;

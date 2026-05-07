@@ -34,11 +34,13 @@ import {
   createActiveMatch,
   discardActiveMatch,
   getProfile,
+  getUserPreferences,
   loginUser,
   logoutUser,
   meFromToken,
   recordMatch,
   registerUser,
+  updateUserPreferences,
   updateUserProfile
 } from "./auth.js";
 
@@ -111,6 +113,8 @@ io.on("connection", (socket) => {
   }));
   socket.on("auth:profile", ({ userId, username }, reply) => safe(reply, async () => ({ profile: await getProfile(userId || username) })));
   socket.on("auth:updateProfile", ({ token, displayName, avatar }, reply) => safe(reply, () => updateUserProfile(token, { displayName, avatar })));
+  socket.on("auth:getPreferences", ({ token }, reply) => safe(reply, async () => await getUserPreferences(token)));
+  socket.on("auth:updatePreferences", ({ token, preferences }, reply) => safe(reply, async () => await updateUserPreferences(token, preferences)));
   socket.on("auth:changePassword", ({ token, currentPassword, newPassword }, reply) => safe(reply, async () => {
     await changeUserPassword(token, { currentPassword, newPassword });
     return { ok: true };
