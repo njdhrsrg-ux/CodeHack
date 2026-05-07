@@ -12,8 +12,8 @@ npm run dev
 Frontend: http://localhost:5173  
 Backend: http://localhost:3001
 
-> O backend exige uma conexão de banco de dados PostgreSQL via Supabase.
-> Defina `SUPABASE_DATABASE_URL` ou `DATABASE_URL` no arquivo `.env` antes de iniciar.
+> O backend exige credenciais do Firebase Admin para persistir dados no Firestore.
+> Defina `FIREBASE_SERVICE_ACCOUNT_JSON` ou `GOOGLE_APPLICATION_CREDENTIALS` e `FIREBASE_PROJECT_ID` no arquivo `.env` antes de iniciar.
 
 ## Imagens
 

@@ -1,50 +1,49 @@
 import crypto from "node:crypto";
-import pg from "pg";
+import { readFileSync } from "node:fs";
+import admin from "firebase-admin";
 
 const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
 const localSessions = new Map();
-let pool = null;
+let firestore = null;
 let schemaReady = false;
 
-function getPool() {
-  if (pool) return pool;
-  const databaseUrl = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || process.env.PG_CONNECTION_STRING || process.env.DB_URL || "";
-  if (!databaseUrl) {
-    const knownEnv = {
-      SUPABASE_DATABASE_URL: !!process.env.SUPABASE_DATABASE_URL,
-      DATABASE_URL: !!process.env.DATABASE_URL,
-      PG_CONNECTION_STRING: !!process.env.PG_CONNECTION_STRING,
-      DB_URL: !!process.env.DB_URL,
-      VERCEL_ENV: process.env.VERCEL_ENV
-    };
-    throw new Error(`SUPABASE_DATABASE_URL or DATABASE_URL is required for data persistence. Env status: ${JSON.stringify(knownEnv)}`);
+const FIREBASE_SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+const FIREBASE_SERVICE_ACCOUNT_PATH = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || "./firebase-service-account.json";
+const GOOGLE_APPLICATION_CREDENTIALS = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
+
+function getFirestore() {
+  if (firestore) return firestore;
+
+  if (!admin.apps.length) {
+    let credential;
+    if (FIREBASE_SERVICE_ACCOUNT_JSON) {
+      credential = admin.credential.cert(JSON.parse(FIREBASE_SERVICE_ACCOUNT_JSON));
+    } else if (GOOGLE_APPLICATION_CREDENTIALS) {
+      credential = admin.credential.applicationDefault();
+    } else {
+      const serviceAccount = JSON.parse(readFileSync(new URL(FIREBASE_SERVICE_ACCOUNT_PATH, import.meta.url), "utf8"));
+      credential = admin.credential.cert(serviceAccount);
+    }
+
+    admin.initializeApp({ credential, projectId: FIREBASE_PROJECT_ID });
   }
-  pool = new pg.Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } });
-  return pool;
+
+  firestore = admin.firestore();
+  return firestore;
+}
+
+function userCollection() {
+  return getFirestore().collection("codehack_users");
+}
+
+function sessionCollection() {
+  return getFirestore().collection("codehack_sessions");
 }
 
 async function ensureSchema() {
-  const pool = getPool();
   if (schemaReady) return;
-  await pool.query(`
-    create table if not exists codehack_users (
-      id uuid primary key,
-      username text unique not null,
-      display_name text not null,
-      avatar text default '',
-      password_salt text not null,
-      password_hash text not null,
-      stats jsonb not null default '{"wins":0,"losses":0,"decryptedWords":{},"interceptedWords":{}}'::jsonb,
-      matches jsonb not null default '[]'::jsonb,
-      preferences jsonb not null default '{"soundMuted":false,"matrixEnabled":true,"customCategories":[]}'::jsonb,
-      created_at bigint not null
-    );
-    create table if not exists codehack_sessions (
-      token text primary key,
-      user_id uuid not null references codehack_users(id) on delete cascade,
-      expires_at bigint not null
-    );
-  `);
+  getFirestore();
   schemaReady = true;
 }
 
@@ -63,6 +62,24 @@ function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
 
 function makeStats() {
   return { wins: 0, losses: 0, draws: 0, abandoned: 0, decryptedWords: {}, interceptedWords: {} };
+}
+
+function rowToUser(row) {
+  if (!row) return null;
+  const data = typeof row.data === "function" ? row.data() : row;
+  if (!data) return null;
+  return {
+    id: data.id || row.id,
+    username: data.username,
+    displayName: data.displayName || data.display_name,
+    avatar: data.avatar || "",
+    passwordSalt: data.passwordSalt || data.password_salt,
+    passwordHash: data.passwordHash || data.password_hash,
+    stats: normalizeStats(data.stats || {}),
+    matches: data.matches || [],
+    preferences: data.preferences || makeDefaultPreferences(),
+    createdAt: Number(data.createdAt || data.created_at || 0)
+  };
 }
 
 function visibleMatches(matches = []) {
@@ -87,36 +104,21 @@ function publicUser(user, includePrivate = false) {
   return includePrivate ? { ...base, createdAt: user.createdAt } : base;
 }
 
-function rowToUser(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    username: row.username,
-    displayName: row.display_name,
-    avatar: row.avatar || "",
-    passwordSalt: row.password_salt,
-    passwordHash: row.password_hash,
-    stats: normalizeStats(row.stats),
-    matches: row.matches || [],
-    preferences: row.preferences || makeDefaultPreferences(),
-    createdAt: Number(row.created_at)
-  };
-}
-
 export async function authUserByToken(token) {
   const cleanToken = String(token || "");
   if (!cleanToken) return null;
   await ensureSchema();
-  const pool = getPool();
   const now = Date.now();
-  const { rows } = await pool.query(`
-    select u.* from codehack_sessions s
-    join codehack_users u on u.id = s.user_id
-    where s.token = $1 and s.expires_at > $2
-  `, [cleanToken, now]);
-  if (!rows[0]) return null;
-  await pool.query("update codehack_sessions set expires_at = $2 where token = $1", [cleanToken, now + SESSION_TTL]);
-  return rowToUser(rows[0]);
+  const sessionSnap = await sessionCollection().doc(cleanToken).get();
+  if (!sessionSnap.exists) return null;
+  const session = sessionSnap.data();
+  if (!session?.userId || Number(session.expiresAt) <= now) {
+    await sessionCollection().doc(cleanToken).delete().catch(() => {});
+    return null;
+  }
+  await sessionCollection().doc(cleanToken).update({ expiresAt: now + SESSION_TTL });
+  const userDoc = await userCollection().doc(session.userId).get();
+  return rowToUser(userDoc);
 }
 
 export async function registerUser({ username, displayName, password }) {
@@ -124,9 +126,10 @@ export async function registerUser({ username, displayName, password }) {
   if (clean.length < 3) throw new Error("Usuario precisa ter pelo menos 3 caracteres.");
   if (String(password || "").length < 4) throw new Error("Senha precisa ter pelo menos 4 caracteres.");
   await ensureSchema();
-  const pool = getPool();
-  const exists = await pool.query("select id from codehack_users where username = $1", [clean]);
-  if (exists.rows.length) throw new Error("Usuario ja existe.");
+
+  const exists = await userCollection().where("username", "==", clean).limit(1).get();
+  if (!exists.empty) throw new Error("Usuario ja existe.");
+
   const credentials = hashPassword(password);
   const user = {
     id: crypto.randomUUID(),
@@ -140,27 +143,22 @@ export async function registerUser({ username, displayName, password }) {
     preferences: makeDefaultPreferences(),
     createdAt: Date.now()
   };
-  try {
-    await pool.query(`
-      insert into codehack_users (id, username, display_name, avatar, password_salt, password_hash, stats, matches, preferences, created_at)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-    `, [user.id, user.username, user.displayName, user.avatar, user.passwordSalt, user.passwordHash, user.stats, user.matches, user.preferences, user.createdAt]);
-  } catch (error) {
-    if (error?.code === "23505") throw new Error("Usuario ja existe.");
-    throw error;
-  }
+
+  await userCollection().doc(user.id).set(user);
   return loginToken(user);
 }
 
 export async function loginUser({ username, password }) {
   const clean = cleanUsername(username);
   await ensureSchema();
-  const pool = getPool();
-  const { rows } = await pool.query("select * from codehack_users where username = $1", [clean]);
-  const user = rowToUser(rows[0]);
-  if (!user) throw new Error("Usuario ou senha incorretos.");
+
+  const query = await userCollection().where("username", "==", clean).limit(1).get();
+  if (query.empty) throw new Error("Usuario ou senha incorretos.");
+
+  const user = rowToUser(query.docs[0]);
   const credentials = hashPassword(password, user.passwordSalt);
   if (credentials.hash !== user.passwordHash) throw new Error("Usuario ou senha incorretos.");
+
   return loginToken(user);
 }
 
@@ -169,35 +167,30 @@ export async function logoutUser(token) {
   localSessions.delete(cleanToken);
   if (!cleanToken) return;
   await ensureSchema();
-  const pool = getPool();
-  await pool.query("delete from codehack_sessions where token = $1", [cleanToken]);
+  await sessionCollection().doc(cleanToken).delete().catch(() => {});
 }
 
 export async function updateUserProfile(token, { displayName, avatar }) {
   const current = await authUserByToken(token);
   if (!current) throw new Error("Login necessario.");
   await ensureSchema();
-  const pool = getPool();
+
   const nextName = displayName !== undefined ? cleanDisplayName(displayName) : current.displayName;
   const nextAvatar = avatar !== undefined ? String(avatar || "") : current.avatar;
-  const { rows } = await pool.query(
-    "update codehack_users set display_name = $2, avatar = $3 where id = $1 returning *",
-    [current.id, nextName, nextAvatar]
-  );
-  return { token, user: publicUser(rowToUser(rows[0]), true) };
+
+  await userCollection().doc(current.id).update({ displayName: nextName, avatar: nextAvatar });
+  const updated = await userCollection().doc(current.id).get();
+  return { token, user: publicUser(rowToUser(updated), true) };
 }
 
 export async function updateUserPreferences(token, preferences) {
   const current = await authUserByToken(token);
   if (!current) throw new Error("Login necessario.");
   await ensureSchema();
-  const pool = getPool();
+
   const merged = { ...makeDefaultPreferences(), ...current.preferences, ...preferences };
-  const { rows } = await pool.query(
-    "update codehack_users set preferences = $2 where id = $1 returning *",
-    [current.id, merged]
-  );
-  return { ok: true, preferences: rowToUser(rows[0]).preferences };
+  await userCollection().doc(current.id).update({ preferences: merged });
+  return { ok: true, preferences: merged };
 }
 
 export async function getUserPreferences(token) {
@@ -211,22 +204,26 @@ export async function changeUserPassword(token, { currentPassword, newPassword }
   if (!current) throw new Error("Login necessario.");
   if (String(newPassword || "").length < 4) throw new Error("Nova senha precisa ter pelo menos 4 caracteres.");
   await ensureSchema();
-  const pool = getPool();
+
   const currentHash = hashPassword(currentPassword, current.passwordSalt);
   if (currentHash.hash !== current.passwordHash) throw new Error("Senha atual incorreta.");
+
   const next = hashPassword(newPassword);
-  await pool.query("update codehack_users set password_salt = $2, password_hash = $3 where id = $1", [current.id, next.salt, next.hash]);
+  await userCollection().doc(current.id).update({ passwordSalt: next.salt, passwordHash: next.hash });
   return { ok: true };
 }
 
 export async function getProfile(userIdOrUsername) {
   const lookup = String(userIdOrUsername || "").trim();
   await ensureSchema();
-  const pool = getPool();
-  const { rows } = await pool.query("select * from codehack_users where id::text = $1 or username = $2", [lookup, cleanUsername(lookup)]);
-  const user = rowToUser(rows[0]);
-  if (!user) throw new Error("Perfil nao encontrado.");
-  return publicUser(user);
+  if (!lookup) throw new Error("Perfil nao encontrado.");
+
+  const byId = await userCollection().doc(lookup).get();
+  if (byId.exists) return publicUser(rowToUser(byId));
+
+  const query = await userCollection().where("username", "==", cleanUsername(lookup)).limit(1).get();
+  if (query.empty) throw new Error("Perfil nao encontrado.");
+  return publicUser(rowToUser(query.docs[0]));
 }
 
 export async function meFromToken(token) {
@@ -290,13 +287,13 @@ export async function recordMatch(room) {
     room.matchRecorded = true;
     return;
   }
+
   const matchId = crypto.randomBytes(18).toString("hex");
   const finishedAt = Date.now();
   await ensureSchema();
-  const pool = getPool();
+
   for (const player of players) {
-    const { rows } = await pool.query("select * from codehack_users where id = $1", [player.userId]);
-    const user = rowToUser(rows[0]);
+    const user = await loadUserById(player.userId);
     if (!user) continue;
     const won = player.team === room.final.winner;
     const stats = user.stats || makeStats();
@@ -304,7 +301,7 @@ export async function recordMatch(room) {
     else stats.losses += 1;
     addWordStats(stats, room, player.team);
     const matches = [makeMatchEntry(room, player, matchId, finishedAt, won), ...(user.matches || [])].slice(0, 80);
-    await pool.query("update codehack_users set stats = $2, matches = $3 where id = $1", [user.id, stats, matches]);
+    await saveUserStatsAndMatches(user.id, normalizeStats(stats), matches);
   }
   room.matchRecorded = true;
 }
@@ -462,15 +459,13 @@ function normalizeWordStats(words = {}) {
 async function loadUserById(userId) {
   if (!userId) return null;
   await ensureSchema();
-  const pool = getPool();
-  const { rows } = await pool.query("select * from codehack_users where id = $1", [userId]);
-  return rowToUser(rows[0]);
+  const userDoc = await userCollection().doc(userId).get();
+  return rowToUser(userDoc);
 }
 
 async function saveUserStatsAndMatches(userId, stats, matches) {
   await ensureSchema();
-  const pool = getPool();
-  await pool.query("update codehack_users set stats = $2, matches = $3 where id = $1", [userId, normalizeStats(stats), matches || []]);
+  await userCollection().doc(userId).update({ stats: normalizeStats(stats), matches: matches || [] });
 }
 
 async function loginToken(user) {
@@ -478,8 +473,7 @@ async function loginToken(user) {
   const expiresAt = Date.now() + SESSION_TTL;
   localSessions.set(token, { userId: user.id, expiresAt });
   await ensureSchema();
-  const pool = getPool();
-  await pool.query("insert into codehack_sessions (token, user_id, expires_at) values ($1,$2,$3)", [token, user.id, expiresAt]);
+  await sessionCollection().doc(token).set({ userId: user.id, expiresAt });
   return { token, user: publicUser(user, true) };
 }
 

@@ -49,8 +49,9 @@ loadLocalEnv();
 console.log("Starting server with environment:", {
   NODE_ENV: process.env.NODE_ENV,
   VERCEL_ENV: process.env.VERCEL_ENV,
-  DATABASE_URL: !!process.env.DATABASE_URL,
-  SUPABASE_DATABASE_URL: !!process.env.SUPABASE_DATABASE_URL,
+  FIREBASE_PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID,
+  FIREBASE_SERVICE_ACCOUNT_JSON: !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
+  GOOGLE_APPLICATION_CREDENTIALS: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
   VITE_SOCKET_URL: !!process.env.VITE_SOCKET_URL
 });
 
