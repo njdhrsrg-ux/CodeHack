@@ -12,6 +12,9 @@ npm run dev
 Frontend: http://localhost:5173  
 Backend: http://localhost:3001
 
+> O backend exige uma conexão de banco de dados PostgreSQL via Supabase.
+> Defina `SUPABASE_DATABASE_URL` ou `DATABASE_URL` no arquivo `.env` antes de iniciar.
+
 ## Imagens
 
 O backend tenta usar Google Custom Search para imagens quando as variaveis abaixo existem:

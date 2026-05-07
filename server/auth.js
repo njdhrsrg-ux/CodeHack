@@ -1,20 +1,24 @@
 import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.resolve(__dirname, "../data");
-const usersPath = path.join(dataDir, "users.json");
 const localSessions = new Map();
-const databaseUrl = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || "";
-const pool = databaseUrl ? new pg.Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } }) : null;
+let pool = null;
 let schemaReady = false;
 
+function getPool() {
+  if (pool) return pool;
+  const databaseUrl = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || "";
+  if (!databaseUrl) {
+    throw new Error("SUPABASE_DATABASE_URL or DATABASE_URL is required for data persistence.");
+  }
+  pool = new pg.Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } });
+  return pool;
+}
+
 async function ensureSchema() {
-  if (!pool || schemaReady) return;
+  const pool = getPool();
+  if (schemaReady) return;
   await pool.query(`
     create table if not exists codehack_users (
       id uuid primary key,
@@ -88,8 +92,8 @@ function rowToUser(row) {
 export async function authUserByToken(token) {
   const cleanToken = String(token || "");
   if (!cleanToken) return null;
-  if (!pool) return localUserByToken(cleanToken);
   await ensureSchema();
+  const pool = getPool();
   const now = Date.now();
   const { rows } = await pool.query(`
     select u.* from codehack_sessions s
@@ -105,8 +109,8 @@ export async function registerUser({ username, displayName, password }) {
   const clean = cleanUsername(username);
   if (clean.length < 3) throw new Error("Usuario precisa ter pelo menos 3 caracteres.");
   if (String(password || "").length < 4) throw new Error("Senha precisa ter pelo menos 4 caracteres.");
-  if (!pool) return localRegister({ username: clean, displayName, password });
   await ensureSchema();
+  const pool = getPool();
   const exists = await pool.query("select id from codehack_users where username = $1", [clean]);
   if (exists.rows.length) throw new Error("Usuario ja existe.");
   const credentials = hashPassword(password);
@@ -135,8 +139,8 @@ export async function registerUser({ username, displayName, password }) {
 
 export async function loginUser({ username, password }) {
   const clean = cleanUsername(username);
-  if (!pool) return localLogin({ username: clean, password });
   await ensureSchema();
+  const pool = getPool();
   const { rows } = await pool.query("select * from codehack_users where username = $1", [clean]);
   const user = rowToUser(rows[0]);
   if (!user) throw new Error("Usuario ou senha incorretos.");
@@ -148,17 +152,17 @@ export async function loginUser({ username, password }) {
 export async function logoutUser(token) {
   const cleanToken = String(token || "");
   localSessions.delete(cleanToken);
-  if (pool && cleanToken) {
-    await ensureSchema();
-    await pool.query("delete from codehack_sessions where token = $1", [cleanToken]);
-  }
+  if (!cleanToken) return;
+  await ensureSchema();
+  const pool = getPool();
+  await pool.query("delete from codehack_sessions where token = $1", [cleanToken]);
 }
 
 export async function updateUserProfile(token, { displayName, avatar }) {
   const current = await authUserByToken(token);
   if (!current) throw new Error("Login necessario.");
-  if (!pool) return localUpdateProfile(token, { displayName, avatar });
   await ensureSchema();
+  const pool = getPool();
   const nextName = displayName !== undefined ? cleanDisplayName(displayName) : current.displayName;
   const nextAvatar = avatar !== undefined ? String(avatar || "") : current.avatar;
   const { rows } = await pool.query(
@@ -172,8 +176,8 @@ export async function changeUserPassword(token, { currentPassword, newPassword }
   const current = await authUserByToken(token);
   if (!current) throw new Error("Login necessario.");
   if (String(newPassword || "").length < 4) throw new Error("Nova senha precisa ter pelo menos 4 caracteres.");
-  if (!pool) return localChangePassword(token, { currentPassword, newPassword });
   await ensureSchema();
+  const pool = getPool();
   const currentHash = hashPassword(currentPassword, current.passwordSalt);
   if (currentHash.hash !== current.passwordHash) throw new Error("Senha atual incorreta.");
   const next = hashPassword(newPassword);
@@ -183,8 +187,8 @@ export async function changeUserPassword(token, { currentPassword, newPassword }
 
 export async function getProfile(userIdOrUsername) {
   const lookup = String(userIdOrUsername || "").trim();
-  if (!pool) return publicUser(localFindUser(lookup));
   await ensureSchema();
+  const pool = getPool();
   const { rows } = await pool.query("select * from codehack_users where id::text = $1 or username = $2", [lookup, cleanUsername(lookup)]);
   const user = rowToUser(rows[0]);
   if (!user) throw new Error("Perfil nao encontrado.");
@@ -254,12 +258,8 @@ export async function recordMatch(room) {
   }
   const matchId = crypto.randomBytes(18).toString("hex");
   const finishedAt = Date.now();
-  if (!pool) {
-    localRecordMatch(room, players, matchId, finishedAt);
-    room.matchRecorded = true;
-    return;
-  }
   await ensureSchema();
+  const pool = getPool();
   for (const player of players) {
     const { rows } = await pool.query("select * from codehack_users where id = $1", [player.userId]);
     const user = rowToUser(rows[0]);
@@ -427,23 +427,15 @@ function normalizeWordStats(words = {}) {
 
 async function loadUserById(userId) {
   if (!userId) return null;
-  if (!pool) return readStore().users.find((user) => user.id === userId) || null;
   await ensureSchema();
+  const pool = getPool();
   const { rows } = await pool.query("select * from codehack_users where id = $1", [userId]);
   return rowToUser(rows[0]);
 }
 
 async function saveUserStatsAndMatches(userId, stats, matches) {
-  if (!pool) {
-    const store = readStore();
-    const user = store.users.find((entry) => entry.id === userId);
-    if (!user) return;
-    user.stats = normalizeStats(stats);
-    user.matches = matches || [];
-    writeStore(store);
-    return;
-  }
   await ensureSchema();
+  const pool = getPool();
   await pool.query("update codehack_users set stats = $2, matches = $3 where id = $1", [userId, normalizeStats(stats), matches || []]);
 }
 
@@ -451,104 +443,9 @@ async function loginToken(user) {
   const token = crypto.randomBytes(24).toString("hex");
   const expiresAt = Date.now() + SESSION_TTL;
   localSessions.set(token, { userId: user.id, expiresAt });
-  if (pool) {
-    await ensureSchema();
-    await pool.query("insert into codehack_sessions (token, user_id, expires_at) values ($1,$2,$3)", [token, user.id, expiresAt]);
-  }
+  await ensureSchema();
+  const pool = getPool();
+  await pool.query("insert into codehack_sessions (token, user_id, expires_at) values ($1,$2,$3)", [token, user.id, expiresAt]);
   return { token, user: publicUser(user, true) };
 }
 
-function readStore() {
-  try {
-    return JSON.parse(fs.readFileSync(usersPath, "utf8"));
-  } catch {
-    return { users: [] };
-  }
-}
-
-function writeStore(store) {
-  fs.mkdirSync(dataDir, { recursive: true });
-  fs.writeFileSync(usersPath, JSON.stringify(store, null, 2));
-}
-
-function localFindUser(lookup) {
-  const store = readStore();
-  const user = store.users.find((entry) => entry.id === lookup || entry.username === cleanUsername(lookup));
-  if (!user) throw new Error("Perfil nao encontrado.");
-  return user;
-}
-
-function localUserByToken(token) {
-  const session = localSessions.get(token);
-  if (!session || session.expiresAt <= Date.now()) return null;
-  session.expiresAt = Date.now() + SESSION_TTL;
-  return readStore().users.find((user) => user.id === session.userId) || null;
-}
-
-function localRegister({ username, displayName, password }) {
-  const store = readStore();
-  if (store.users.some((user) => user.username === username)) throw new Error("Usuario ja existe.");
-  const credentials = hashPassword(password);
-  const user = {
-    id: crypto.randomUUID(),
-    username,
-    displayName: cleanDisplayName(displayName || username),
-    avatar: "",
-    passwordSalt: credentials.salt,
-    passwordHash: credentials.hash,
-    stats: makeStats(),
-    matches: [],
-    createdAt: Date.now()
-  };
-  store.users.push(user);
-  writeStore(store);
-  return loginToken(user);
-}
-
-function localLogin({ username, password }) {
-  const user = readStore().users.find((entry) => entry.username === username);
-  if (!user) throw new Error("Usuario ou senha incorretos.");
-  const credentials = hashPassword(password, user.passwordSalt);
-  if (credentials.hash !== user.passwordHash) throw new Error("Usuario ou senha incorretos.");
-  return loginToken(user);
-}
-
-function localUpdateProfile(token, { displayName, avatar }) {
-  const current = localUserByToken(token);
-  const store = readStore();
-  const user = store.users.find((entry) => entry.id === current.id);
-  if (displayName !== undefined) user.displayName = cleanDisplayName(displayName);
-  if (avatar !== undefined) user.avatar = String(avatar || "");
-  writeStore(store);
-  return { token, user: publicUser(user, true) };
-}
-
-function localChangePassword(token, { currentPassword, newPassword }) {
-  const current = localUserByToken(token);
-  const store = readStore();
-  const user = store.users.find((entry) => entry.id === current.id);
-  const currentHash = hashPassword(currentPassword, user.passwordSalt);
-  if (currentHash.hash !== user.passwordHash) throw new Error("Senha atual incorreta.");
-  const next = hashPassword(newPassword);
-  user.passwordSalt = next.salt;
-  user.passwordHash = next.hash;
-  writeStore(store);
-  return { ok: true };
-}
-
-function localRecordMatch(room, players, matchId, finishedAt) {
-  const store = readStore();
-  players.forEach((player) => {
-    const user = store.users.find((entry) => entry.id === player.userId);
-    if (!user) return;
-    user.stats ||= makeStats();
-    user.matches ||= [];
-    const won = player.team === room.final.winner;
-    if (won) user.stats.wins += 1;
-    else user.stats.losses += 1;
-    addWordStats(user.stats, room, player.team);
-    user.matches.unshift(makeMatchEntry(room, player, matchId, finishedAt, won));
-    user.matches = user.matches.slice(0, 80);
-  });
-  writeStore(store);
-}
