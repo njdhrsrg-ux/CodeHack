@@ -46,6 +46,14 @@ import {
 
 loadLocalEnv();
 
+console.log("Starting server with environment:", {
+  NODE_ENV: process.env.NODE_ENV,
+  VERCEL_ENV: process.env.VERCEL_ENV,
+  DATABASE_URL: !!process.env.DATABASE_URL,
+  SUPABASE_DATABASE_URL: !!process.env.SUPABASE_DATABASE_URL,
+  VITE_SOCKET_URL: !!process.env.VITE_SOCKET_URL
+});
+
 const PORT = process.env.PORT || 3001;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distPath = path.resolve(__dirname, "../dist");

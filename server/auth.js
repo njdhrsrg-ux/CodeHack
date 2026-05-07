@@ -8,9 +8,16 @@ let schemaReady = false;
 
 function getPool() {
   if (pool) return pool;
-  const databaseUrl = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || "";
+  const databaseUrl = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || process.env.PG_CONNECTION_STRING || process.env.DB_URL || "";
   if (!databaseUrl) {
-    throw new Error("SUPABASE_DATABASE_URL or DATABASE_URL is required for data persistence.");
+    const knownEnv = {
+      SUPABASE_DATABASE_URL: !!process.env.SUPABASE_DATABASE_URL,
+      DATABASE_URL: !!process.env.DATABASE_URL,
+      PG_CONNECTION_STRING: !!process.env.PG_CONNECTION_STRING,
+      DB_URL: !!process.env.DB_URL,
+      VERCEL_ENV: process.env.VERCEL_ENV
+    };
+    throw new Error(`SUPABASE_DATABASE_URL or DATABASE_URL is required for data persistence. Env status: ${JSON.stringify(knownEnv)}`);
   }
   pool = new pg.Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } });
   return pool;
