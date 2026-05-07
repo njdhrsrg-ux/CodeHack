@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import { readFileSync } from "node:fs";
 import admin from "firebase-admin";
 
 const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
@@ -8,7 +7,6 @@ let firestore = null;
 let schemaReady = false;
 
 const FIREBASE_SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-const FIREBASE_SERVICE_ACCOUNT_PATH = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || "./firebase-service-account.json";
 const GOOGLE_APPLICATION_CREDENTIALS = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
 
@@ -18,12 +16,22 @@ function getFirestore() {
   if (!admin.apps.length) {
     let credential;
     if (FIREBASE_SERVICE_ACCOUNT_JSON) {
-      credential = admin.credential.cert(JSON.parse(FIREBASE_SERVICE_ACCOUNT_JSON));
+      try {
+        credential = admin.credential.cert(JSON.parse(FIREBASE_SERVICE_ACCOUNT_JSON));
+      } catch (error) {
+        throw new Error(`Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON: ${error.message}`);
+      }
     } else if (GOOGLE_APPLICATION_CREDENTIALS) {
       credential = admin.credential.applicationDefault();
     } else {
-      const serviceAccount = JSON.parse(readFileSync(new URL(FIREBASE_SERVICE_ACCOUNT_PATH, import.meta.url), "utf8"));
-      credential = admin.credential.cert(serviceAccount);
+      throw new Error(
+        "Firebase credentials not configured. Set FIREBASE_SERVICE_ACCOUNT_JSON env var or GOOGLE_APPLICATION_CREDENTIALS. " +
+        "For local dev, use FIREBASE_SERVICE_ACCOUNT_JSON with your service account JSON string."
+      );
+    }
+
+    if (!FIREBASE_PROJECT_ID) {
+      throw new Error("FIREBASE_PROJECT_ID env var is required.");
     }
 
     admin.initializeApp({ credential, projectId: FIREBASE_PROJECT_ID });
