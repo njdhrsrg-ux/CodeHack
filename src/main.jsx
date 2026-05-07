@@ -367,6 +367,7 @@ function App() {
   const [profileUser, setProfileUser] = useState(null);
   const [soundMuted, setSoundMuted] = useLocalState("codehack:soundMuted", false);
   const [matrixEnabled, setMatrixEnabled] = useLocalState("codehack:matrixEnabled", true);
+  const [customCategories, setCustomCategories] = useLocalState("decrypto:customCategories", []);
   const [playerAvatar, setPlayerAvatar] = useLocalState("codehack:avatar", "");
   const [playerSettingsOpen, setPlayerSettingsOpen] = useState(false);
   const [roomCodeCopied, setRoomCodeCopied] = useState(false);
@@ -649,7 +650,7 @@ function App() {
             }}
           >
             {room.phase === "lobby" ? (
-              <Lobby room={room} playerId={playerId} constants={constants} action={action} toast={toast} playerAvatar={playerAvatar} draggedPlayerId={draggedPlayerId} setDraggedPlayerId={setDraggedPlayerId} setDraggedPlayerSnapshot={setDraggedPlayerSnapshot} setDragPosition={setDragPosition} />
+              <Lobby room={room} playerId={playerId} constants={constants} action={action} toast={toast} playerAvatar={playerAvatar} customCategories={customCategories} setCustomCategories={setCustomCategories} draggedPlayerId={draggedPlayerId} setDraggedPlayerId={setDraggedPlayerId} setDraggedPlayerSnapshot={setDraggedPlayerSnapshot} setDragPosition={setDragPosition} />
             ) : (
               <Game room={room} playerId={playerId} constants={constants} action={action} toast={toast} playerAvatar={playerAvatar} />
             )}
@@ -1471,10 +1472,9 @@ function PasswordField({ value, onChange, show, setShow, disabled = false, maxLe
   );
 }
 
-function Lobby({ room, playerId, constants, action, toast, playerAvatar, draggedPlayerId, setDraggedPlayerId, setDraggedPlayerSnapshot, setDragPosition }) {
+function Lobby({ room, playerId, constants, action, toast, playerAvatar, customCategories, setCustomCategories, draggedPlayerId, setDraggedPlayerId, setDraggedPlayerSnapshot, setDragPosition }) {
   const me = room.players.find((p) => p.id === playerId);
   const isHost = room.hostId === playerId;
-  const [customCategories, setCustomCategories] = useLocalState("decrypto:customCategories", []);
   const [customName, setCustomName] = useState("");
   const [customWords, setCustomWords] = useState("");
   const [customOpen, setCustomOpen] = useState(false);
