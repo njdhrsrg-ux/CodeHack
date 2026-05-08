@@ -351,7 +351,7 @@ io.on("connection", (socket) => {
       const liveRoom = rooms.get(code);
       const removed = removePlayer(liveRoom, socket.id);
       if (!removed) return;
-      if (Object.keys(liveRoom.players).length === 0 || onlyTestBots(liveRoom)) {
+      if ((Object.keys(liveRoom.players).length === 0 || onlyTestBots(liveRoom)) && liveRoom.phase === "lobby") {
         discardActiveMatch(liveRoom).catch((error) => console.error("discardMatch failed", error));
         rooms.delete(code);
         // Don't delete from database on disconnect - only when players explicitly leave

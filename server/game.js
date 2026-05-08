@@ -94,7 +94,7 @@ export function addPlayer(room, id, name, avatar = "", clientId = id, role = nul
   const existingPlayer = existingByClient || existingByUser;
   if (existingPlayer) {
     const previousId = existingPlayer.id;
-    if (previousId !== id && existingPlayer.connected && !options.allowActiveTakeover) {
+    if (previousId !== id && existingPlayer.connected && !options.allowActiveTakeover && !existingByClient) {
       throw new Error("Este jogador ja esta conectado nesta sala em outra aba.");
     }
     room.players[id] = {
