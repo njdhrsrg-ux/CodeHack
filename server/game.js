@@ -320,7 +320,7 @@ export function startGame(room, hostId) {
   if (room.settings.randomTeams) assignRandomTeams(room);
   if (ALLOW_UNDERSTAFFED_TEST_GAMES && testAllowed) ensureTestTeams(room, hostId);
   const counts = teamCounts(room);
-  if (!testAllowed && (counts.red < 2 || counts.blue < 2)) throw new Error("Apenas Biscoito pode iniciar partidas de teste. Cada time precisa de pelo menos dois jogadores.");
+  if (!testAllowed && (counts.red < 2 || counts.blue < 2)) throw new Error("Cada time precisa de pelo menos dois jogadores.");
   if (counts.red < 1 || counts.blue < 1) throw new Error("Para testar, cada time ainda precisa ter pelo menos um jogador.");
   const bank = getWordBank(room.settings);
   if (bank.length < room.settings.wordCount * 2) throw new Error("A categoria precisa ter palavras suficientes.");
