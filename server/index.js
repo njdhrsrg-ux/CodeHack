@@ -354,7 +354,8 @@ io.on("connection", (socket) => {
       if (Object.keys(liveRoom.players).length === 0 || onlyTestBots(liveRoom)) {
         discardActiveMatch(liveRoom).catch((error) => console.error("discardMatch failed", error));
         rooms.delete(code);
-        deleteRoom(code).catch(() => {});
+        // Don't delete from database on disconnect - only when players explicitly leave
+        // deleteRoom(code).catch(() => {});
       }
       else {
         emitRoom(liveRoom);
@@ -385,6 +386,7 @@ function getRoom(code) {
 }
 
 function emitRoom(room) {
+  room.updatedAt = Date.now(); // Update timestamp for cleanup tracking
   recordMatch(room).catch((error) => console.error("recordMatch failed", error));
   saveRoom(room).catch((error) => console.error("saveRoom failed", error));
   Object.keys(room.players).forEach((playerId) => {
@@ -626,6 +628,29 @@ async function loadRoomsFromDatabase() {
     console.error("Failed to load rooms from database:", error.message);
   }
 }
+
+// Periodic cleanup of abandoned rooms (no players, older than 1 hour)
+async function cleanupAbandonedRooms() {
+  try {
+    const now = Date.now();
+    const oneHourAgo = now - (60 * 60 * 1000); // 1 hour in milliseconds
+
+    for (const [code, room] of rooms.entries()) {
+      // Only clean up rooms with no players that haven't been updated in over an hour
+      if (Object.keys(room.players).length === 0 &&
+          (!room.updatedAt || room.updatedAt < oneHourAgo)) {
+        console.log(`Cleaning up abandoned room: ${code}`);
+        rooms.delete(code);
+        await deleteRoom(code).catch(() => {});
+      }
+    }
+  } catch (error) {
+    console.error("Failed to cleanup abandoned rooms:", error.message);
+  }
+}
+
+// Run cleanup every 30 minutes
+setInterval(cleanupAbandonedRooms, 30 * 60 * 1000);
 
 httpServer.listen(PORT, async () => {
   console.log(`Code Hack server listening on http://localhost:${PORT}`);
