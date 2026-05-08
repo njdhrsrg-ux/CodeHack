@@ -6,59 +6,86 @@ const localSessions = new Map();
 let database = null;
 let schemaReady = false;
 
-const FIREBASE_SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-const GOOGLE_APPLICATION_CREDENTIALS = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
+// Initialize Firebase Admin SDK with Realtime Database
+function initializeFirebase() {
+  if (admin.apps.length > 0) return;
+
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const databaseUrl = process.env.FIREBASE_DATABASE_URL;
+
+  if (!serviceAccountJson || !projectId || !databaseUrl) {
+    const envStatus = {
+      FIREBASE_SERVICE_ACCOUNT_JSON: !!serviceAccountJson,
+      FIREBASE_PROJECT_ID: !!projectId,
+      FIREBASE_DATABASE_URL: !!databaseUrl,
+      NODE_ENV: process.env.NODE_ENV,
+      VERCEL_ENV: process.env.VERCEL_ENV
+    };
+    throw new Error(
+      `Firebase not configured. Required env vars: FIREBASE_SERVICE_ACCOUNT_JSON, FIREBASE_PROJECT_ID, FIREBASE_DATABASE_URL. ` +
+      `Status: ${JSON.stringify(envStatus)}`
+    );
+  }
+
+  let credential;
+  try {
+    credential = admin.credential.cert(JSON.parse(serviceAccountJson));
+  } catch (error) {
+    throw new Error(`Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON: ${error.message}`);
+  }
+
+  admin.initializeApp({
+    credential,
+    projectId,
+    databaseURL: databaseUrl
+  });
+}
 
 function getDatabase() {
   if (database) return database;
-
-  if (!admin.apps.length) {
-    let credential;
-    if (FIREBASE_SERVICE_ACCOUNT_JSON) {
-      try {
-        credential = admin.credential.cert(JSON.parse(FIREBASE_SERVICE_ACCOUNT_JSON));
-      } catch (error) {
-        throw new Error(`Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON: ${error.message}`);
-      }
-    } else if (GOOGLE_APPLICATION_CREDENTIALS) {
-      credential = admin.credential.applicationDefault();
-    } else {
-      const envStatus = {
-        FIREBASE_SERVICE_ACCOUNT_JSON: !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
-        GOOGLE_APPLICATION_CREDENTIALS: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
-        NODE_ENV: process.env.NODE_ENV,
-        VERCEL_ENV: process.env.VERCEL_ENV,
-        FIREBASE_PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID
-      };
-      throw new Error(
-        "Firebase credentials not configured. Set FIREBASE_SERVICE_ACCOUNT_JSON env var or GOOGLE_APPLICATION_CREDENTIALS. " +
-        "For local dev, use FIREBASE_SERVICE_ACCOUNT_JSON with your service account JSON string. " +
-        `Env status: ${JSON.stringify(envStatus)}`
-      );
-    }
-
-    if (!FIREBASE_PROJECT_ID) {
-      throw new Error("FIREBASE_PROJECT_ID env var is required.");
-    }
-
-    admin.initializeApp({ credential, projectId: FIREBASE_PROJECT_ID });
-  }
-
+  initializeFirebase();
   database = admin.database();
   return database;
 }
 
-function usersRef() {
-  return getDatabase().ref("codehack_users");
+// Helper to remove undefined values recursively
+function cleanObject(obj) {
+  if (obj === null || obj === undefined) return null;
+  if (typeof obj === "function" || typeof obj === "symbol") return null;
+  if (typeof obj !== "object") {
+    if (typeof obj === "number") {
+      return Number.isFinite(obj) ? obj : null;
+    }
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    const cleanedArray = obj
+      .map(item => cleanObject(item))
+      .filter(item => item !== null && item !== undefined);
+    return cleanedArray.length ? cleanedArray : null;
+  }
+  const cleaned = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const cleanedValue = cleanObject(value);
+    if (cleanedValue !== null && cleanedValue !== undefined) {
+      cleaned[key] = cleanedValue;
+    }
+  }
+  return Object.keys(cleaned).length ? cleaned : null;
 }
 
-function sessionsRef() {
-  return getDatabase().ref("codehack_sessions");
+// Database references
+function userRef() {
+  return getDatabase().ref("users");
 }
 
-function roomsRef() {
-  return getDatabase().ref("codehack_rooms");
+function sessionRef() {
+  return getDatabase().ref("sessions");
+}
+
+function roomRef() {
+  return getDatabase().ref("rooms");
 }
 
 async function ensureSchema() {
@@ -86,10 +113,10 @@ function makeStats() {
 
 function rowToUser(row) {
   if (!row) return null;
-  const data = row.val ? row.val() : row;
+  const data = typeof row.val === "function" ? row.val() : row;
   if (!data) return null;
   return {
-    id: data.id,
+    id: data.id || row.key,
     username: data.username,
     displayName: data.displayName || data.display_name,
     avatar: data.avatar || "",
@@ -127,64 +154,73 @@ function publicUser(user, includePrivate = false) {
 export async function authUserByToken(token) {
   const cleanToken = String(token || "");
   if (!cleanToken) return null;
-  await ensureSchema();
-  const now = Date.now();
-  const sessionSnap = await sessionsRef().child(cleanToken).get();
-  if (!sessionSnap.exists()) return null;
-  const session = sessionSnap.val();
-  if (!session?.userId || Number(session.expiresAt) <= now) {
-    await sessionsRef().child(cleanToken).remove().catch(() => {});
+  try {
+    await ensureSchema();
+    const now = Date.now();
+    const sessionSnap = await sessionRef().child(cleanToken).get();
+    if (!sessionSnap.exists()) return null;
+    const session = sessionSnap.val();
+    if (!session?.userId || Number(session.expiresAt) <= now) {
+      await sessionRef().child(cleanToken).remove().catch(() => {});
+      return null;
+    }
+    await sessionRef().child(cleanToken).update({ expiresAt: now + SESSION_TTL });
+    const userDoc = await userRef().child(session.userId).get();
+    return rowToUser(userDoc);
+  } catch (error) {
+    console.error("authUserByToken failed", error.message);
     return null;
   }
-  await sessionsRef().child(cleanToken).update({ expiresAt: now + SESSION_TTL });
-  const userSnap = await usersRef().child(session.userId).get();
-  return rowToUser(userSnap);
 }
 
 export async function registerUser({ username, displayName, password }) {
   const clean = cleanUsername(username);
   if (clean.length < 3) throw new Error("Usuario precisa ter pelo menos 3 caracteres.");
   if (String(password || "").length < 4) throw new Error("Senha precisa ter pelo menos 4 caracteres.");
-  await ensureSchema();
+  
+  try {
+    await ensureSchema();
+    const query = await userRef().orderByChild("username").equalTo(clean).limitToFirst(1).get();
+    if (query.val()) throw new Error("Usuario ja existe.");
 
-  const allUsersSnap = await usersRef().get();
-  const allUsers = allUsersSnap.val() || {};
-  const exists = Object.values(allUsers).some(user => user && user.username === clean);
-  if (exists) throw new Error("Usuario ja existe.");
+    const credentials = hashPassword(password);
+    const user = {
+      id: crypto.randomUUID(),
+      username: clean,
+      displayName: cleanDisplayName(displayName || username),
+      avatar: "",
+      passwordSalt: credentials.salt,
+      passwordHash: credentials.hash,
+      stats: makeStats(),
+      matches: [],
+      preferences: makeDefaultPreferences(),
+      createdAt: Date.now()
+    };
 
-  const credentials = hashPassword(password);
-  const userId = crypto.randomUUID();
-  const user = {
-    id: userId,
-    username: clean,
-    displayName: cleanDisplayName(displayName || username),
-    avatar: "",
-    passwordSalt: credentials.salt,
-    passwordHash: credentials.hash,
-    stats: makeStats(),
-    matches: [],
-    preferences: makeDefaultPreferences(),
-    createdAt: Date.now()
-  };
-
-  await usersRef().child(userId).set(user);
-  return loginToken(user);
+    await userRef().child(user.id).set(cleanObject(user));
+    return loginToken(user);
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function loginUser({ username, password }) {
   const clean = cleanUsername(username);
-  await ensureSchema();
+  try {
+    await ensureSchema();
+    const query = await userRef().orderByChild("username").equalTo(clean).limitToFirst(1).get();
+    if (!query.val()) throw new Error("Usuario ou senha incorretos.");
 
-  const allUsersSnap = await usersRef().get();
-  const allUsers = allUsersSnap.val() || {};
-  const userEntry = Object.values(allUsers).find(user => user && user.username === clean);
-  if (!userEntry) throw new Error("Usuario ou senha incorretos.");
+    const userSnap = query.val();
+    const userId = Object.keys(userSnap)[0];
+    const user = rowToUser({ key: userId, val: () => userSnap[userId] });
+    const credentials = hashPassword(password, user.passwordSalt);
+    if (credentials.hash !== user.passwordHash) throw new Error("Usuario ou senha incorretos.");
 
-  const user = rowToUser(userEntry);
-  const credentials = hashPassword(password, user.passwordSalt);
-  if (credentials.hash !== user.passwordHash) throw new Error("Usuario ou senha incorretos.");
-
-  return loginToken(user);
+    return loginToken(user);
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function logoutUser(token) {
@@ -192,7 +228,7 @@ export async function logoutUser(token) {
   localSessions.delete(cleanToken);
   if (!cleanToken) return;
   await ensureSchema();
-  await sessionsRef().child(cleanToken).remove().catch(() => {});
+  await sessionRef().child(cleanToken).remove().catch(() => {});
 }
 
 export async function updateUserProfile(token, { displayName, avatar }) {
@@ -203,9 +239,9 @@ export async function updateUserProfile(token, { displayName, avatar }) {
   const nextName = displayName !== undefined ? cleanDisplayName(displayName) : current.displayName;
   const nextAvatar = avatar !== undefined ? String(avatar || "") : current.avatar;
 
-  await usersRef().child(current.id).update({ displayName: nextName, avatar: nextAvatar });
-  const userSnap = await usersRef().child(current.id).get();
-  return { token, user: publicUser(rowToUser(userSnap), true) };
+  await userRef().child(current.id).update({ displayName: nextName, avatar: nextAvatar });
+  const updated = await userRef().child(current.id).get();
+  return { token, user: publicUser(rowToUser(updated), true) };
 }
 
 export async function updateUserPreferences(token, preferences) {
@@ -214,7 +250,7 @@ export async function updateUserPreferences(token, preferences) {
   await ensureSchema();
 
   const merged = { ...makeDefaultPreferences(), ...current.preferences, ...preferences };
-  await usersRef().child(current.id).update({ preferences: merged });
+  await userRef().child(current.id).update({ preferences: merged });
   return { ok: true, preferences: merged };
 }
 
@@ -234,7 +270,7 @@ export async function changeUserPassword(token, { currentPassword, newPassword }
   if (currentHash.hash !== current.passwordHash) throw new Error("Senha atual incorreta.");
 
   const next = hashPassword(newPassword);
-  await usersRef().child(current.id).update({ passwordSalt: next.salt, passwordHash: next.hash });
+  await userRef().child(current.id).update({ passwordSalt: next.salt, passwordHash: next.hash });
   return { ok: true };
 }
 
@@ -243,14 +279,14 @@ export async function getProfile(userIdOrUsername) {
   await ensureSchema();
   if (!lookup) throw new Error("Perfil nao encontrado.");
 
-  const byIdSnap = await usersRef().child(lookup).get();
-  if (byIdSnap.exists()) return publicUser(rowToUser(byIdSnap));
+  const byId = await userRef().child(lookup).get();
+  if (byId.exists()) return publicUser(rowToUser(byId));
 
-  const allUsersSnap = await usersRef().get();
-  const allUsers = allUsersSnap.val() || {};
-  const userEntry = Object.values(allUsers).find(user => user && user.username === cleanUsername(lookup));
-  if (!userEntry) throw new Error("Perfil nao encontrado.");
-  return publicUser(rowToUser(userEntry));
+  const query = await userRef().orderByChild("username").equalTo(cleanUsername(lookup)).limitToFirst(1).get();
+  if (!query.val()) throw new Error("Perfil nao encontrado.");
+  const userSnap = query.val();
+  const userId = Object.keys(userSnap)[0];
+  return publicUser(rowToUser({ key: userId, val: () => userSnap[userId] }));
 }
 
 export async function meFromToken(token) {
@@ -486,13 +522,13 @@ function normalizeWordStats(words = {}) {
 async function loadUserById(userId) {
   if (!userId) return null;
   await ensureSchema();
-  const userSnap = await usersRef().child(userId).get();
-  return rowToUser(userSnap);
+  const userDoc = await userRef().child(userId).get();
+  return rowToUser(userDoc);
 }
 
 async function saveUserStatsAndMatches(userId, stats, matches) {
   await ensureSchema();
-  await usersRef().child(userId).update({ stats: normalizeStats(stats), matches: matches || [] });
+  await userRef().child(userId).update({ stats: normalizeStats(stats), matches: matches || [] });
 }
 
 async function loginToken(user) {
@@ -500,7 +536,111 @@ async function loginToken(user) {
   const expiresAt = Date.now() + SESSION_TTL;
   localSessions.set(token, { userId: user.id, expiresAt });
   await ensureSchema();
-  await sessionsRef().child(token).set({ userId: user.id, expiresAt });
+  await sessionRef().child(token).set({ userId: user.id, expiresAt });
   return { token, user: publicUser(user, true) };
+}
+
+export async function saveRoom(room) {
+  if (!room?.code) return;
+  try {
+    await ensureSchema();
+    
+    // Build a clean room object without undefined values
+    const roomData = {
+      code: room.code || "",
+      name: room.name || "",
+      password: room.password || "",
+      publicRoom: room.publicRoom || false,
+      hostId: room.hostId || "",
+      createdAt: room.createdAt || Date.now(),
+      updatedAt: room.updatedAt || Date.now()
+    };
+
+    // Add optional fields only if they exist and aren't undefined
+    if (room.players && Object.keys(room.players).length > 0) {
+      roomData.players = cleanObject(room.players) || {};
+    }
+    if (room.settings) {
+      roomData.settings = cleanObject(room.settings);
+    }
+    if (room.phase) {
+      roomData.phase = room.phase;
+    }
+    if (room.teams) {
+      roomData.teams = cleanObject(room.teams);
+    }
+    if (room.round !== undefined && room.round !== null) {
+      roomData.round = room.round;
+    }
+    if (room.current) {
+      roomData.current = cleanObject(room.current);
+    }
+    if (room.tiebreaker) {
+      roomData.tiebreaker = cleanObject(room.tiebreaker);
+    }
+    if (room.final) {
+      roomData.final = cleanObject(room.final);
+    }
+    if (room.departedPlayers) {
+      roomData.departedPlayers = cleanObject(room.departedPlayers);
+    }
+    if (room.chat) {
+      roomData.chat = cleanObject(room.chat) || {};
+    }
+    if (room.log) {
+      roomData.log = cleanObject(room.log) || {};
+    }
+    if (room.matchSession) {
+      const cleanedSession = cleanObject(room.matchSession);
+      if (cleanedSession) {
+        roomData.matchSession = cleanedSession;
+      }
+    }
+
+    const cleanedRoomData = cleanObject(roomData);
+    if (!cleanedRoomData) return;
+    await roomRef().child(room.code).set(cleanedRoomData);
+  } catch (error) {
+    console.error("saveRoom failed", error.message);
+    throw error;
+  }
+}
+
+export async function loadRoom(code) {
+  if (!code) return null;
+  try {
+    await ensureSchema();
+    const doc = await roomRef().child(code).get();
+    return doc.exists() ? doc.val() : null;
+  } catch (error) {
+    console.error("loadRoom failed", error.message);
+    return null;
+  }
+}
+
+export async function deleteRoom(code) {
+  if (!code) return;
+  try {
+    await ensureSchema();
+    await roomRef().child(code).remove();
+  } catch (error) {
+    console.error("deleteRoom failed", error.message);
+  }
+}
+
+export async function listRooms() {
+  try {
+    await ensureSchema();
+    const snap = await roomRef().get();
+    if (!snap.exists()) return [];
+    const roomsData = snap.val();
+    return Object.keys(roomsData || {}).map(key => ({
+      ...roomsData[key],
+      code: roomsData[key].code || key
+    }));
+  } catch (error) {
+    console.error("listRooms failed", error.message);
+    return [];
+  }
 }
 

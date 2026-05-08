@@ -50,14 +50,18 @@ import {
   authUserByToken,
   changeUserPassword,
   createActiveMatch,
+  deleteRoom,
   discardActiveMatch,
   getProfile,
   getUserPreferences,
+  listRooms,
+  loadRoom,
   loginUser,
   logoutUser,
   meFromToken,
   recordMatch,
   registerUser,
+  saveRoom,
   updateUserPreferences,
   updateUserProfile
 } from "./auth.js";
@@ -67,7 +71,6 @@ console.log("Starting server with environment:", {
   VERCEL_ENV: process.env.VERCEL_ENV,
   FIREBASE_PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID,
   FIREBASE_SERVICE_ACCOUNT_JSON: !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
-  GOOGLE_APPLICATION_CREDENTIALS: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
   VITE_SOCKET_URL: !!process.env.VITE_SOCKET_URL
 });
 
@@ -154,6 +157,7 @@ io.on("connection", (socket) => {
     socket.join(room.code);
     emitRoom(room);
     emitRoomList();
+    await saveRoom(room).catch(() => {});
     return { room: publicRoom(room, socket.id), playerId: socket.id };
   }));
 
@@ -199,6 +203,7 @@ io.on("connection", (socket) => {
     if (Object.keys(room.players).length === 0 || onlyTestBots(room)) {
       await discardActiveMatch(room);
       rooms.delete(code);
+      await deleteRoom(code).catch(() => {});
     }
     else {
       emitRoom(room);
@@ -346,6 +351,7 @@ io.on("connection", (socket) => {
       if (Object.keys(liveRoom.players).length === 0 || onlyTestBots(liveRoom)) {
         discardActiveMatch(liveRoom).catch((error) => console.error("discardMatch failed", error));
         rooms.delete(code);
+        deleteRoom(code).catch(() => {});
       }
       else {
         emitRoom(liveRoom);
@@ -377,6 +383,7 @@ function getRoom(code) {
 
 function emitRoom(room) {
   recordMatch(room).catch((error) => console.error("recordMatch failed", error));
+  saveRoom(room).catch((error) => console.error("saveRoom failed", error));
   Object.keys(room.players).forEach((playerId) => {
     io.to(playerId).emit("room:update", publicRoom(room, playerId));
   });
@@ -601,6 +608,23 @@ function imageSearchTerms(query) {
   return [...new Set([trimmed, withoutCategory].filter(Boolean))];
 }
 
-httpServer.listen(PORT, () => {
+async function loadRoomsFromDatabase() {
+  try {
+    const roomsFromDb = await listRooms();
+    if (roomsFromDb && Array.isArray(roomsFromDb)) {
+      roomsFromDb.forEach((room) => {
+        if (room && room.code) {
+          rooms.set(room.code, room);
+        }
+      });
+      console.log(`Loaded ${roomsFromDb.length} rooms from the database`);
+    }
+  } catch (error) {
+    console.error("Failed to load rooms from database:", error.message);
+  }
+}
+
+httpServer.listen(PORT, async () => {
   console.log(`Code Hack server listening on http://localhost:${PORT}`);
+  await loadRoomsFromDatabase();
 });
