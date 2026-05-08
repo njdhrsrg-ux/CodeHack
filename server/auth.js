@@ -14,6 +14,18 @@ function initializeFirebase() {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const databaseUrl = process.env.FIREBASE_DATABASE_URL;
 
+  // Debug logging for Vercel
+  console.log("Firebase env vars check:", {
+    hasServiceAccount: !!serviceAccountJson,
+    serviceAccountLength: serviceAccountJson?.length || 0,
+    hasProjectId: !!projectId,
+    projectId,
+    hasDatabaseUrl: !!databaseUrl,
+    databaseUrl,
+    NODE_ENV: process.env.NODE_ENV,
+    VERCEL_ENV: process.env.VERCEL_ENV
+  });
+
   if (!serviceAccountJson || !projectId || !databaseUrl) {
     const envStatus = {
       FIREBASE_SERVICE_ACCOUNT_JSON: !!serviceAccountJson,
@@ -32,6 +44,8 @@ function initializeFirebase() {
   try {
     credential = admin.credential.cert(JSON.parse(serviceAccountJson));
   } catch (error) {
+    console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", error.message);
+    console.error("First 100 chars of service account JSON:", serviceAccountJson?.substring(0, 100));
     throw new Error(`Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON: ${error.message}`);
   }
 

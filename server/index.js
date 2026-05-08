@@ -16,7 +16,10 @@ function loadLocalEnv() {
   });
 }
 
-loadLocalEnv();
+// Only load local .env in development, not in production (Vercel)
+if (process.env.NODE_ENV !== "production") {
+  loadLocalEnv();
+}
 
 import express from "express";
 import { createServer } from "node:http";
