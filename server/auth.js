@@ -3,15 +3,15 @@ import admin from "firebase-admin";
 
 const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
 const localSessions = new Map();
-let firestore = null;
+let database = null;
 let schemaReady = false;
 
 const FIREBASE_SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 const GOOGLE_APPLICATION_CREDENTIALS = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
 
-function getFirestore() {
-  if (firestore) return firestore;
+function getDatabase() {
+  if (database) return database;
 
   if (!admin.apps.length) {
     let credential;
@@ -24,9 +24,17 @@ function getFirestore() {
     } else if (GOOGLE_APPLICATION_CREDENTIALS) {
       credential = admin.credential.applicationDefault();
     } else {
+      const envStatus = {
+        FIREBASE_SERVICE_ACCOUNT_JSON: !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
+        GOOGLE_APPLICATION_CREDENTIALS: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
+        NODE_ENV: process.env.NODE_ENV,
+        VERCEL_ENV: process.env.VERCEL_ENV,
+        FIREBASE_PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID
+      };
       throw new Error(
         "Firebase credentials not configured. Set FIREBASE_SERVICE_ACCOUNT_JSON env var or GOOGLE_APPLICATION_CREDENTIALS. " +
-        "For local dev, use FIREBASE_SERVICE_ACCOUNT_JSON with your service account JSON string."
+        "For local dev, use FIREBASE_SERVICE_ACCOUNT_JSON with your service account JSON string. " +
+        `Env status: ${JSON.stringify(envStatus)}`
       );
     }
 
@@ -37,21 +45,25 @@ function getFirestore() {
     admin.initializeApp({ credential, projectId: FIREBASE_PROJECT_ID });
   }
 
-  firestore = admin.firestore();
-  return firestore;
+  database = admin.database();
+  return database;
 }
 
-function userCollection() {
-  return getFirestore().collection("codehack_users");
+function usersRef() {
+  return getDatabase().ref("codehack_users");
 }
 
-function sessionCollection() {
-  return getFirestore().collection("codehack_sessions");
+function sessionsRef() {
+  return getDatabase().ref("codehack_sessions");
+}
+
+function roomsRef() {
+  return getDatabase().ref("codehack_rooms");
 }
 
 async function ensureSchema() {
   if (schemaReady) return;
-  getFirestore();
+  getDatabase();
   schemaReady = true;
 }
 
@@ -74,10 +86,10 @@ function makeStats() {
 
 function rowToUser(row) {
   if (!row) return null;
-  const data = typeof row.data === "function" ? row.data() : row;
+  const data = row.val ? row.val() : row;
   if (!data) return null;
   return {
-    id: data.id || row.id,
+    id: data.id,
     username: data.username,
     displayName: data.displayName || data.display_name,
     avatar: data.avatar || "",
@@ -117,16 +129,16 @@ export async function authUserByToken(token) {
   if (!cleanToken) return null;
   await ensureSchema();
   const now = Date.now();
-  const sessionSnap = await sessionCollection().doc(cleanToken).get();
-  if (!sessionSnap.exists) return null;
-  const session = sessionSnap.data();
+  const sessionSnap = await sessionsRef().child(cleanToken).get();
+  if (!sessionSnap.exists()) return null;
+  const session = sessionSnap.val();
   if (!session?.userId || Number(session.expiresAt) <= now) {
-    await sessionCollection().doc(cleanToken).delete().catch(() => {});
+    await sessionsRef().child(cleanToken).remove().catch(() => {});
     return null;
   }
-  await sessionCollection().doc(cleanToken).update({ expiresAt: now + SESSION_TTL });
-  const userDoc = await userCollection().doc(session.userId).get();
-  return rowToUser(userDoc);
+  await sessionsRef().child(cleanToken).update({ expiresAt: now + SESSION_TTL });
+  const userSnap = await usersRef().child(session.userId).get();
+  return rowToUser(userSnap);
 }
 
 export async function registerUser({ username, displayName, password }) {
@@ -135,12 +147,15 @@ export async function registerUser({ username, displayName, password }) {
   if (String(password || "").length < 4) throw new Error("Senha precisa ter pelo menos 4 caracteres.");
   await ensureSchema();
 
-  const exists = await userCollection().where("username", "==", clean).limit(1).get();
-  if (!exists.empty) throw new Error("Usuario ja existe.");
+  const allUsersSnap = await usersRef().get();
+  const allUsers = allUsersSnap.val() || {};
+  const exists = Object.values(allUsers).some(user => user && user.username === clean);
+  if (exists) throw new Error("Usuario ja existe.");
 
   const credentials = hashPassword(password);
+  const userId = crypto.randomUUID();
   const user = {
-    id: crypto.randomUUID(),
+    id: userId,
     username: clean,
     displayName: cleanDisplayName(displayName || username),
     avatar: "",
@@ -152,7 +167,7 @@ export async function registerUser({ username, displayName, password }) {
     createdAt: Date.now()
   };
 
-  await userCollection().doc(user.id).set(user);
+  await usersRef().child(userId).set(user);
   return loginToken(user);
 }
 
@@ -160,10 +175,12 @@ export async function loginUser({ username, password }) {
   const clean = cleanUsername(username);
   await ensureSchema();
 
-  const query = await userCollection().where("username", "==", clean).limit(1).get();
-  if (query.empty) throw new Error("Usuario ou senha incorretos.");
+  const allUsersSnap = await usersRef().get();
+  const allUsers = allUsersSnap.val() || {};
+  const userEntry = Object.values(allUsers).find(user => user && user.username === clean);
+  if (!userEntry) throw new Error("Usuario ou senha incorretos.");
 
-  const user = rowToUser(query.docs[0]);
+  const user = rowToUser(userEntry);
   const credentials = hashPassword(password, user.passwordSalt);
   if (credentials.hash !== user.passwordHash) throw new Error("Usuario ou senha incorretos.");
 
@@ -175,7 +192,7 @@ export async function logoutUser(token) {
   localSessions.delete(cleanToken);
   if (!cleanToken) return;
   await ensureSchema();
-  await sessionCollection().doc(cleanToken).delete().catch(() => {});
+  await sessionsRef().child(cleanToken).remove().catch(() => {});
 }
 
 export async function updateUserProfile(token, { displayName, avatar }) {
@@ -186,9 +203,9 @@ export async function updateUserProfile(token, { displayName, avatar }) {
   const nextName = displayName !== undefined ? cleanDisplayName(displayName) : current.displayName;
   const nextAvatar = avatar !== undefined ? String(avatar || "") : current.avatar;
 
-  await userCollection().doc(current.id).update({ displayName: nextName, avatar: nextAvatar });
-  const updated = await userCollection().doc(current.id).get();
-  return { token, user: publicUser(rowToUser(updated), true) };
+  await usersRef().child(current.id).update({ displayName: nextName, avatar: nextAvatar });
+  const userSnap = await usersRef().child(current.id).get();
+  return { token, user: publicUser(rowToUser(userSnap), true) };
 }
 
 export async function updateUserPreferences(token, preferences) {
@@ -197,7 +214,7 @@ export async function updateUserPreferences(token, preferences) {
   await ensureSchema();
 
   const merged = { ...makeDefaultPreferences(), ...current.preferences, ...preferences };
-  await userCollection().doc(current.id).update({ preferences: merged });
+  await usersRef().child(current.id).update({ preferences: merged });
   return { ok: true, preferences: merged };
 }
 
@@ -217,7 +234,7 @@ export async function changeUserPassword(token, { currentPassword, newPassword }
   if (currentHash.hash !== current.passwordHash) throw new Error("Senha atual incorreta.");
 
   const next = hashPassword(newPassword);
-  await userCollection().doc(current.id).update({ passwordSalt: next.salt, passwordHash: next.hash });
+  await usersRef().child(current.id).update({ passwordSalt: next.salt, passwordHash: next.hash });
   return { ok: true };
 }
 
@@ -226,12 +243,14 @@ export async function getProfile(userIdOrUsername) {
   await ensureSchema();
   if (!lookup) throw new Error("Perfil nao encontrado.");
 
-  const byId = await userCollection().doc(lookup).get();
-  if (byId.exists) return publicUser(rowToUser(byId));
+  const byIdSnap = await usersRef().child(lookup).get();
+  if (byIdSnap.exists()) return publicUser(rowToUser(byIdSnap));
 
-  const query = await userCollection().where("username", "==", cleanUsername(lookup)).limit(1).get();
-  if (query.empty) throw new Error("Perfil nao encontrado.");
-  return publicUser(rowToUser(query.docs[0]));
+  const allUsersSnap = await usersRef().get();
+  const allUsers = allUsersSnap.val() || {};
+  const userEntry = Object.values(allUsers).find(user => user && user.username === cleanUsername(lookup));
+  if (!userEntry) throw new Error("Perfil nao encontrado.");
+  return publicUser(rowToUser(userEntry));
 }
 
 export async function meFromToken(token) {
@@ -467,13 +486,13 @@ function normalizeWordStats(words = {}) {
 async function loadUserById(userId) {
   if (!userId) return null;
   await ensureSchema();
-  const userDoc = await userCollection().doc(userId).get();
-  return rowToUser(userDoc);
+  const userSnap = await usersRef().child(userId).get();
+  return rowToUser(userSnap);
 }
 
 async function saveUserStatsAndMatches(userId, stats, matches) {
   await ensureSchema();
-  await userCollection().doc(userId).update({ stats: normalizeStats(stats), matches: matches || [] });
+  await usersRef().child(userId).update({ stats: normalizeStats(stats), matches: matches || [] });
 }
 
 async function loginToken(user) {
@@ -481,7 +500,7 @@ async function loginToken(user) {
   const expiresAt = Date.now() + SESSION_TTL;
   localSessions.set(token, { userId: user.id, expiresAt });
   await ensureSchema();
-  await sessionCollection().doc(token).set({ userId: user.id, expiresAt });
+  await sessionsRef().child(token).set({ userId: user.id, expiresAt });
   return { token, user: publicUser(user, true) };
 }
 

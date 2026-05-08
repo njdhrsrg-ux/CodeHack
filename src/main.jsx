@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createPortal } from "react-dom";
 import { io } from "socket.io-client";
+import "./firebase.js";
 import {
   ArrowLeft,
   BadgeCheck,

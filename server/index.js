@@ -1,7 +1,25 @@
-import express from "express";
-import { createServer } from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+
+function loadLocalEnv() {
+  const envPath = path.resolve(process.cwd(), ".env");
+  if (!fs.existsSync(envPath)) return;
+  const lines = fs.readFileSync(envPath, "utf8").split(/\r?\n/);
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return;
+    const separator = trimmed.indexOf("=");
+    if (separator < 1) return;
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed.slice(separator + 1).trim().replace(/^["']|["']$/g, "");
+    if (!process.env[key]) process.env[key] = value;
+  });
+}
+
+loadLocalEnv();
+
+import express from "express";
+import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { Server } from "socket.io";
 import {
@@ -43,8 +61,6 @@ import {
   updateUserPreferences,
   updateUserProfile
 } from "./auth.js";
-
-loadLocalEnv();
 
 console.log("Starting server with environment:", {
   NODE_ENV: process.env.NODE_ENV,
@@ -445,21 +461,6 @@ function safe(reply, fn) {
 function cacheImage(key, res, payload) {
   imageCache.set(key, payload);
   return res.json(payload);
-}
-
-function loadLocalEnv() {
-  const envPath = path.resolve(process.cwd(), ".env");
-  if (!fs.existsSync(envPath)) return;
-  const lines = fs.readFileSync(envPath, "utf8").split(/\r?\n/);
-  lines.forEach((line) => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) return;
-    const separator = trimmed.indexOf("=");
-    if (separator < 1) return;
-    const key = trimmed.slice(0, separator).trim();
-    const value = trimmed.slice(separator + 1).trim().replace(/^["']|["']$/g, "");
-    if (!process.env[key]) process.env[key] = value;
-  });
 }
 
 async function googleImage(query) {
