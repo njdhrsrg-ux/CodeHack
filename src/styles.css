@@ -248,6 +248,21 @@ h2 {
   gap: 0.75rem;
 }
 
+.inactivity-event-card {
+  border-color: var(--danger);
+  box-shadow: 0 0 28px rgba(255, 79, 115, 0.24);
+  animation: room-event-enter 360ms ease both;
+}
+
+.countdown-avatar {
+  width: 54px;
+  border-radius: 6px;
+  color: var(--danger);
+  font-family: "Press Start 2P", system-ui;
+  font-size: 0.58rem;
+  box-shadow: inset 0 0 14px rgba(255, 79, 115, 0.12);
+}
+
 .room-event-avatar {
   width: 40px;
   height: 40px;
@@ -411,6 +426,17 @@ h2 {
   100% {
     opacity: 0;
     transform: translateX(calc(-100% - 1.5rem));
+  }
+}
+
+@keyframes room-event-enter {
+  from {
+    opacity: 0;
+    transform: translateX(calc(-100% - 1.5rem));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 
@@ -1277,7 +1303,7 @@ main {
 
 .match-list button {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.45rem;
   text-align: left;
 }
 
@@ -1288,6 +1314,8 @@ main {
   align-items: start;
   white-space: normal;
   border-left: 4px solid var(--muted);
+  min-height: 86px;
+  padding: 0.9rem 1rem;
 }
 
 .match-card strong,
@@ -1296,6 +1324,20 @@ main {
   min-width: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.match-card strong {
+  font-size: 0.98rem;
+}
+
+.match-card span {
+  font-size: 0.8rem;
+  opacity: 0.82;
+}
+
+.match-card em {
+  font-size: 0.9rem;
+  font-style: normal;
 }
 
 .match-card.win,
@@ -1599,7 +1641,7 @@ main {
 }
 
 .topbar-profile-strip .settings-avatar-preview.small img {
-  transform: scale(1.55);
+  transform: scale(1.85);
 }
 
 .avatar-profile-button {

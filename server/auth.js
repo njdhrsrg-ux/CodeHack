@@ -589,7 +589,9 @@ export async function saveRoom(room) {
       publicRoom: room.publicRoom || false,
       hostId: room.hostId || "",
       createdAt: room.createdAt || Date.now(),
-      updatedAt: room.updatedAt || Date.now()
+      updatedAt: room.updatedAt || Date.now(),
+      inactivityWarningAt: room.inactivityWarningAt || null,
+      inactivityClosesAt: room.inactivityClosesAt || null
     };
 
     // Add optional fields only if they exist and aren't undefined

@@ -644,6 +644,7 @@ function App() {
   const [playerId, setPlayerId] = useState("");
   const [toast, setToast] = useState("");
   const [roomEvents, setRoomEvents] = useState([]);
+  const [inactiveClosed, setInactiveClosed] = useState(false);
   const [joinChoice, setJoinChoice] = useState(null);
   const [passwordJoin, setPasswordJoin] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -707,6 +708,14 @@ function App() {
     socket.on("room:update", (nextRoom) => {
       if (nextRoom?.viewerId) setPlayerId(nextRoom.viewerId);
       setRoom(hydrateRoom(nextRoom));
+      if (nextRoom?.inactivityClosesAt) {
+        setRoomEvents((events) => [
+          ...events.filter((item) => item.type !== "inactivity"),
+          { id: `inactivity-${nextRoom.code}`, type: "inactivity", closesAt: nextRoom.inactivityClosesAt, at: Date.now() }
+        ].slice(-5));
+      } else {
+        setRoomEvents((events) => events.filter((item) => item.type !== "inactivity"));
+      }
     });
     socket.on("player:avatarUpdate", ({ playerId: updatedPlayerId, avatar }) => {
       setRoom((currentRoom) => {
@@ -730,6 +739,19 @@ function App() {
         setRoomEvents((events) => events.filter((item) => item.id !== event.id));
       }, 3300);
     });
+    socket.on("room:inactivityWarning", (event) => {
+      setRoomEvents((events) => [...events.filter((item) => item.type !== "inactivity"), event].slice(-5));
+    });
+    socket.on("room:inactivityClear", () => {
+      setRoomEvents((events) => events.filter((item) => item.type !== "inactivity"));
+    });
+    socket.on("room:inactiveClosed", () => {
+      setRoom(null);
+      setPlayerId("");
+      setRoomEvents([]);
+      clearActiveRoomSession();
+      setInactiveClosed(true);
+    });
     return () => {
       socket.off("constants");
       socket.off("rooms:update");
@@ -737,6 +759,9 @@ function App() {
       socket.off("player:avatarUpdate");
       socket.off("room:kicked");
       socket.off("room:event");
+      socket.off("room:inactivityWarning");
+      socket.off("room:inactivityClear");
+      socket.off("room:inactiveClosed");
     };
   }, []);
 
@@ -753,6 +778,22 @@ function App() {
     window.addEventListener("profile:open", openProfile);
     return () => window.removeEventListener("profile:open", openProfile);
   }, []);
+
+  useEffect(() => {
+    if (!room?.inactivityClosesAt) return undefined;
+    let sent = false;
+    function signalActivity() {
+      if (sent) return;
+      sent = true;
+      socket.emit("room:activity", {}, () => {});
+    }
+    window.addEventListener("pointerdown", signalActivity);
+    window.addEventListener("keydown", signalActivity);
+    return () => {
+      window.removeEventListener("pointerdown", signalActivity);
+      window.removeEventListener("keydown", signalActivity);
+    };
+  }, [room?.inactivityClosesAt]);
 
   useEffect(() => {
     if (!authToken) {
@@ -955,6 +996,7 @@ function App() {
         />
       )}
       <RoomEventStack events={roomEvents} />
+      {inactiveClosed && <InactivityClosedModal onClose={() => setInactiveClosed(false)} />}
       {joinChoice && (
         <JoinChoiceModal
           joinChoice={joinChoice}
@@ -1199,27 +1241,66 @@ function ConfirmDialog({ title, text, confirmLabel, onCancel, onConfirm }) {
 }
 
 function RoomEventStack({ events }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!events.some((event) => event.type === "inactivity")) return undefined;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [events]);
   if (!events.length) return null;
   return (
     <div className="room-event-stack" aria-live="polite">
       {events.map((event) => (
-        <div className="room-event-card" key={event.id}>
-          <span className="room-event-avatar">
-            {event.avatar ? <img src={event.avatar} alt={`Avatar de ${event.playerName}`} /> : initials(event.playerName)}
-          </span>
-          <span className="room-event-text">
-            <strong><GuestDisplayName name={event.playerName} sessionTag={event.sessionTag} /></strong>
-            {event.type === "leave" ? (
-              " saiu da partida."
-            ) : (
-              <>
-                {" entrou no "}
-                <em className={`team-name ${event.team || "neutral"}`}>{teamEventName(event.team)}</em>
-              </>
-            )}
-          </span>
-        </div>
+        event.type === "inactivity" ? (
+          <InactivityEventCard key={event.id} event={event} now={now} />
+        ) : (
+          <div className="room-event-card" key={event.id}>
+            <span className="room-event-avatar">
+              {event.avatar ? <img src={event.avatar} alt={`Avatar de ${event.playerName}`} /> : initials(event.playerName)}
+            </span>
+            <span className="room-event-text">
+              <strong><GuestDisplayName name={event.playerName} sessionTag={event.sessionTag} /></strong>
+              {event.type === "leave" ? (
+                " saiu da partida."
+              ) : (
+                <>
+                  {" entrou no "}
+                  <em className={`team-name ${event.team || "neutral"}`}>{teamEventName(event.team)}</em>
+                </>
+              )}
+            </span>
+          </div>
+        )
       ))}
+    </div>
+  );
+}
+
+function InactivityEventCard({ event, now }) {
+  const remaining = Math.max(0, Number(event.closesAt || now) - now);
+  const minutes = Math.floor(remaining / 60000);
+  const seconds = Math.floor((remaining % 60000) / 1000);
+  return (
+    <div className="room-event-card inactivity-event-card">
+      <span className="room-event-avatar countdown-avatar">{minutes}:{String(seconds).padStart(2, "0")}</span>
+      <span className="room-event-text">
+        <strong>Sala inativa</strong>
+        {" interaja para impedir o encerramento."}
+      </span>
+    </div>
+  );
+}
+
+function InactivityClosedModal({ onClose }) {
+  return (
+    <div className="confirm-overlay" role="dialog" aria-modal="true">
+      <div className="confirm-modal">
+        <strong>Partida encerrada</strong>
+        <p>A sala foi encerrada por inatividade. Voce voltou para o menu principal.</p>
+        <div className="inline-actions">
+          <button className="primary" onClick={onClose}><BadgeCheck size={18} /> Entendi</button>
+        </div>
+      </div>
     </div>
   );
 }

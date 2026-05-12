@@ -93,6 +93,9 @@ const sessions = new Map();
 const pendingDisconnects = new Map();
 const imageCache = new Map();
 const TEAMS = ["red", "blue"];
+const ROOM_INACTIVITY_LIMIT_MS = 60 * 60 * 1000;
+const ROOM_INACTIVITY_WARNING_MS = 5 * 60 * 1000;
+const ROOM_CLEANUP_INTERVAL_MS = 30 * 1000;
 const SERVER_WORD_ORIGINS = {
   Anime: {
     Happy: "Fairy Tail",
@@ -524,6 +527,13 @@ io.on("connection", (socket) => {
     return { ok: true };
   }));
 
+  socket.on("room:activity", (_payload, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
+    await emitRoom(room);
+    await emitRoomList();
+    return { ok: true };
+  }));
+
   socket.on("room:settings", (settings, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
     updateSettings(room, socket.id, settings);
@@ -698,10 +708,16 @@ async function getRoom(code) {
 }
 
 async function emitRoom(room) {
+  const hadInactivityWarning = Boolean(room.inactivityWarningAt);
+  if (hadInactivityWarning) {
+    room.inactivityWarningAt = null;
+    room.inactivityClosesAt = null;
+  }
   room.updatedAt = Date.now(); // Update timestamp for cleanup tracking
   await recordMatch(room).catch((error) => console.error("recordMatch failed", error));
   await saveRoom(room);
   rooms.set(room.code, room);
+  if (hadInactivityWarning) io.to(room.code).emit("room:inactivityClear");
   Object.keys(room.players).forEach((playerId) => {
     io.to(playerId).emit("room:update", publicRoom(room, playerId));
   });
@@ -1031,11 +1047,11 @@ async function loadRoomsFromDatabase() {
   }
 }
 
-// Periodic cleanup of abandoned rooms (no players, older than 1 hour)
+// Periodic cleanup of abandoned and inactive rooms.
 async function cleanupAbandonedRooms() {
   try {
     const now = Date.now();
-    const oneHourAgo = now - (60 * 60 * 1000); // 1 hour in milliseconds
+    const oneHourAgo = now - ROOM_INACTIVITY_LIMIT_MS;
 
     const databaseRooms = await listRooms().catch(() => []);
     databaseRooms.forEach((room) => {
@@ -1045,13 +1061,35 @@ async function cleanupAbandonedRooms() {
 
     for (const [code, roomValue] of rooms.entries()) {
       const room = normalizeRoom(roomValue);
-      // Only clean up rooms with no players that haven't been updated in over an hour
-      const emptyRoom = !room || Object.keys(room.players || {}).length === 0;
+      if (!room) continue;
+      const players = Object.keys(room.players || {});
+      const emptyRoom = players.length === 0;
       const staleRoom = !room?.updatedAt || room.updatedAt < oneHourAgo;
       if (emptyRoom && staleRoom) {
         console.log(`Cleaning up abandoned room: ${code}`);
         rooms.delete(code);
         await deleteRoom(code).catch(() => {});
+        continue;
+      }
+      if (emptyRoom) continue;
+      const closesAt = Number(room.updatedAt || room.createdAt || now) + ROOM_INACTIVITY_LIMIT_MS;
+      const warnAt = closesAt - ROOM_INACTIVITY_WARNING_MS;
+      if (now >= closesAt) {
+        console.log(`Closing inactive room: ${code}`);
+        await closeInactiveRoom(room);
+        continue;
+      }
+      if (now >= warnAt && !room.inactivityWarningAt) {
+        room.inactivityWarningAt = now;
+        room.inactivityClosesAt = closesAt;
+        rooms.set(code, room);
+        await saveRoom(room).catch(() => {});
+        io.to(code).emit("room:inactivityWarning", {
+          id: `inactivity-${code}`,
+          type: "inactivity",
+          closesAt,
+          at: now
+        });
       }
     }
   } catch (error) {
@@ -1059,8 +1097,20 @@ async function cleanupAbandonedRooms() {
   }
 }
 
-// Run cleanup every 30 minutes
-setInterval(cleanupAbandonedRooms, 30 * 60 * 1000);
+async function closeInactiveRoom(room) {
+  const code = room.code;
+  await discardActiveMatch(room).catch((error) => console.error("discardMatch failed", error));
+  io.to(code).emit("room:inactiveClosed", { reason: "inactivity" });
+  Object.keys(room.players || {}).forEach((playerId) => {
+    sessions.delete(playerId);
+    io.sockets.sockets.get(playerId)?.leave(code);
+  });
+  rooms.delete(code);
+  await deleteRoom(code).catch((error) => console.error("deleteRoom failed", error));
+  await emitRoomList();
+}
+
+setInterval(cleanupAbandonedRooms, ROOM_CLEANUP_INTERVAL_MS);
 
 httpServer.listen(PORT, async () => {
   console.log(`Code Hack server listening on http://localhost:${PORT}`);

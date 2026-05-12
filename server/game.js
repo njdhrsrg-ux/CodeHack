@@ -94,6 +94,8 @@ export function normalizeRoom(room) {
   room.imageMap = normalizeObject(room.imageMap);
   room.createdAt = Number(room.createdAt || Date.now());
   room.updatedAt = Number(room.updatedAt || room.createdAt || Date.now());
+  room.inactivityWarningAt = room.inactivityWarningAt ? Number(room.inactivityWarningAt) : null;
+  room.inactivityClosesAt = room.inactivityClosesAt ? Number(room.inactivityClosesAt) : null;
   if (!room.hostId || !room.players[room.hostId]) transferHost(room);
   else syncHostFlags(room);
   return room;
