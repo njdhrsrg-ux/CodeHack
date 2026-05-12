@@ -381,18 +381,25 @@ h2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
+  align-items: start;
   min-width: 0;
 }
 
 .spectator-team-column {
   display: grid;
   gap: 1rem;
+  align-content: start;
   min-width: 0;
   border-radius: 8px;
   padding: 1rem;
   border: 1px solid var(--surface-line, var(--line));
   background: var(--surface-bg, var(--panel));
   box-shadow: 0 0 28px var(--surface-soft, var(--accent-soft));
+}
+
+.spectator-team-score {
+  min-height: auto;
+  padding: 0.55rem 0.7rem;
 }
 
 .spectator-round-section {
@@ -1389,6 +1396,23 @@ main {
 .match-word-list li {
   min-width: 0;
   overflow-wrap: anywhere;
+  display: grid;
+  gap: 0.22rem;
+}
+
+.match-tiebreaker-guess {
+  display: block;
+  margin-left: 1.35rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.match-tiebreaker-guess.correct {
+  color: var(--accent);
+}
+
+.match-tiebreaker-guess.wrong {
+  color: var(--danger);
 }
 
 .match-players {
@@ -1641,7 +1665,7 @@ main {
 }
 
 .topbar-profile-strip .settings-avatar-preview.small img {
-  transform: scale(1.85);
+  transform: scale(2.05);
 }
 
 .avatar-profile-button {
@@ -2335,6 +2359,14 @@ main {
 .right-rail {
   min-width: 0;
   overflow: visible;
+}
+
+.spectator-page .right-rail {
+  position: sticky;
+  top: 96px;
+  align-self: start;
+  max-height: calc((100vh / var(--site-zoom)) - 112px);
+  overflow: auto;
 }
 
 .game-page .left-rail,

@@ -511,6 +511,8 @@ function makeMatchEntry(room, player, matchId, finishedAt, won, outcome = null) 
       winIntercepts: room.settings?.winIntercepts
     },
     finalScore: { red: room.teams.red.score, blue: room.teams.blue.score },
+    tiebreaker: room.tiebreaker ? cleanObject(room.tiebreaker) : null,
+    tiebreakerScores: room.final?.tiebreakerScores ? cleanObject(room.final.tiebreakerScores) : null,
     teams: {
       red: { words: room.teams.red.words, hintHistory: room.teams.red.hintHistory },
       blue: { words: room.teams.blue.words, hintHistory: room.teams.blue.hintHistory }

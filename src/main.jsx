@@ -1549,7 +1549,10 @@ function MatchDetails({ match }) {
             <strong>{teamLabel(team)}</strong>
             <ol className="match-word-list">
               {(match.teams?.[team]?.words || []).map((word, index) => (
-                <li key={`${team}-${word}-${index}`}><span className="word-number">#{index + 1} </span>{word}</li>
+                <li key={`${team}-${word}-${index}`}>
+                  <span className="word-number">#{index + 1} </span>{word}
+                  <MatchTiebreakerGuess match={match} team={team} index={index} />
+                </li>
               ))}
             </ol>
             <div className="history-rounds">
@@ -1561,6 +1564,18 @@ function MatchDetails({ match }) {
         ))}
       </div>
     </div>
+  );
+}
+
+function MatchTiebreakerGuess({ match, team, index }) {
+  const guesser = otherTeam(team);
+  const guess = match.tiebreaker?.[guesser]?.guess?.[index];
+  if (!guess) return null;
+  const correct = normalizeWordText(guess) === normalizeWordText(match.teams?.[team]?.words?.[index] || "");
+  return (
+    <small className={`match-tiebreaker-guess ${correct ? "correct" : "wrong"}`}>
+      {teamLabel(guesser)}: {guess}
+    </small>
   );
 }
 
@@ -2219,7 +2234,6 @@ function Game({ room, playerId, constants, action, toast, playerAvatar }) {
 
 function SpectatorGame({ room, playerId, constants, action, toast, playerAvatar }) {
   const winner = getWinner(room, constants);
-  const roundResultRevealed = useRoundResultRevealed(room);
   return (
     <section className="game-page spectator-page enter">
       <div className="spectator-game-grid">
@@ -2234,11 +2248,8 @@ function SpectatorGame({ room, playerId, constants, action, toast, playerAvatar 
           {toast && <p className="toast">{toast}</p>}
         </div>
         <aside className="right-rail">
-          <div className="side-panel scoreboard-panel">
-            <ScoreBoard room={room} constants={constants} playerId={playerId} ordered revealScores={roundResultRevealed} />
-          </div>
-          <GamePlayersPanel room={room} playerId={playerId} constants={constants} action={() => Promise.resolve({ ok: false })} playerAvatar={playerAvatar} />
           <ChatPanel room={room} playerId={playerId} action={action} scope="spectator" />
+          <GamePlayersPanel room={room} playerId={playerId} constants={constants} action={() => Promise.resolve({ ok: false })} playerAvatar={playerAvatar} />
         </aside>
       </div>
       <HintHistory room={room} constants={constants} playerId={playerId} />
@@ -2252,6 +2263,7 @@ function SpectatorRound({ room, playerId, constants }) {
       {TEAMS.map((team) => (
         <div className={`spectator-team-column team-surface ${team}`} key={team}>
           <p className="eyebrow"><RadioTower size={16} /> {constants.TEAM_NAMES[team]}</p>
+          <TeamScoreCard room={room} team={team} constants={constants} />
           <WordsPanel team={team} words={room.teams[team]?.words || []} category={room.settings.category} imageMap={room.imageMap} />
           <SpectatorHints hints={room.current?.turns?.[team]?.hints || []} />
           <GuessPhase room={room} playerId={playerId} kind="team" targetTeam={team} title="Descriptografia" hints={room.current?.turns?.[team]?.hints || []} action={() => Promise.resolve({ ok: false })} />
@@ -2602,6 +2614,18 @@ function RoundResult({ room, playerId, constants, action }) {
         ))}
       </div>
       {revealed && <WaitingState label={roundResultNextLabel(room, me)} />}
+    </div>
+  );
+}
+
+function TeamScoreCard({ room, team, constants }) {
+  const score = room.teams[team]?.score || { lives: 0, interceptions: 0 };
+  return (
+    <div className={`score spectator-team-score team-surface ${team}`}>
+      <small>
+        <IconImg src={ICONS.life} alt="Vidas" className="game-icon life-icon" /> {score.lives}/{startingLivesLimit(room, constants)}
+        <IconImg src={ICONS.decrypt} alt="Descriptografias" className="game-icon decrypt-icon" /> {score.interceptions}/{winInterceptLimit(room, constants)}
+      </small>
     </div>
   );
 }
