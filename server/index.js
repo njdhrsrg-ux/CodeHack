@@ -92,6 +92,7 @@ const rooms = new Map();
 const sessions = new Map();
 const pendingDisconnects = new Map();
 const imageCache = new Map();
+const imageResolveJobs = new Set();
 const TEAMS = ["red", "blue"];
 const ROOM_INACTIVITY_LIMIT_MS = 60 * 60 * 1000;
 const ROOM_INACTIVITY_WARNING_MS = 5 * 60 * 1000;
@@ -451,7 +452,7 @@ app.get("/api/image-proxy", async (req, res) => {
         "User-Agent": "CodeHackImageProxy/1.0",
         Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
       }
-    }, 8000);
+    }, 15000);
     if (!response.ok) return res.sendStatus(502);
     const contentType = response.headers.get("content-type") || "";
     if (contentType && !contentType.toLowerCase().startsWith("image/")) return res.sendStatus(415);
@@ -515,6 +516,7 @@ io.on("connection", (socket) => {
     socket.join(room.code);
     await emitRoom(room);
     await emitRoomList();
+    if (room.phase !== "lobby" && missingRoomImages(room).length) startRoomImageResolver(room.code);
     if (join.eventType !== "resume") emitRoomEvent(room, socket.id, "join", room.players[join.playerId]);
     return { room: publicRoom(room, join.playerId), playerId: join.playerId };
   }));
@@ -531,6 +533,7 @@ io.on("connection", (socket) => {
     socket.join(room.code);
     await emitRoom(room);
     await emitRoomList();
+    if (room.phase !== "lobby" && missingRoomImages(room).length) startRoomImageResolver(room.code);
     if (join.eventType !== "resume") emitRoomEvent(room, socket.id, "join", room.players[join.playerId]);
     return { room: publicRoom(room, join.playerId), playerId: join.playerId };
   }));
@@ -651,10 +654,10 @@ io.on("connection", (socket) => {
       return { cancelled: true };
     }
     startGame(liveRoom, socket.id);
-    await resolveRoomImages(liveRoom);
     await createActiveMatch(liveRoom);
     await emitRoom(liveRoom);
     await emitRoomList();
+    startRoomImageResolver(liveRoom.code);
     return { ok: true };
   }));
 
@@ -950,8 +953,10 @@ async function findImagePayload(query, category) {
     if (await imageAvailable(poster)) return cacheImage(cacheKey, { url: poster, source: "omdb" });
   }
   if (!/\bpokemon\b/i.test(query)) {
-    const google = await googleImage(query);
-    if (await imageAvailable(google)) return cacheImage(cacheKey, { url: google, source: "google" });
+    for (const term of imageSearchTerms(query)) {
+      const google = await googleImage(term);
+      if (await imageAvailable(google)) return cacheImage(cacheKey, { url: google, source: "google" });
+    }
   }
   const wiki = await wikiImage(query);
   if (await imageAvailable(wiki)) return cacheImage(cacheKey, { url: wiki, source: "wikimedia" });
@@ -960,32 +965,37 @@ async function findImagePayload(query, category) {
 
 async function resolveRoomImages(room) {
   const category = room.settings?.category || "";
-  room.imageMap = {};
-  const usedWords = new Set(TEAMS.flatMap((team) => room.teams?.[team]?.words || []));
-  const replacementPool = shuffledImageReplacementPool(room, usedWords);
+  room.imageMap ||= {};
   for (const team of TEAMS) {
     const words = room.teams?.[team]?.words || [];
     for (let index = 0; index < words.length; index += 1) {
-      const resolved = await resolveWordWithImage(words[index], category, replacementPool, usedWords);
-      words[index] = resolved.word;
-      room.imageMap[imageCacheKey(resolved.word, category)] = resolved.url;
+      const word = words[index];
+      const key = imageCacheKey(word, category);
+      if (room.imageMap[key]) continue;
+      room.imageMap[key] = await resolveImageUrlForWord(word, category);
     }
   }
+  return room.imageMap;
 }
 
-async function resolveWordWithImage(initialWord, category, replacementPool, usedWords) {
-  const candidates = [initialWord, ...replacementPool].filter(Boolean);
-  for (const word of candidates) {
-    if (word !== initialWord && usedWords.has(word)) continue;
-    const url = await resolveImageUrlForWord(word, category);
-    if (!url) continue;
-    if (word !== initialWord) {
-      usedWords.delete(initialWord);
-      usedWords.add(word);
+async function startRoomImageResolver(code) {
+  const roomCode = String(code || "").trim().toUpperCase();
+  if (!roomCode || imageResolveJobs.has(roomCode)) return;
+  imageResolveJobs.add(roomCode);
+  try {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const room = await getRoom(roomCode).catch(() => null);
+      if (!room || room.phase === "lobby") break;
+      const before = JSON.stringify(room.imageMap || {});
+      await resolveRoomImages(room);
+      const after = JSON.stringify(room.imageMap || {});
+      if (after !== before) await emitRoom(room);
+      if (!missingRoomImages(room).length) break;
+      await sleep(Math.min(3000 + attempt * 1500, 15000));
     }
-    return { word, url };
+  } finally {
+    imageResolveJobs.delete(roomCode);
   }
-  return { word: initialWord, url: "" };
 }
 
 async function resolveImageUrlForWord(word, category) {
@@ -998,20 +1008,10 @@ async function resolveImageUrlForWord(word, category) {
   return payload?.url || "";
 }
 
-function shuffledImageReplacementPool(room, usedWords) {
-  const category = room.settings?.category;
-  const customWords = Array.isArray(room.settings?.customWords) ? room.settings.customWords : [];
-  const bank = category === "Personalizada" ? customWords : CONSTANTS.WORD_BANKS?.[category] || [];
-  return shuffleValues([...new Set(bank.map((word) => String(word || "").trim()).filter(Boolean).filter((word) => !usedWords.has(word)))]);
-}
-
-function shuffleValues(values) {
-  const copy = [...values];
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const other = Math.floor(Math.random() * (index + 1));
-    [copy[index], copy[other]] = [copy[other], copy[index]];
-  }
-  return copy;
+function missingRoomImages(room) {
+  const category = room.settings?.category || "";
+  return TEAMS.flatMap((team) => room.teams?.[team]?.words || [])
+    .filter((word) => !room.imageMap?.[imageCacheKey(word, category)]);
 }
 
 function imageCacheKey(word, category) {
@@ -1250,9 +1250,16 @@ async function wikiSummaryThumbnail(title) {
 function imageSearchTerms(query) {
   const trimmed = query.trim();
   const withoutCategory = trimmed.replace(/\s+(geral|anime|pokemon|filme|filmes|jogo|jogos|geek|famosos|movie|famous person|fictional character|video game character|anime character)$/i, "").trim();
-  if (/\s+(famosos|famous person)$/i.test(trimmed)) return [withoutCategory].filter(Boolean);
-  if (/\s+geral$/i.test(trimmed)) return [...new Set([withoutCategory, trimmed].filter(Boolean))];
-  return [...new Set([trimmed, withoutCategory].filter(Boolean))];
+  const withoutParentheses = trimmed.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
+  const firstWords = withoutCategory.split(/\s+/).slice(0, 2).join(" ");
+  const firstWord = withoutCategory.split(/\s+/)[0] || "";
+  if (/\s+(famosos|famous person)$/i.test(trimmed)) return uniqueSearchTerms([withoutCategory, firstWords, firstWord]);
+  if (/\s+geral$/i.test(trimmed)) return uniqueSearchTerms([withoutCategory, firstWords, firstWord, trimmed]);
+  return uniqueSearchTerms([trimmed, withoutParentheses, withoutCategory, firstWords, firstWord]);
+}
+
+function uniqueSearchTerms(terms) {
+  return [...new Set(terms.map((term) => String(term || "").trim()).filter(Boolean))];
 }
 
 async function loadRoomsFromDatabase() {
