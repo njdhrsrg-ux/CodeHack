@@ -3013,7 +3013,15 @@ function WordImage({ word, index, category, imageUrl = undefined }) {
             setFailed(true);
             if (reportedBroken !== url) {
               setReportedBroken(url);
-              socket.emit("image:broken", { word, category, url: rawUrl });
+              socket.emit("image:broken", { word, category, url: rawUrl }, (reply) => {
+                if (reply?.ok && !reply.invalidated) {
+                  window.setTimeout(() => {
+                    setReportedBroken("");
+                    setFailed(false);
+                    setImageRetry((retry) => retry + 1);
+                  }, 900);
+                }
+              });
             }
           }
         }} />

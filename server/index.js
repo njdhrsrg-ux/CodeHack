@@ -92,8 +92,11 @@ const rooms = new Map();
 const sessions = new Map();
 const pendingDisconnects = new Map();
 const imageCache = new Map();
+const imageBinaryCache = new Map();
 const imageResolveJobs = new Set();
 const TEAMS = ["red", "blue"];
+const MAX_IMAGE_CACHE_ENTRIES = 160;
+const MAX_IMAGE_CACHE_BYTES = 5 * 1024 * 1024;
 const ROOM_INACTIVITY_LIMIT_MS = 60 * 60 * 1000;
 const ROOM_INACTIVITY_WARNING_MS = 5 * 60 * 1000;
 const ROOM_CLEANUP_INTERVAL_MS = 30 * 1000;
@@ -447,19 +450,11 @@ app.get("/api/image-proxy", async (req, res) => {
   }
   if (!["http:", "https:"].includes(target.protocol)) return res.sendStatus(400);
   try {
-    const response = await fetchWithTimeout(target, {
-      headers: {
-        "User-Agent": "CodeHackImageProxy/1.0",
-        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
-      }
-    }, 15000);
-    if (!response.ok) return res.sendStatus(502);
-    const contentType = response.headers.get("content-type") || "";
-    if (contentType && !contentType.toLowerCase().startsWith("image/")) return res.sendStatus(415);
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (!isLikelyImage(bytes, contentType)) return res.sendStatus(415);
+    const image = await fetchImageResource(target, 15000);
+    if (!image) return res.sendStatus(415);
+    const { bytes, contentType } = image;
     res.setHeader("Content-Type", contentType || "image/jpeg");
-    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("Cache-Control", "public, max-age=604800, immutable");
     return res.end(bytes);
   } catch {
     return res.sendStatus(504);
@@ -645,10 +640,12 @@ io.on("connection", (socket) => {
 
   socket.on("image:broken", ({ word, category, url }, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
-    invalidateRoomImage(room, word, category, url);
-    await emitRoom(room);
-    startRoomImageResolver(room.code);
-    return { ok: true };
+    const invalidated = await invalidateRoomImage(room, word, category, url);
+    if (invalidated) {
+      await emitRoom(room);
+      startRoomImageResolver(room.code);
+    }
+    return { invalidated };
   }));
 
   socket.on("game:start", (_payload, reply) => safe(reply, async () => {
@@ -1011,17 +1008,21 @@ async function resolveImageUrlForWord(word, category) {
   return payload?.url || "";
 }
 
-function invalidateRoomImage(room, word, category, url) {
+async function invalidateRoomImage(room, word, category, url) {
   const cleanWord = String(word || "").trim();
   const imageCategory = String(category || room.settings?.category || "").trim();
-  if (!cleanWord || !imageCategory) return;
+  if (!cleanWord || !imageCategory) return false;
   const key = imageCacheKey(cleanWord, imageCategory);
-  if (room.imageMap?.[key] && (!url || room.imageMap[key] === url)) delete room.imageMap[key];
+  if (!room.imageMap?.[key]) return false;
+  if (url && room.imageMap[key] !== url) return false;
+  if (await proxiedImageStillLoads(room.imageMap[key])) return false;
+  delete room.imageMap[key];
   const query = serverImageSearchQuery(cleanWord, imageCategory);
   imageCache.delete(`${imageCategory}:${query}`.toLocaleLowerCase());
   imageSearchTerms(query).forEach((term) => {
     imageCache.delete(`${imageCategory}:${term}`.toLocaleLowerCase());
   });
+  return true;
 }
 
 function missingRoomImages(room) {
@@ -1173,21 +1174,33 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 4500) {
 }
 
 async function imageAvailable(url) {
+  return Boolean(await fetchImageResource(url, 6000));
+}
+
+async function fetchImageResource(url, timeoutMs = 8000) {
   if (!url) return false;
+  const target = normalizeExternalImageUrl(url);
+  if (!target) return null;
+  const cacheKey = target.href;
+  const cached = imageBinaryCache.get(cacheKey);
+  if (cached) return cached;
   try {
-    const response = await fetchWithTimeout(url, {
+    const response = await fetchWithTimeout(target, {
       headers: {
         "User-Agent": "CodeHackImageProbe/1.0",
         Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
       }
-    }, 3500);
-    if (!response.ok) return false;
+    }, timeoutMs);
+    if (!response.ok) return null;
     const contentType = response.headers.get("content-type") || "";
-    if (contentType && !contentType.toLowerCase().startsWith("image/")) return false;
+    if (contentType && !contentType.toLowerCase().startsWith("image/")) return null;
     const bytes = Buffer.from(await response.arrayBuffer());
-    return isLikelyImage(bytes, contentType);
+    if (!isLikelyImage(bytes, contentType)) return null;
+    const image = { bytes, contentType: contentType || guessImageContentType(bytes) || "image/jpeg" };
+    cacheImageBytes(cacheKey, image);
+    return image;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -1203,6 +1216,43 @@ function isLikelyImage(bytes, contentType = "") {
   if (bytes.length >= 2 && bytes[0] === 0x42 && bytes[1] === 0x4d) return true;
   if (bytes.length >= 4 && bytes[0] === 0x00 && bytes[1] === 0x00 && bytes[2] === 0x01 && bytes[3] === 0x00) return true;
   return false;
+}
+
+function proxiedImageStillLoads(url) {
+  return imageAvailable(url);
+}
+
+function normalizeExternalImageUrl(url) {
+  const value = String(url || "");
+  try {
+    if (value.startsWith("/api/image-proxy")) {
+      const proxy = new URL(value, "http://codehack.local");
+      const raw = proxy.searchParams.get("u");
+      return raw ? new URL(raw) : null;
+    }
+    const target = new URL(value);
+    return ["http:", "https:"].includes(target.protocol) ? target : null;
+  } catch {
+    return null;
+  }
+}
+
+function cacheImageBytes(key, image) {
+  if (!image?.bytes?.length || image.bytes.length > MAX_IMAGE_CACHE_BYTES) return;
+  if (imageBinaryCache.has(key)) imageBinaryCache.delete(key);
+  imageBinaryCache.set(key, image);
+  while (imageBinaryCache.size > MAX_IMAGE_CACHE_ENTRIES) {
+    const oldest = imageBinaryCache.keys().next().value;
+    imageBinaryCache.delete(oldest);
+  }
+}
+
+function guessImageContentType(bytes) {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
+  if (bytes.length >= 6 && bytes.toString("ascii", 0, 3) === "GIF") return "image/gif";
+  if (bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP") return "image/webp";
+  return "";
 }
 
 async function wikiImage(query) {
