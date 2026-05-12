@@ -3081,7 +3081,16 @@ function wordOrigin(word, category) {
     || IMAGE_ORIGIN[category]?.[imageAlias(cleanWord)]
     || ORIGIN_FALLBACK[category]?.[imageAlias(cleanWord)]
     || CHARACTER_ORIGIN_PATCH[category]?.[imageAlias(cleanWord)]
-    || originFromTaggedName(cleanWord, category);
+    || originFromTaggedName(cleanWord, category)
+    || characterOriginFallback(category);
+}
+
+function characterOriginFallback(category) {
+  return {
+    Anime: "Anime",
+    Jogos: "Jogo",
+    Geek: "Geek"
+  }[category] || "";
 }
 
 function originFromTaggedName(word, category) {

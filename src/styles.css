@@ -1702,7 +1702,7 @@ main {
 }
 
 .topbar-profile-strip .settings-avatar-preview.small img {
-  transform: scale(2.05);
+  transform: translateX(4%) scale(2.05);
 }
 
 .avatar-profile-button {
@@ -2402,8 +2402,8 @@ main {
   position: sticky;
   top: 96px;
   align-self: start;
-  max-height: calc((100vh / var(--site-zoom)) - 112px);
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .game-page .left-rail,

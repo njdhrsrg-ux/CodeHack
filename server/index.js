@@ -866,6 +866,10 @@ async function findImagePayload(query, category) {
     const poster = await omdbImage(query);
     if (poster) return cacheImage(cacheKey, { url: poster, source: "omdb" });
   }
+  if (["Anime", "Jogos", "Geek"].includes(category)) {
+    const wiki = await wikiImage(query);
+    if (wiki) return cacheImage(cacheKey, { url: wiki, source: "wikimedia" });
+  }
   if (!/\bpokemon\b/i.test(query)) {
     const google = await googleImage(query);
     if (google) return cacheImage(cacheKey, { url: google, source: "google" });
@@ -938,7 +942,7 @@ async function googleImage(query) {
   url.searchParams.set("lr", "lang_en");
   url.searchParams.set("q", query);
   try {
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if (!response.ok) return null;
     const data = await response.json();
     return data.items?.[0]?.link || null;
@@ -956,7 +960,7 @@ async function pexelsImage(query) {
   url.searchParams.set("orientation", "square");
   url.searchParams.set("locale", "en-US");
   try {
-    const response = await fetch(url, { headers: { Authorization: key } });
+    const response = await fetchWithTimeout(url, { headers: { Authorization: key } });
     if (!response.ok) return null;
     const data = await response.json();
     const photo = data.photos?.[0];
@@ -983,7 +987,7 @@ async function omdbImage(query) {
   url.searchParams.set("t", title);
   url.searchParams.set("apikey", key);
   try {
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if (!response.ok) return null;
     const data = await response.json();
     return data.Poster && data.Poster !== "N/A" ? data.Poster : null;
@@ -1010,7 +1014,7 @@ async function pokemonImage(query) {
     ["nidoran", "nidoran-f"]
   ]);
   try {
-    const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${aliases.get(name) || name}`);
+    const response = await fetchWithTimeout(`https://pokeapi.co/api/v2/pokemon/${aliases.get(name) || name}`);
     if (!response.ok) return null;
     const data = await response.json();
     return data.sprites?.other?.["official-artwork"]?.front_default || data.sprites?.front_default || null;
@@ -1019,8 +1023,21 @@ async function pokemonImage(query) {
   }
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 4500) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function wikiImage(query) {
   for (const term of imageSearchTerms(query)) {
+    const summaryImage = await wikiSummaryImage(term);
+    if (summaryImage) return summaryImage;
+
     const commons = new URL("https://commons.wikimedia.org/w/api.php");
     commons.searchParams.set("action", "query");
     commons.searchParams.set("generator", "search");
@@ -1032,7 +1049,7 @@ async function wikiImage(query) {
     commons.searchParams.set("format", "json");
     commons.searchParams.set("origin", "*");
     try {
-      const response = await fetch(commons);
+      const response = await fetchWithTimeout(commons);
       if (response.ok) {
         const data = await response.json();
         const page = Object.values(data.query?.pages || {})[0];
@@ -1043,7 +1060,7 @@ async function wikiImage(query) {
     }
     const summary = new URL("https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(term));
     try {
-      const response = await fetch(summary);
+      const response = await fetchWithTimeout(summary);
       if (!response.ok) continue;
       const data = await response.json();
       if (data.thumbnail?.source) return data.thumbnail.source;
@@ -1052,6 +1069,39 @@ async function wikiImage(query) {
     }
   }
   return null;
+}
+
+async function wikiSummaryImage(term) {
+  const direct = await wikiSummaryThumbnail(term);
+  if (direct) return direct;
+  const search = new URL("https://en.wikipedia.org/w/api.php");
+  search.searchParams.set("action", "query");
+  search.searchParams.set("list", "search");
+  search.searchParams.set("srsearch", term);
+  search.searchParams.set("srlimit", "1");
+  search.searchParams.set("format", "json");
+  search.searchParams.set("origin", "*");
+  try {
+    const response = await fetchWithTimeout(search);
+    if (!response.ok) return null;
+    const data = await response.json();
+    const title = data.query?.search?.[0]?.title;
+    return title ? wikiSummaryThumbnail(title) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function wikiSummaryThumbnail(title) {
+  const summary = new URL("https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(title));
+  try {
+    const response = await fetchWithTimeout(summary);
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.thumbnail?.source || data.originalimage?.source || null;
+  } catch {
+    return null;
+  }
 }
 
 function imageSearchTerms(query) {
