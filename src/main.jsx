@@ -628,7 +628,7 @@ function App() {
                 })}><RotateCcw size={17} /> Voltar ao lobby</button>
               )}
               <div className="home-user-strip topbar-profile-strip">
-                <button className="settings-avatar-preview small avatar-profile-button avatar-top-button" title="Configuracoes" aria-label="Configuracoes" onClick={() => setPlayerSettingsOpen(true)}>
+                <button className="settings-avatar-preview small avatar-profile-button" title="Configuracoes" aria-label="Configuracoes" onClick={() => setPlayerSettingsOpen(true)}>
                   {authUser?.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={28} />}
                 </button>
                 <strong>{authUser?.displayName || me?.name || "Jogador"}</strong>
@@ -1218,7 +1218,7 @@ function Home({ action, toast, playerAvatar, authUser, roomDirectory, onOpenRoom
     <section className="home-grid enter">
       <div className="console-panel">
         <div className="home-user-strip">
-          <button className="settings-avatar-preview small avatar-profile-button avatar-top-button" title="Configuracoes" aria-label="Configuracoes" onClick={onOpenSettings}>
+          <button className="settings-avatar-preview small avatar-profile-button" title="Configuracoes" aria-label="Configuracoes" onClick={onOpenSettings}>
             {authUser?.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={32} />}
           </button>
           {authUser ? (
@@ -1296,7 +1296,7 @@ function RoomDirectory({ rooms, constants, action, toast, playerAvatar, authUser
       <section className="panel rooms-filter-panel">
         <div className="rooms-filter-top">
           <div className="home-user-strip rooms-profile-strip">
-            <button className="settings-avatar-preview small avatar-profile-button avatar-top-button" title="Configuracoes" aria-label="Configuracoes" onClick={onOpenSettings}>
+            <button className="settings-avatar-preview small avatar-profile-button" title="Configuracoes" aria-label="Configuracoes" onClick={onOpenSettings}>
               {authUser?.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={32} />}
             </button>
             <div>
@@ -2030,12 +2030,12 @@ function GuessPhase({ room, playerId, kind, targetTeam, title, hints, action }) 
 
   if (interceptLocked) {
     return (
-      <div className={`decision-card team-surface ${targetTeam}`}>
+      <div className={`decision-card team-surface ${targetTeam} intercept-disabled-card`}>
         <div className="decision-title">
           <strong>{title}</strong>
           <span>Rodada 2+</span>
         </div>
-        <WaitingState label="Interceptacao disponivel a partir da segunda rodada." />
+        <DisabledInterceptState />
       </div>
     );
   }
@@ -2255,6 +2255,7 @@ function Tiebreaker({ room, playerId, constants, action }) {
   const entry = room.tiebreaker?.[me?.team];
   const target = entry?.targetTeam;
   const [draft, setDraft] = useState(entry?.guess || []);
+  const options = tiebreakerWordOptions(room, constants);
 
   useEffect(() => {
     setDraft(entry?.guess || []);
@@ -2267,16 +2268,18 @@ function Tiebreaker({ room, playerId, constants, action }) {
       <h1>Adivinhe as palavras do {constants.TEAM_NAMES[target]}.</h1>
       <div className="word-guess-grid">
         {Array.from({ length: room.settings.wordCount }, (_, index) => (
-          <input
+          <SearchableWordSelect
             key={index}
             value={draft[index] || ""}
-            onChange={(event) => {
+            options={options}
+            category={room.settings.category}
+            placeholder={`Palavra #${index + 1}`}
+            onChange={(value) => {
               const next = [...draft];
-              next[index] = event.target.value;
+              next[index] = value;
               setDraft(next);
               action("game:updateTiebreaker", { words: next });
             }}
-            placeholder={`Palavra #${index + 1}`}
           />
         ))}
       </div>
@@ -2347,7 +2350,7 @@ function WordsPanel({ team, words, category, imageMap }) {
         <div className="word-card" key={`${category}-${word}-${index}`}>
           <WordImage word={word} index={index} category={category} imageUrl={imageUrlForWord(imageMap, word, category)} />
           <div>
-            <strong><span className="word-number">#{index + 1} </span>{word}</strong>
+            <strong><span className="word-number">#{index + 1} </span><WordName word={word} category={category} /></strong>
           </div>
         </div>
       ))}
@@ -2424,10 +2427,99 @@ function imageCacheKey(word, category) {
   return `${category || ""}:${encodeURIComponent(String(word || "").trim().toLowerCase())}`;
 }
 
+function DisabledInterceptState() {
+  return (
+    <div className="disabled-intercept-state" aria-live="polite">
+      <strong>Interceptação bloqueada</strong>
+      <span>Disponível a partir da segunda rodada.</span>
+    </div>
+  );
+}
+
+function SearchableWordSelect({ value, options, category, placeholder, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value || "");
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    setQuery(value || "");
+  }, [value]);
+
+  useEffect(() => {
+    function close(event) {
+      if (!wrapRef.current?.contains(event.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  const normalized = stripAccents(query).toLowerCase();
+  const filtered = options
+    .filter((word) => {
+      const label = `${word} ${wordOrigin(word, category) || ""}`;
+      return stripAccents(label).toLowerCase().includes(normalized);
+    })
+    .slice(0, 24);
+
+  return (
+    <div className="search-select" ref={wrapRef}>
+      <button type="button" className="search-select-trigger" onClick={() => setOpen(!open)}>
+        {value ? <WordName word={value} category={category} /> : <span className="muted-option">{placeholder}</span>}
+      </button>
+      {open && (
+        <div className="search-select-menu">
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Buscar palavra..."
+            autoFocus
+          />
+          <div className="search-select-options">
+            {filtered.length ? filtered.map((word) => (
+              <button
+                type="button"
+                key={word}
+                className={word === value ? "selected" : ""}
+                onClick={() => {
+                  onChange(word);
+                  setOpen(false);
+                }}
+              >
+                <WordName word={word} category={category} />
+              </button>
+            )) : <span className="empty-option">Nenhuma palavra encontrada.</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function imageUrlForWord(imageMap, word, category) {
   if (!imageMap) return undefined;
   const key = imageCacheKey(word, category);
   return Object.prototype.hasOwnProperty.call(imageMap, key) ? imageMap[key] || "" : undefined;
+}
+
+function WordName({ word, category }) {
+  const origin = wordOrigin(word, category);
+  return (
+    <span className="word-name">
+      <span>{word}</span>
+      {origin && <small>({origin})</small>}
+    </span>
+  );
+}
+
+function wordOrigin(word, category) {
+  if (!["Anime", "Jogos", "Geek"].includes(category)) return "";
+  const cleanWord = String(word || "").trim();
+  return IMAGE_ORIGIN[category]?.[cleanWord] || IMAGE_ORIGIN[category]?.[imageAlias(cleanWord)] || "";
+}
+
+function tiebreakerWordOptions(room, constants) {
+  if (room.settings.category === "Personalizada") return room.settings.customWords || [];
+  return constants.WORD_BANKS?.[room.settings.category] || [];
 }
 
 function HintsList({ hints }) {
@@ -2561,7 +2653,7 @@ function FinalWords({ room, constants }) {
                   <div className="final-word-card" key={`${team}-${word}-${index}`}>
                     <WordImage word={word} index={index} category={room.settings.category} imageUrl={imageUrlForWord(room.imageMap, word, room.settings.category)} />
                     <div className="final-word-copy">
-                      <span><span className="word-number">#{index + 1} </span>{word}</span>
+                      <span><span className="word-number">#{index + 1} </span><WordName word={word} category={room.settings.category} /></span>
                       {hasTiebreaker && (
                         <small className={right ? "guess-ok" : "guess-bad"}>
                           {guess || "sem palpite"} {right ? <Check size={15} /> : <X size={15} />}
