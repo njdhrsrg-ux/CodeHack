@@ -644,7 +644,8 @@ function App() {
   const [playerId, setPlayerId] = useState("");
   const [toast, setToast] = useState("");
   const [roomEvents, setRoomEvents] = useState([]);
-  const [inactiveClosed, setInactiveClosed] = useState(false);
+  const [inactiveClosed, setInactiveClosed] = useState(null);
+  const [startingRoom, setStartingRoom] = useState(null);
   const [joinChoice, setJoinChoice] = useState(null);
   const [passwordJoin, setPasswordJoin] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -708,6 +709,7 @@ function App() {
     socket.on("room:update", (nextRoom) => {
       if (nextRoom?.viewerId) setPlayerId(nextRoom.viewerId);
       setRoom(hydrateRoom(nextRoom));
+      if (nextRoom?.phase && nextRoom.phase !== "lobby") setStartingRoom(null);
       if (nextRoom?.inactivityClosesAt) {
         setRoomEvents((events) => [
           ...events.filter((item) => item.type !== "inactivity"),
@@ -745,12 +747,18 @@ function App() {
     socket.on("room:inactivityClear", () => {
       setRoomEvents((events) => events.filter((item) => item.type !== "inactivity"));
     });
-    socket.on("room:inactiveClosed", () => {
+    socket.on("room:inactiveClosed", (payload = {}) => {
       setRoom(null);
       setPlayerId("");
       setRoomEvents([]);
       clearActiveRoomSession();
-      setInactiveClosed(true);
+      setInactiveClosed(payload);
+    });
+    socket.on("room:starting", (payload = {}) => {
+      setStartingRoom({
+        startedAt: payload.startedAt || Date.now(),
+        duration: payload.duration || 5000
+      });
     });
     return () => {
       socket.off("constants");
@@ -762,6 +770,7 @@ function App() {
       socket.off("room:inactivityWarning");
       socket.off("room:inactivityClear");
       socket.off("room:inactiveClosed");
+      socket.off("room:starting");
     };
   }, []);
 
@@ -996,7 +1005,8 @@ function App() {
         />
       )}
       <RoomEventStack events={roomEvents} />
-      {inactiveClosed && <InactivityClosedModal onClose={() => setInactiveClosed(false)} />}
+      {startingRoom && <StartingGameOverlay starting={startingRoom} />}
+      {inactiveClosed && <InactivityClosedModal reason={inactiveClosed.reason} onClose={() => setInactiveClosed(null)} />}
       {joinChoice && (
         <JoinChoiceModal
           joinChoice={joinChoice}
@@ -1291,12 +1301,34 @@ function InactivityEventCard({ event, now }) {
   );
 }
 
-function InactivityClosedModal({ onClose }) {
+function StartingGameOverlay({ starting }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, []);
+  const remaining = Math.max(0, Number(starting.startedAt || now) + Number(starting.duration || 5000) - now);
+  const seconds = Math.max(1, Math.ceil(remaining / 1000));
+  return (
+    <div className="confirm-overlay starting-overlay" role="status" aria-live="polite">
+      <div className="confirm-modal starting-modal">
+        <strong>Preparando invasao</strong>
+        <div className="starting-countdown">{seconds}</div>
+        <p>Sincronizando palavras, imagens e canais da sala.</p>
+      </div>
+    </div>
+  );
+}
+
+function InactivityClosedModal({ reason, onClose }) {
+  const text = reason === "noPlayers"
+    ? "A sala foi encerrada porque nao havia jogadores ativos. Espectadores nao mantem a sala aberta."
+    : "A sala foi encerrada por inatividade. Voce voltou para o menu principal.";
   return (
     <div className="confirm-overlay" role="dialog" aria-modal="true">
       <div className="confirm-modal">
         <strong>Partida encerrada</strong>
-        <p>A sala foi encerrada por inatividade. Voce voltou para o menu principal.</p>
+        <p>{text}</p>
         <div className="inline-actions">
           <button className="primary" onClick={onClose}><BadgeCheck size={18} /> Entendi</button>
         </div>

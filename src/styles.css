@@ -447,6 +447,18 @@ h2 {
   }
 }
 
+@keyframes pulseGlow {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.05);
+    filter: brightness(1.25);
+  }
+}
+
 .app-shell.home-screen {
   --logo-source-size: 1024px;
   --home-logo-gap: clamp(2rem, 5vw, 5rem);
@@ -1101,6 +1113,31 @@ main {
   box-shadow: 0 0 34px var(--accent-soft);
   display: grid;
   gap: 0.85rem;
+}
+
+.starting-overlay {
+  background: rgba(0, 0, 0, 0.78);
+}
+
+.starting-modal {
+  place-items: center;
+  text-align: center;
+}
+
+.starting-countdown {
+  width: 92px;
+  aspect-ratio: 1;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  font-family: "Press Start 2P", system-ui;
+  font-size: 2rem;
+  box-shadow:
+    0 0 28px var(--accent-soft),
+    inset 0 0 24px var(--accent-soft);
+  animation: pulseGlow 1s ease-in-out infinite;
 }
 
 .hint-review-modal {

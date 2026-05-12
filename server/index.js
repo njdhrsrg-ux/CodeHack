@@ -514,10 +514,9 @@ io.on("connection", (socket) => {
     const removed = removePlayer(room, socket.id);
     sessions.delete(socket.id);
     socket.leave(code);
-    if (Object.keys(room.players).length === 0 || onlyTestBots(room)) {
+    if (!hasActiveRoomPlayers(room) || onlyTestBots(room)) {
       await discardActiveMatch(room);
-      rooms.delete(code);
-      await deleteRoom(code).catch(() => {});
+      await closeRoomForNoPlayers(room);
     }
     else {
       await emitRoom(room);
@@ -545,6 +544,11 @@ io.on("connection", (socket) => {
   socket.on("host:move", ({ playerId, team }, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
     movePlayer(room, socket.id, playerId, team);
+    if (!hasActiveRoomPlayers(room)) {
+      await discardActiveMatch(room);
+      await closeRoomForNoPlayers(room);
+      return { ok: true };
+    }
     await emitRoom(room);
     return { ok: true };
   }));
@@ -552,6 +556,11 @@ io.on("connection", (socket) => {
   socket.on("player:team", ({ team }, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
     chooseTeam(room, socket.id, team);
+    if (!hasActiveRoomPlayers(room)) {
+      await discardActiveMatch(room);
+      await closeRoomForNoPlayers(room);
+      return { ok: true };
+    }
     await emitRoom(room);
     return { ok: true };
   }));
@@ -570,6 +579,11 @@ io.on("connection", (socket) => {
     const room = await currentRoom(socket);
     kickPlayer(room, socket.id, playerId);
     io.to(playerId).emit("room:kicked");
+    if (!hasActiveRoomPlayers(room)) {
+      await discardActiveMatch(room);
+      await closeRoomForNoPlayers(room);
+      return { ok: true };
+    }
     await emitRoom(room);
     await emitRoomList();
     return { ok: true };
@@ -601,6 +615,7 @@ io.on("connection", (socket) => {
   socket.on("game:start", (_payload, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
     startGame(room, socket.id);
+    io.to(room.code).emit("room:starting", { startedAt: Date.now(), duration: 5000 });
     await resolveRoomImages(room);
     await createActiveMatch(room);
     await emitRoom(room);
@@ -670,10 +685,9 @@ io.on("connection", (socket) => {
       if (!liveRoom) return;
       const removed = removePlayer(liveRoom, socket.id);
       if (!removed) return;
-      if ((Object.keys(liveRoom.players).length === 0 || onlyTestBots(liveRoom)) && liveRoom.phase === "lobby") {
+      if (!hasActiveRoomPlayers(liveRoom) || onlyTestBots(liveRoom)) {
         await discardActiveMatch(liveRoom).catch((error) => console.error("discardMatch failed", error));
-        rooms.delete(code);
-        await deleteRoom(code).catch((error) => console.error("deleteRoom failed", error));
+        await closeRoomForNoPlayers(liveRoom).catch((error) => console.error("closeRoom failed", error));
       }
       else {
         await emitRoom(liveRoom);
@@ -801,6 +815,24 @@ function clearPendingDisconnect(clientId) {
 function onlyTestBots(room) {
   const players = Object.values(room.players || {});
   return players.length > 0 && players.every((player) => player.testBot);
+}
+
+function hasActiveRoomPlayers(room) {
+  return Object.values(room.players || {}).some((player) => (
+    !player.spectator && TEAMS.includes(player.team) && !player.testBot
+  ));
+}
+
+async function closeRoomForNoPlayers(room) {
+  const code = room.code;
+  io.to(code).emit("room:inactiveClosed", { reason: "noPlayers" });
+  Object.keys(room.players || {}).forEach((playerId) => {
+    sessions.delete(playerId);
+    io.sockets.sockets.get(playerId)?.leave(code);
+  });
+  rooms.delete(code);
+  await deleteRoom(code).catch((error) => console.error("deleteRoom failed", error));
+  await emitRoomList();
 }
 
 function detachPreviousSocket(previousId, code) {
@@ -1064,11 +1096,17 @@ async function cleanupAbandonedRooms() {
       if (!room) continue;
       const players = Object.keys(room.players || {});
       const emptyRoom = players.length === 0;
+      const noActivePlayers = !hasActiveRoomPlayers(room);
       const staleRoom = !room?.updatedAt || room.updatedAt < oneHourAgo;
       if (emptyRoom && staleRoom) {
         console.log(`Cleaning up abandoned room: ${code}`);
         rooms.delete(code);
         await deleteRoom(code).catch(() => {});
+        continue;
+      }
+      if (!emptyRoom && noActivePlayers) {
+        console.log(`Closing room without active players: ${code}`);
+        await closeRoomForNoPlayers(room);
         continue;
       }
       if (emptyRoom) continue;
