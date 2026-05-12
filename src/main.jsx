@@ -434,6 +434,197 @@ const WORD_SEARCH_ALIASES = {
   "Anya Forger": ["Anya"]
 };
 
+const CHARACTER_ORIGIN_PATCH = {
+  Anime: {
+    "Happy": "Fairy Tail",
+    "Jaden Yuki": "Yu-Gi-Oh!",
+    "Yusei Fudo": "Yu-Gi-Oh!",
+    "Elizabeth Liones": "The Seven Deadly Sins",
+    "King": "The Seven Deadly Sins",
+    "Hyakkimaru": "Dororo",
+    "Dororo": "Dororo",
+    "Taiju Oki": "Dr. Stone",
+    "Yuzuriha Ogawa": "Dr. Stone",
+    "Kei Tsukishima": "Haikyuu!!",
+    "Tetsuro Kuroo": "Haikyuu!!",
+    "Kenma Kozume": "Haikyuu!!",
+    "Kuroko Tetsuya": "Kuroko's Basketball",
+    "Taiga Kagami": "Kuroko's Basketball",
+    "Seijuro Akashi": "Kuroko's Basketball",
+    "Rintaro Okabe": "Steins;Gate",
+    "Kurisu Makise": "Steins;Gate",
+    "Mayuri Shiina": "Steins;Gate",
+    "Holo": "Spice and Wolf",
+    "Kraft Lawrence": "Spice and Wolf",
+    "Kousei Arima": "Your Lie in April",
+    "Kaori Miyazono": "Your Lie in April",
+    "Tohru Honda": "Fruits Basket",
+    "Kyo Soma": "Fruits Basket",
+    "Yuki Soma": "Fruits Basket",
+    "Nana Osaki": "Nana",
+    "Nana Komatsu": "Nana",
+    "Seras Victoria": "Hellsing",
+    "Integra Hellsing": "Hellsing",
+    "Batou": "Ghost in the Shell",
+    "Nausicaa": "Nausicaa",
+    "San": "Princess Mononoke",
+    "Chihiro Ogino": "Spirited Away",
+    "Haku": "Spirited Away",
+    "Kiki": "Kiki's Delivery Service",
+    "Sophie Hatter": "Howl's Moving Castle",
+    "Howl Jenkins": "Howl's Moving Castle",
+    "Ponyo": "Ponyo",
+    "Ran Mouri": "Detective Conan",
+    "Kogoro Mouri": "Detective Conan",
+    "Kaito Kid": "Detective Conan",
+    "Toru Amuro": "Detective Conan",
+    "Shinji Matou": "Fate/stay night",
+    "Archer": "Fate/stay night",
+    "Lancer": "Fate/stay night",
+    "Mikoto Misaka": "A Certain Scientific Railgun",
+    "Toma Kamijo": "A Certain Magical Index",
+    "Kenshiro": "Fist of the North Star",
+    "Raoh": "Fist of the North Star",
+    "Joe Yabuki": "Ashita no Joe",
+    "Daisuke Jigen": "Lupin III",
+    "Fujiko Mine": "Lupin III",
+    "Goemon Ishikawa": "Lupin III",
+    "Inspector Zenigata": "Lupin III",
+    "Kaoru Kamiya": "Rurouni Kenshin",
+    "Sanosuke Sagara": "Rurouni Kenshin",
+    "Shishio Makoto": "Rurouni Kenshin",
+    "Yusuke Urameshi": "Yu Yu Hakusho",
+    "Kazuma Kuwabara": "Yu Yu Hakusho",
+    "Kurama": "Yu Yu Hakusho",
+    "Hiei": "Yu Yu Hakusho",
+    "Toguro": "Yu Yu Hakusho",
+    "Inuyasha": "Inuyasha",
+    "Kagome Higurashi": "Inuyasha",
+    "Sesshomaru": "Inuyasha",
+    "Kikyo": "Inuyasha",
+    "Sango": "Inuyasha",
+    "Miroku": "Inuyasha",
+    "Shinpachi Shimura": "Gintama",
+    "Takasugi Shinsuke": "Gintama",
+    "Fuu": "Samurai Champloo",
+    "Spike Spiegel": "Cowboy Bebop",
+    "Jet Black": "Cowboy Bebop",
+    "Faye Valentine": "Cowboy Bebop",
+    "Ed": "Cowboy Bebop",
+    "Vicious": "Cowboy Bebop",
+    "Renton Thurston": "Eureka Seven",
+    "Eureka": "Eureka Seven",
+    "Yoko Littner": "Gurren Lagann",
+    "Nia Teppelin": "Gurren Lagann",
+    "Mako Mankanshoku": "Kill la Kill",
+    "Akko Kagari": "Little Witch Academia",
+    "Lotte Jansson": "Little Witch Academia",
+    "Sucy Manbavaran": "Little Witch Academia",
+    "Mob": "Mob Psycho 100",
+    "Reigen Arataka": "Mob Psycho 100",
+    "Ritsu Kageyama": "Mob Psycho 100",
+    "Dimple": "Mob Psycho 100",
+    "Chika Fujiwara": "Kaguya-sama",
+    "Ai Hayasaka": "Kaguya-sama",
+    "Wakana Gojo": "My Dress-Up Darling",
+    "Hitori Gotoh": "Bocchi the Rock!",
+    "Nijika Ijichi": "Bocchi the Rock!",
+    "Ryo Yamada": "Bocchi the Rock!",
+    "Ikuyo Kita": "Bocchi the Rock!",
+    "Eikichi Onizuka": "Great Teacher Onizuka",
+    "Onizuka": "Great Teacher Onizuka",
+    "Saiki Kusuo": "The Disastrous Life of Saiki K.",
+    "Riki Nendo": "The Disastrous Life of Saiki K.",
+    "Kaidou Shun": "The Disastrous Life of Saiki K.",
+    "Korosensei": "Assassination Classroom",
+    "Nagisa Shiota": "Assassination Classroom",
+    "Karma Akabane": "Assassination Classroom",
+    "Kiyotaka Ayanokoji": "Classroom of the Elite",
+    "Suzune Horikita": "Classroom of the Elite",
+    "Hachiman Hikigaya": "My Teen Romantic Comedy SNAFU",
+    "Yukino Yukinoshita": "My Teen Romantic Comedy SNAFU",
+    "Mai Sakurajima": "Rascal Does Not Dream of Bunny Girl Senpai",
+    "Sakuta Azusagawa": "Rascal Does Not Dream of Bunny Girl Senpai",
+    "Tomoya Okazaki": "Clannad",
+    "Nagisa Furukawa": "Clannad",
+    "Rikka Takanashi": "Love, Chunibyo & Other Delusions",
+    "Yuuta Togashi": "Love, Chunibyo & Other Delusions"
+  },
+  Jogos: {
+    "Melina": "Elden Ring",
+    "Tarnished": "Elden Ring",
+    "Artorias": "Dark Souls",
+    "Ornstein": "Dark Souls",
+    "Siegward": "Dark Souls",
+    "Lady Maria": "Bloodborne",
+    "Gehrman": "Bloodborne",
+    "Hunter": "Bloodborne",
+    "Isshin Ashina": "Sekiro",
+    "Kuro": "Sekiro",
+    "Genichiro Ashina": "Sekiro",
+    "The Penitent One": "Blasphemous",
+    "Isabelle": "Animal Crossing",
+    "Tommy Angelo": "Mafia",
+    "Vito Scaletta": "Mafia",
+    "Clementine": "The Walking Dead",
+    "Lee Everett": "The Walking Dead",
+    "Bigby Wolf": "The Wolf Among Us",
+    "Faith": "Mirror's Edge",
+    "Faith Connors": "Mirror's Edge",
+    "Commander Keen": "Commander Keen",
+    "Duke Nukem": "Duke Nukem",
+    "Cal Kestis": "Star Wars Jedi",
+    "Merrin": "Star Wars Jedi",
+    "BD-1": "Star Wars Jedi",
+    "Kyle Katarn": "Star Wars Jedi Knight",
+    "Revan": "Star Wars Knights of the Old Republic",
+    "Bastila Shan": "Star Wars Knights of the Old Republic",
+    "HK-47": "Star Wars Knights of the Old Republic",
+    "Guybrush Threepwood": "Monkey Island",
+    "LeChuck": "Monkey Island",
+    "Elaine Marley": "Monkey Island",
+    "Manny Calavera": "Grim Fandango",
+    "Razputin Aquato": "Psychonauts",
+    "Conker": "Conker's Bad Fur Day",
+    "Joanna Dark": "Perfect Dark",
+    "Eddie Riggs": "Brutal Legend",
+    "Juliet Starling": "Lollipop Chainsaw",
+    "Travis Touchdown": "No More Heroes",
+    "Henry Stickmin": "Henry Stickmin",
+    "Hat Kid": "A Hat in Time",
+    "Madeline": "Celeste",
+    "Theo": "Celeste",
+    "Peppino Spaghetti": "Pizza Tower",
+    "Commander Video": "Bit.Trip",
+    "Nicole Brennan": "Dead Space",
+    "Ellis": "Left 4 Dead",
+    "Coach": "Left 4 Dead",
+    "Nick Left 4 Dead": "Left 4 Dead",
+    "Zoey": "Left 4 Dead",
+    "Francis": "Left 4 Dead",
+    "Bill Overbeck": "Left 4 Dead",
+    "Heather Mason": "Silent Hill",
+    "James Sunderland": "Silent Hill",
+    "Alessa Gillespie": "Silent Hill",
+    "Aya Brea": "Parasite Eve",
+    "Alex Mercer": "Prototype",
+    "Cole Phelps": "L.A. Noire",
+    "Emily Kaldwin": "Dishonored",
+    "Daud": "Dishonored",
+    "Garrett": "Thief",
+    "Faith Seed": "Far Cry 5",
+    "Joseph Seed": "Far Cry 5",
+    "Vaas Montenegro": "Far Cry 3",
+    "Pagan Min": "Far Cry 4",
+    "Handsome Jack": "Borderlands",
+    "Tiny Tina": "Borderlands",
+    "Claptrap": "Borderlands",
+    "Moxxi": "Borderlands",
+    "Lilith Borderlands": "Borderlands",
+    "Rhys Strongfork": "Borderlands"
+  }
+};
+
 function hydrateRoom(nextRoom) {
   if (!nextRoom) return nextRoom;
   const avatars = nextRoom.avatars || {};
@@ -2682,7 +2873,7 @@ function SearchableWordSelect({ value, options, category, placeholder, duplicate
 
   const normalized = stripAccents(query).trim().toLowerCase();
   const filtered = normalized
-    ? options
+    ? uniqueWordOptions(options)
       .filter((word) => {
         const label = `${word} ${wordOrigin(word, category) || ""} ${(WORD_SEARCH_ALIASES[word] || []).join(" ")}`;
         return stripAccents(label).toLowerCase().includes(normalized);
@@ -2749,8 +2940,10 @@ function wordOrigin(word, category) {
   const cleanWord = String(word || "").trim();
   return IMAGE_ORIGIN[category]?.[cleanWord]
     || ORIGIN_FALLBACK[category]?.[cleanWord]
+    || CHARACTER_ORIGIN_PATCH[category]?.[cleanWord]
     || IMAGE_ORIGIN[category]?.[imageAlias(cleanWord)]
     || ORIGIN_FALLBACK[category]?.[imageAlias(cleanWord)]
+    || CHARACTER_ORIGIN_PATCH[category]?.[imageAlias(cleanWord)]
     || originFromTaggedName(cleanWord, category);
 }
 
@@ -2769,8 +2962,18 @@ function originFromTaggedName(word, category) {
 }
 
 function tiebreakerWordOptions(room, constants) {
-  if (room.settings.category === "Personalizada") return room.settings.customWords || [];
-  return constants.WORD_BANKS?.[room.settings.category] || [];
+  if (room.settings.category === "Personalizada") return uniqueWordOptions(room.settings.customWords || []);
+  return uniqueWordOptions(constants.WORD_BANKS?.[room.settings.category] || []);
+}
+
+function uniqueWordOptions(words = []) {
+  const seen = new Set();
+  return words.filter((word) => {
+    const key = normalizeWordText(word);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function duplicateWords(values = []) {
@@ -3074,7 +3277,7 @@ function imageSearchQuery(word, category) {
   if (category === "Filmes") return movieTitleAlias(cleanWord);
   const alias = imageAlias(cleanWord);
   if (category === "Geral" || category === "Famosos") return alias;
-  const origin = IMAGE_ORIGIN[category]?.[alias] || IMAGE_ORIGIN[category]?.[cleanWord];
+  const origin = wordOrigin(alias, category) || wordOrigin(cleanWord, category);
   if (["Anime", "Jogos", "Geek"].includes(category) && origin) return `${alias} ${origin}`;
   const categoryHint = {
     Anime: "anime character",

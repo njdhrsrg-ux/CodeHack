@@ -1598,6 +1598,10 @@ main {
   transform-origin: center;
 }
 
+.topbar-profile-strip .settings-avatar-preview.small img {
+  transform: scale(1.55);
+}
+
 .avatar-profile-button {
   display: grid;
   place-items: center;
@@ -2485,9 +2489,16 @@ main {
 }
 
 .word-name small {
-  font-size: 0.72em;
-  color: var(--text-muted);
+  font-size: 0.76em;
+  color: var(--surface-accent, var(--text-muted));
   font-weight: 700;
+  opacity: 0.72;
+}
+
+.word-card .word-name > span,
+.search-select-trigger .word-name > span,
+.search-select-options .word-name > span {
+  color: var(--surface-accent, var(--accent));
 }
 
 .search-select {
