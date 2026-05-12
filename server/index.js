@@ -1298,11 +1298,8 @@ function guessImageContentType(bytes) {
 
 async function firstAvailableUrl(urls) {
   const queue = uniqueSearchTerms(urls);
-  for (let index = 0; index < queue.length; index += IMAGE_LOOKUP_CONCURRENCY) {
-    const batch = queue.slice(index, index + IMAGE_LOOKUP_CONCURRENCY);
-    const results = await Promise.all(batch.map(async (url) => await imageAvailable(url) ? url : null));
-    const found = results.find(Boolean);
-    if (found) return found;
+  for (const url of queue) {
+    if (await imageAvailable(url)) return url;
   }
   return null;
 }
