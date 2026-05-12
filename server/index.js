@@ -641,14 +641,21 @@ io.on("connection", (socket) => {
 
   socket.on("game:start", (_payload, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
-    io.to(room.code).emit("room:starting", { startedAt: Date.now(), duration: 5000 });
+    startGame(structuredClone(room), socket.id);
+    const baselineUpdatedAt = Number(room.updatedAt || 0);
+    io.to(room.code).emit("room:starting", { duration: 5000 });
     await sleep(5000);
-    startGame(room, socket.id);
-    await createActiveMatch(room);
-    await emitRoom(room);
+    const liveRoom = await getRoom(room.code);
+    if (Number(liveRoom.updatedAt || 0) !== baselineUpdatedAt || liveRoom.phase !== "lobby") {
+      io.to(room.code).emit("room:startingCancelled");
+      return { cancelled: true };
+    }
+    startGame(liveRoom, socket.id);
+    await createActiveMatch(liveRoom);
+    await emitRoom(liveRoom);
     await emitRoomList();
-    resolveRoomImages(room)
-      .then(() => emitRoom(room))
+    resolveRoomImages(liveRoom)
+      .then(() => emitRoom(liveRoom))
       .catch((error) => console.error("resolveRoomImages failed", error));
     return { ok: true };
   }));

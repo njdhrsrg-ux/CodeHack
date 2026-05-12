@@ -793,7 +793,7 @@ function App() {
     socket.on("room:update", (nextRoom) => {
       if (nextRoom?.viewerId) setPlayerId(nextRoom.viewerId);
       setRoom(hydrateRoom(nextRoom));
-      if (nextRoom?.phase && nextRoom.phase !== "lobby") setStartingRoom(null);
+      setStartingRoom(null);
       if (nextRoom?.inactivityClosesAt) {
         setRoomEvents((events) => [
           ...events.filter((item) => item.type !== "inactivity"),
@@ -842,9 +842,12 @@ function App() {
     });
     socket.on("room:starting", (payload = {}) => {
       setStartingRoom({
-        startedAt: payload.startedAt || Date.now(),
+        startedAt: Date.now(),
         duration: payload.duration || 5000
       });
+    });
+    socket.on("room:startingCancelled", () => {
+      setStartingRoom(null);
     });
     return () => {
       socket.off("constants");
@@ -857,6 +860,7 @@ function App() {
       socket.off("room:inactivityClear");
       socket.off("room:inactiveClosed");
       socket.off("room:starting");
+      socket.off("room:startingCancelled");
     };
   }, []);
 
@@ -1399,9 +1403,8 @@ function StartingGameOverlay({ starting }) {
   return (
     <div className="confirm-overlay starting-overlay" role="status" aria-live="polite">
       <div className="confirm-modal starting-modal">
-        <strong>Preparando invasao</strong>
         <div className="starting-countdown">{seconds}</div>
-        <p>Sincronizando palavras, imagens e canais da sala.</p>
+        <p>Partida iniciando..</p>
       </div>
     </div>
   );
