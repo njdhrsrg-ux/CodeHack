@@ -97,6 +97,7 @@ const imageResolveJobs = new Set();
 const TEAMS = ["red", "blue"];
 const MAX_IMAGE_CACHE_ENTRIES = 160;
 const MAX_IMAGE_CACHE_BYTES = 5 * 1024 * 1024;
+const IMAGE_LOOKUP_CONCURRENCY = 4;
 const ROOM_INACTIVITY_LIMIT_MS = 60 * 60 * 1000;
 const ROOM_INACTIVITY_WARNING_MS = 5 * 60 * 1000;
 const ROOM_CLEANUP_INTERVAL_MS = 30 * 1000;
@@ -968,11 +969,11 @@ async function resolveRoomImages(room) {
   const category = room.settings?.category || "";
   room.imageMap ||= {};
   const missing = missingRoomImages(room);
-  for (const word of missing) {
+  await mapWithConcurrency(missing, IMAGE_LOOKUP_CONCURRENCY, async (word) => {
     const key = imageCacheKey(word, category);
     const url = await resolveImageUrlForWord(word, category);
     if (url) room.imageMap[key] = url;
-  }
+  });
   return room.imageMap;
 }
 
@@ -1081,11 +1082,8 @@ async function googleImage(query) {
     const response = await fetchWithTimeout(url);
     if (!response.ok) return null;
     const data = await response.json();
-    const links = (data.items || []).map((item) => item?.link).filter(Boolean);
-    for (const link of links) {
-      if (await imageAvailable(link)) return link;
-    }
-    return null;
+    const links = uniqueSearchTerms((data.items || []).flatMap((item) => [item?.link, item?.image?.thumbnailLink]));
+    return firstAvailableUrl(links);
   } catch {
     return null;
   }
@@ -1174,11 +1172,11 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 4500) {
 }
 
 async function imageAvailable(url) {
-  return Boolean(await fetchImageResource(url, 6000));
+  return Boolean(await probeImageResource(url, 3000));
 }
 
 async function fetchImageResource(url, timeoutMs = 8000) {
-  if (!url) return false;
+  if (!url) return null;
   const target = normalizeExternalImageUrl(url);
   if (!target) return null;
   const cacheKey = target.href;
@@ -1202,6 +1200,49 @@ async function fetchImageResource(url, timeoutMs = 8000) {
   } catch {
     return null;
   }
+}
+
+async function probeImageResource(url, timeoutMs = 3000) {
+  if (!url) return null;
+  const target = normalizeExternalImageUrl(url);
+  if (!target) return null;
+  const cached = imageBinaryCache.get(target.href);
+  if (cached) return cached;
+  try {
+    const response = await fetchWithTimeout(target, {
+      headers: {
+        "User-Agent": "CodeHackImageProbe/1.0",
+        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        Range: "bytes=0-4095"
+      }
+    }, timeoutMs);
+    if (!response.ok && response.status !== 206) return null;
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType && !contentType.toLowerCase().startsWith("image/")) return null;
+    const bytes = await readFirstBytes(response, 4096);
+    return isLikelyImage(bytes, contentType) ? { bytes, contentType } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readFirstBytes(response, maxBytes = 4096) {
+  const reader = response.body?.getReader?.();
+  if (!reader) return Buffer.from(await response.arrayBuffer()).subarray(0, maxBytes);
+  const chunks = [];
+  let total = 0;
+  try {
+    while (total < maxBytes) {
+      const { value, done } = await reader.read();
+      if (done || !value) break;
+      const chunk = Buffer.from(value);
+      chunks.push(chunk);
+      total += chunk.length;
+    }
+  } finally {
+    reader.cancel().catch(() => {});
+  }
+  return Buffer.concat(chunks).subarray(0, maxBytes);
 }
 
 function isLikelyImage(bytes, contentType = "") {
@@ -1255,6 +1296,28 @@ function guessImageContentType(bytes) {
   return "";
 }
 
+async function firstAvailableUrl(urls) {
+  const queue = uniqueSearchTerms(urls);
+  for (let index = 0; index < queue.length; index += IMAGE_LOOKUP_CONCURRENCY) {
+    const batch = queue.slice(index, index + IMAGE_LOOKUP_CONCURRENCY);
+    const results = await Promise.all(batch.map(async (url) => await imageAvailable(url) ? url : null));
+    const found = results.find(Boolean);
+    if (found) return found;
+  }
+  return null;
+}
+
+async function mapWithConcurrency(items, limit, worker) {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+    while (queue.length) {
+      const item = queue.shift();
+      await worker(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
 async function wikiImage(query) {
   for (const term of imageSearchTerms(query)) {
     const summaryImage = await wikiSummaryImage(term);
@@ -1274,11 +1337,9 @@ async function wikiImage(query) {
       const response = await fetchWithTimeout(commons);
       if (response.ok) {
         const data = await response.json();
-        const pages = Object.values(data.query?.pages || {});
-        for (const page of pages) {
-          const url = page?.imageinfo?.[0]?.url;
-          if (await imageAvailable(url)) return url;
-        }
+        const urls = Object.values(data.query?.pages || {}).map((page) => page?.imageinfo?.[0]?.url).filter(Boolean);
+        const available = await firstAvailableUrl(urls);
+        if (available) return available;
       }
     } catch {
       // Keep the image lookup best-effort; gameplay should not depend on it.
