@@ -88,7 +88,7 @@ export function normalizeRoom(room) {
   room.phase = room.phase || "lobby";
   room.current = normalizeCurrent(room.current, room.settings.wordCount);
   room.tiebreaker = normalizeTiebreaker(room.tiebreaker, room.settings.wordCount);
-  room.final = room.final || null;
+  room.final = normalizeFinal(room.final);
   room.chat = normalizeChat(room.chat);
   room.log = toArray(room.log);
   room.imageMap = normalizeObject(room.imageMap);
@@ -451,6 +451,10 @@ export function confirmTiebreaker(room, playerId) {
   if (entry.guess.length !== room.settings.wordCount || entry.guess.some((word) => !word.trim())) {
     throw new Error("Preencha todas as palavras adversarias.");
   }
+  const normalizedGuess = entry.guess.map((word) => normalizeWord(word));
+  if (new Set(normalizedGuess).size !== normalizedGuess.length) {
+    throw new Error("Nao repita o mesmo personagem em mais de um campo.");
+  }
   if (!entry.confirmedBy.includes(playerId)) entry.confirmedBy.push(playerId);
   if (TEAMS.every((team) => tiebreakerFinalizedOrReady(room, team))) {
     scoreTiebreaker(room);
@@ -461,6 +465,8 @@ export function confirmTiebreaker(room, playerId) {
 export function confirmFinal(room, playerId) {
   if (room.phase !== "gameOver") throw new Error("Final de jogo nao esta ativo.");
   if (room.players[playerId]?.spectator) throw new Error("Espectadores nao confirmam resultados.");
+  room.final ||= { winner: null, reason: "empate", confirmedBy: [] };
+  room.final.confirmedBy = toArray(room.final.confirmedBy);
   if (!room.final.confirmedBy.includes(playerId)) room.final.confirmedBy.push(playerId);
   if (allConnectedConfirmed(room.final.confirmedBy, room)) returnToLobby(room);
   touch(room);
@@ -1064,6 +1070,17 @@ function normalizeTiebreaker(tiebreaker, wordCount) {
     };
   });
   return normalized;
+}
+
+function normalizeFinal(final) {
+  if (!final || typeof final !== "object") return null;
+  return {
+    ...normalizeObject(final),
+    winner: TEAMS.includes(final.winner) ? final.winner : null,
+    reason: final.reason || null,
+    tiebreakerScores: normalizeObject(final.tiebreakerScores),
+    confirmedBy: toArray(final.confirmedBy)
+  };
 }
 
 function normalizeChat(chat) {

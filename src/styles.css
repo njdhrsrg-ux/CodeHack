@@ -1281,9 +1281,86 @@ main {
   text-align: left;
 }
 
+.match-list .match-card {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  align-items: start;
+  white-space: normal;
+  border-left: 4px solid var(--muted);
+}
+
+.match-card strong,
+.match-card span,
+.match-card em {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.match-card.win,
+.match-outcome-win {
+  border-color: var(--accent);
+  background: rgba(43, 255, 136, 0.08);
+}
+
+.match-card.loss,
+.match-outcome-loss {
+  border-color: var(--danger);
+  background: rgba(255, 79, 115, 0.08);
+}
+
+.match-card.draw,
+.match-outcome-draw {
+  border-color: #ffd166;
+  background: rgba(255, 209, 102, 0.08);
+}
+
+.match-card.abandoned,
+.match-outcome-abandoned {
+  border-color: var(--muted);
+  background: rgba(170, 190, 210, 0.07);
+}
+
 .match-list button.active {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.match-details .scoreboard {
+  margin: 0;
+}
+
+.match-teams {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.match-word-list {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding-left: 1.4rem;
+}
+
+.match-word-list li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.match-players {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.match-players .player-card {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  text-align: left;
 }
 
 .modal-title,
@@ -1516,8 +1593,16 @@ main {
 }
 
 .settings-avatar-preview.small img {
-  transform: scale(1.12);
+  object-position: center center;
+  transform: scale(1.22);
   transform-origin: center;
+}
+
+.avatar-profile-button {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  line-height: 0;
 }
 
 .avatar-edit-overlay {
@@ -2418,6 +2503,12 @@ main {
   overflow: hidden;
 }
 
+.search-select-trigger.duplicate {
+  border-color: var(--danger);
+  color: var(--danger);
+  box-shadow: 0 0 16px rgba(255, 79, 115, 0.18);
+}
+
 .muted-option,
 .empty-option {
   color: var(--text-muted);
@@ -2717,7 +2808,7 @@ main {
   gap: 0.75rem;
   min-width: 0;
   margin-top: 0.15rem;
-  margin-bottom: 0.15rem;
+  margin-bottom: 1rem;
 }
 
 .coder-code-reminder {
@@ -2975,6 +3066,22 @@ main {
   min-width: 0;
   width: fit-content;
   max-width: 100%;
+}
+
+.history-round.match-outcome-win {
+  border-left: 4px solid var(--accent);
+}
+
+.history-round.match-outcome-loss {
+  border-left: 4px solid var(--danger);
+}
+
+.history-round.match-outcome-draw {
+  border-left: 4px solid #ffd166;
+}
+
+.history-round.match-outcome-abandoned {
+  border-left: 4px solid var(--muted);
 }
 
 .history-round > strong {

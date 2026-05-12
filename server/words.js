@@ -1030,7 +1030,7 @@ const CHARACTER_FULL_NAMES = new Map(Object.entries({
   Triss: "Triss Merigold",
   Dutch: "Dutch van der Linde",
   Trevor: "Trevor Philips",
-  CJ: "Carl Johnson",
+  CJ: "CJ",
   Franklin: "Franklin Clinton",
   Ezio: "Ezio Auditore",
   Altair: "Altair Ibn-La'Ahad",
@@ -2121,7 +2121,7 @@ John Marston
 Dutch van der Linde
 Sadie Adler
 Micah Bell
-Carl Johnson
+CJ
 Tommy Vercetti
 Niko Bellic
 Michael De Santa

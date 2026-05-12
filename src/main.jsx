@@ -316,7 +316,7 @@ const IMAGE_ORIGIN = {
     "Gordon Freeman": "Half-Life", "Chell": "Portal", "Kratos": "God of War", "Atreus": "God of War", "Nathan Drake": "Uncharted", "Victor Sullivan": "Uncharted",
     "Lara Croft": "Tomb Raider", "Leon Kennedy": "Resident Evil", "Jill Valentine": "Resident Evil", "Albert Wesker": "Resident Evil", "Nemesis": "Resident Evil",
     "Solid Snake": "Metal Gear Solid", "Big Boss": "Metal Gear Solid", "Geralt of Rivia": "The Witcher", "Cirilla Fiona Elen Riannon": "The Witcher", "Yennefer": "The Witcher",
-    "Arthur Morgan": "Red Dead Redemption", "John Marston": "Red Dead Redemption", "Carl Johnson": "Grand Theft Auto", "Trevor Philips": "Grand Theft Auto", "Franklin Clinton": "Grand Theft Auto",
+    "Arthur Morgan": "Red Dead Redemption", "John Marston": "Red Dead Redemption", "CJ": "Grand Theft Auto", "Carl Johnson": "Grand Theft Auto", "Trevor Philips": "Grand Theft Auto", "Franklin Clinton": "Grand Theft Auto",
     "Ezio Auditore": "Assassin's Creed", "Altair Ibn-La'Ahad": "Assassin's Creed", "Agent 47": "Hitman", "Max Payne": "Max Payne", "Alan Wake": "Alan Wake",
     "Joel": "The Last of Us", "Ellie": "The Last of Us", "Aloy": "Horizon Zero Dawn", "2B": "Nier Automata", "Lena Oxton": "Overwatch", "Jinx": "League of Legends", "Ahri": "League of Legends", "Jett": "Valorant"
   },
@@ -388,6 +388,50 @@ const ORIGIN_FALLBACK = {
     "Buffy Summers": "Buffy the Vampire Slayer", "Sarah Connor": "Terminator", "T-800": "Terminator", "Ellen Ripley": "Alien",
     "Neo": "The Matrix", "Trinity": "The Matrix", "Morpheus": "The Matrix", "Agent Smith": "The Matrix"
   }
+};
+
+const WORD_SEARCH_ALIASES = {
+  Scorpion: ["Hanzo Hasashi"],
+  "Sub-Zero": ["Kuai Liang", "Bi-Han"],
+  "Raiden": ["Lord Raiden"],
+  "CJ": ["Carl Johnson"],
+  "Miles Morales": ["Spider-Man"],
+  "Lena Oxton": ["Tracer"],
+  "Solid Snake": ["David"],
+  "Big Boss": ["Naked Snake", "Venom Snake"],
+  "Geralt of Rivia": ["Geralt de Rivia", "White Wolf"],
+  "Princess Zelda": ["Zelda"],
+  "Princess Peach": ["Peach"],
+  "Sonic": ["Sonic the Hedgehog"],
+  "Shadow the Hedgehog": ["Shadow"],
+  "Miles Tails Prower": ["Tails"],
+  "Dr Eggman": ["Robotnik"],
+  "Jinx": ["Powder"],
+  "Vi": ["Violet"],
+  "D.Va": ["Hana Song"],
+  "Master Chief": ["John-117"],
+  "Doom Slayer": ["Doomguy"],
+  "Agent 47": ["47"],
+  "2B": ["YoRHa No.2 Type B"],
+  "9S": ["YoRHa No.9 Type S"],
+  "Saber": ["Artoria Pendragon"],
+  "L Lawliet": ["L"],
+  "Light Yagami": ["Kira"],
+  "Monkey D. Luffy": ["Luffy"],
+  "Roronoa Zoro": ["Zoro"],
+  "Vinsmoke Sanji": ["Sanji"],
+  "Tony Tony Chopper": ["Chopper"],
+  "Edward Elric": ["Fullmetal Alchemist"],
+  "Shigeo Kageyama": ["Mob"],
+  "Gintoki Sakata": ["Gintoki"],
+  "Kenshin Himura": ["Kenshin"],
+  "Eren Yeager": ["Eren Jaeger"],
+  "Levi Ackerman": ["Levi"],
+  "Satoru Gojo": ["Gojo"],
+  "Yuji Itadori": ["Itadori"],
+  "Loid Forger": ["Twilight"],
+  "Yor Forger": ["Thorn Princess"],
+  "Anya Forger": ["Anya"]
 };
 
 function hydrateRoom(nextRoom) {
@@ -1203,11 +1247,12 @@ function TopWords({ title, words = {} }) {
 }
 
 function ProfileHistory({ matches, selectedMatch, setSelectedMatch }) {
+  const sortedMatches = [...matches].sort((a, b) => Number(b.finishedAt || 0) - Number(a.finishedAt || 0));
   return (
     <section className="profile-history-grid">
       <div className="panel match-list">
-        {matches.length ? matches.map((match) => (
-          <button key={match.id} className={selectedMatch?.id === match.id ? "active" : ""} onClick={() => setSelectedMatch(match)}>
+        {sortedMatches.length ? sortedMatches.map((match) => (
+          <button key={match.id} className={`match-card ${match.outcome || "loss"} ${selectedMatch?.id === match.id ? "active" : ""}`} onClick={() => setSelectedMatch(match)}>
             <strong>{new Date(match.finishedAt).toLocaleString()}</strong>
             <span>{match.id}</span>
             <em>{match.playerCount} jogadores - {match.outcome === "win" ? "vitoria" : match.outcome === "draw" ? "empate" : match.outcome === "abandoned" ? "abandonada" : "derrota"}</em>
@@ -1220,26 +1265,83 @@ function ProfileHistory({ matches, selectedMatch, setSelectedMatch }) {
 }
 
 function MatchDetails({ match }) {
+  const pseudoRoom = matchToRoom(match);
   return (
-    <div className="panel match-details">
+    <div className={`panel match-details match-outcome-${match.outcome || "loss"}`}>
       <strong>Placar final</strong>
-      <p>Vermelho: {match.finalScore.red.lives} vidas, {match.finalScore.red.interceptions} interceptacoes</p>
-      <p>Azul: {match.finalScore.blue.lives} vidas, {match.finalScore.blue.interceptions} interceptacoes</p>
-      {TEAMS.map((team) => (
-        <div className={`hint-board team-surface ${team}`} key={team}>
-          <strong>{teamLabel(team)}</strong>
-          <p>Palavras: {(match.teams[team].words || []).join(", ")}</p>
-          {(match.teams[team].hintHistory || []).map((entry) => (
-            <div className="history-round" key={`${team}-${entry.round}`}>
-              <strong>Rodada {entry.round}</strong>
-              <p>Dicas: {entry.hints.join(" / ")}</p>
-              <p>Time: {displayGuess(entry.teamGuess)} • Interceptacao: {displayGuess(entry.interceptGuess)} • Correto: {displayGuess(entry.code)}</p>
+      <ScoreBoard room={pseudoRoom} constants={DEFAULT_CONSTANTS} playerId="" ordered />
+      <MatchPlayers players={match.players || []} />
+      <div className="match-teams">
+        {TEAMS.map((team) => (
+          <div className={`hint-board team-surface ${team}`} key={team}>
+            <strong>{teamLabel(team)}</strong>
+            <ol className="match-word-list">
+              {(match.teams?.[team]?.words || []).map((word, index) => (
+                <li key={`${team}-${word}-${index}`}><span className="word-number">#{index + 1} </span>{word}</li>
+              ))}
+            </ol>
+            <div className="history-rounds">
+              {orderedHistory(match.teams?.[team]?.hintHistory || []).map((entry) => (
+                <HistoryRoundCard key={`${team}-${entry.round}`} team={team} outcome={match.outcome} entry={entry} />
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MatchPlayers({ players }) {
+  if (!players.length) return null;
+  return (
+    <div className="match-players">
+      {players.map((player, index) => (
+        <button
+          type="button"
+          key={`${player.userId || player.id || player.name}-${index}`}
+          className={`player-card team-surface ${player.team || ""}`}
+          onClick={() => player.userId && window.dispatchEvent(new CustomEvent("profile:open", { detail: { userId: player.userId } }))}
+          disabled={!player.userId}
+        >
+          <PlayerIdentity player={player} />
+        </button>
       ))}
     </div>
   );
+}
+
+function HistoryRoundCard({ team, outcome, entry }) {
+  return (
+    <div className={`history-round team-surface ${team} match-outcome-${outcome || "loss"}`}>
+      <strong>Rodada {entry.round}</strong>
+      <div className="round-code-list">
+        {[0, 1, 2].map((slot) => (
+          <div className="round-code-row" key={`${entry.round}-${slot}`}>
+            <span className="round-hint">{entry.hints?.[slot] || ""}</span>
+            <span className={`code-chip ${team}`}>{entry.teamGuess?.[slot] || "?"}</span>
+            <span className={`code-chip ${otherTeam(team)}`}>{entry.interceptGuess?.[slot] || "?"}</span>
+            <span className="code-chip correct-code">{entry.code?.[slot] || "?"}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function matchToRoom(match) {
+  return {
+    phase: "gameOver",
+    settings: {
+      startingLives: match.settings?.startingLives || DEFAULT_CONSTANTS.STARTING_LIVES,
+      winIntercepts: match.settings?.winIntercepts || DEFAULT_CONSTANTS.WIN_INTERCEPTS
+    },
+    teams: {
+      red: { score: match.finalScore?.red || { lives: 0, interceptions: 0, correct: 0 } },
+      blue: { score: match.finalScore?.blue || { lives: 0, interceptions: 0, correct: 0 } }
+    },
+    players: []
+  };
 }
 
 function localStorageToken() {
@@ -2345,6 +2447,8 @@ function Tiebreaker({ room, playerId, constants, action }) {
   const target = entry?.targetTeam;
   const [draft, setDraft] = useState(entry?.guess || []);
   const options = tiebreakerWordOptions(room, constants);
+  const duplicates = duplicateWords(draft);
+  const hasDuplicate = duplicates.size > 0;
 
   useEffect(() => {
     setDraft(entry?.guess || []);
@@ -2363,6 +2467,7 @@ function Tiebreaker({ room, playerId, constants, action }) {
             options={options}
             category={room.settings.category}
             placeholder={`Palavra #${index + 1}`}
+            duplicate={duplicates.has(normalizeWordText(draft[index] || ""))}
             onChange={(value) => {
               const next = [...draft];
               next[index] = value;
@@ -2372,8 +2477,9 @@ function Tiebreaker({ room, playerId, constants, action }) {
           />
         ))}
       </div>
+      {hasDuplicate && <p className="toast">Nao repita o mesmo personagem em mais de um campo.</p>}
       <ConfirmationRoster players={room.players.filter((player) => player.team === me.team && player.connected)} confirmedBy={entry.confirmedBy || []} />
-      <button className="primary" onClick={() => action("game:confirmTiebreaker")}><BadgeCheck size={18} /> Confirmar palavras</button>
+      <button className="primary" disabled={hasDuplicate} onClick={() => action("game:confirmTiebreaker")}><BadgeCheck size={18} /> Confirmar palavras</button>
     </div>
   );
 }
@@ -2540,7 +2646,7 @@ function previousRoundScore(room, team, constants) {
   return score;
 }
 
-function SearchableWordSelect({ value, options, category, placeholder, onChange }) {
+function SearchableWordSelect({ value, options, category, placeholder, duplicate = false, onChange }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value || "");
   const [menuRect, setMenuRect] = useState(null);
@@ -2574,17 +2680,22 @@ function SearchableWordSelect({ value, options, category, placeholder, onChange 
     };
   }, [open]);
 
-  const normalized = stripAccents(query).toLowerCase();
-  const filtered = options
-    .filter((word) => {
-      const label = `${word} ${wordOrigin(word, category) || ""}`;
-      return stripAccents(label).toLowerCase().includes(normalized);
-    })
-    .slice(0, 24);
+  const normalized = stripAccents(query).trim().toLowerCase();
+  const filtered = normalized
+    ? options
+      .filter((word) => {
+        const label = `${word} ${wordOrigin(word, category) || ""} ${(WORD_SEARCH_ALIASES[word] || []).join(" ")}`;
+        return stripAccents(label).toLowerCase().includes(normalized);
+      })
+      .slice(0, 24)
+    : [];
 
   return (
     <div className="search-select" ref={wrapRef}>
-      <button ref={triggerRef} type="button" className="search-select-trigger" onClick={() => setOpen(!open)}>
+      <button ref={triggerRef} type="button" className={`search-select-trigger ${duplicate ? "duplicate" : ""}`} onClick={() => {
+        setQuery("");
+        setOpen(!open);
+      }}>
         {value ? <WordName word={value} category={category} /> : <span className="muted-option">{placeholder}</span>}
       </button>
       {open && menuRect && createPortal(
@@ -2596,7 +2707,7 @@ function SearchableWordSelect({ value, options, category, placeholder, onChange 
             autoFocus
           />
           <div className="search-select-options">
-            {filtered.length ? filtered.map((word) => (
+            {!normalized ? <span className="empty-option">Digite para buscar.</span> : filtered.length ? filtered.map((word) => (
               <button
                 type="button"
                 key={word}
@@ -2660,6 +2771,17 @@ function originFromTaggedName(word, category) {
 function tiebreakerWordOptions(room, constants) {
   if (room.settings.category === "Personalizada") return room.settings.customWords || [];
   return constants.WORD_BANKS?.[room.settings.category] || [];
+}
+
+function duplicateWords(values = []) {
+  const seen = new Set();
+  const duplicates = new Set();
+  values.filter(Boolean).forEach((word) => {
+    const key = normalizeWordText(word);
+    if (seen.has(key)) duplicates.add(key);
+    seen.add(key);
+  });
+  return duplicates;
 }
 
 function HintsList({ hints }) {

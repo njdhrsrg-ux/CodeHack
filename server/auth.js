@@ -479,15 +479,37 @@ function bumpWordAttempt(target, word, correct) {
 }
 
 function makeMatchEntry(room, player, matchId, finishedAt, won, outcome = null) {
+  const activePlayers = Object.values(room.players || {});
+  const sessionPlayers = Object.values(room.matchSession?.players || {});
+  const players = (sessionPlayers.length ? sessionPlayers : activePlayers).map((participant) => {
+    const current = activePlayers.find((active) => (
+      (participant.userId && active.userId === participant.userId)
+      || (!participant.userId && active.id === participant.id)
+    )) || {};
+    return {
+      id: participant.userId || participant.id || current.id,
+      userId: participant.userId || current.userId || null,
+      name: current.name || participant.name,
+      sessionTag: current.sessionTag || participant.sessionTag || "",
+      avatar: current.avatar || participant.avatar || "",
+      team: participant.team || current.team,
+      spectator: Boolean(participant.spectator || current.spectator)
+    };
+  });
   return {
     id: matchId,
     status: finishedAt ? "finished" : "active",
     startedAt: room.matchSession?.startedAt || room.createdAt,
     finishedAt,
-    playerCount: Object.values(room.players).length,
+    playerCount: players.length,
+    players,
     outcome: outcome || (won ? "win" : "loss"),
     playerTeam: player?.team || null,
     winner: room.final?.winner || null,
+    settings: {
+      startingLives: room.settings?.startingLives,
+      winIntercepts: room.settings?.winIntercepts
+    },
     finalScore: { red: room.teams.red.score, blue: room.teams.blue.score },
     teams: {
       red: { words: room.teams.red.words, hintHistory: room.teams.red.hintHistory },
