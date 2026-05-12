@@ -541,9 +541,12 @@ io.on("connection", (socket) => {
     const removed = removePlayer(room, socket.id);
     sessions.delete(socket.id);
     socket.leave(code);
-    if (!hasActiveRoomPlayers(room) || onlyTestBots(room)) {
+    if (onlyTestBots(room)) {
       await discardActiveMatch(room);
       await closeRoomForNoPlayers(room);
+    }
+    else if (shouldReturnSpectatorsToLobby(room)) {
+      await returnSpectatorsToLobby(room);
     }
     else {
       await emitRoom(room);
@@ -571,9 +574,8 @@ io.on("connection", (socket) => {
   socket.on("host:move", ({ playerId, team }, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
     movePlayer(room, socket.id, playerId, team);
-    if (!hasActiveRoomPlayers(room)) {
-      await discardActiveMatch(room);
-      await closeRoomForNoPlayers(room);
+    if (shouldReturnSpectatorsToLobby(room)) {
+      await returnSpectatorsToLobby(room);
       return { ok: true };
     }
     await emitRoom(room);
@@ -583,9 +585,8 @@ io.on("connection", (socket) => {
   socket.on("player:team", ({ team }, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
     chooseTeam(room, socket.id, team);
-    if (!hasActiveRoomPlayers(room)) {
-      await discardActiveMatch(room);
-      await closeRoomForNoPlayers(room);
+    if (shouldReturnSpectatorsToLobby(room)) {
+      await returnSpectatorsToLobby(room);
       return { ok: true };
     }
     await emitRoom(room);
@@ -606,9 +607,8 @@ io.on("connection", (socket) => {
     const room = await currentRoom(socket);
     kickPlayer(room, socket.id, playerId);
     io.to(playerId).emit("room:kicked");
-    if (!hasActiveRoomPlayers(room)) {
-      await discardActiveMatch(room);
-      await closeRoomForNoPlayers(room);
+    if (shouldReturnSpectatorsToLobby(room)) {
+      await returnSpectatorsToLobby(room);
       return { ok: true };
     }
     await emitRoom(room);
@@ -715,9 +715,12 @@ io.on("connection", (socket) => {
       if (!liveRoom) return;
       const removed = removePlayer(liveRoom, socket.id);
       if (!removed) return;
-      if (!hasActiveRoomPlayers(liveRoom) || onlyTestBots(liveRoom)) {
+      if (onlyTestBots(liveRoom)) {
         await discardActiveMatch(liveRoom).catch((error) => console.error("discardMatch failed", error));
         await closeRoomForNoPlayers(liveRoom).catch((error) => console.error("closeRoom failed", error));
+      }
+      else if (shouldReturnSpectatorsToLobby(liveRoom)) {
+        await returnSpectatorsToLobby(liveRoom).catch((error) => console.error("returnSpectators failed", error));
       }
       else {
         await emitRoom(liveRoom);
@@ -851,6 +854,36 @@ function hasActiveRoomPlayers(room) {
   return Object.values(room.players || {}).some((player) => (
     !player.spectator && TEAMS.includes(player.team) && !player.testBot
   ));
+}
+
+function shouldReturnSpectatorsToLobby(room) {
+  return room && room.phase !== "lobby" && !hasActiveRoomPlayers(room) && Object.keys(room.players || {}).length > 0;
+}
+
+async function returnSpectatorsToLobby(room) {
+  await discardActiveMatch(room).catch((error) => console.error("discardMatch failed", error));
+  room.phase = "lobby";
+  room.round = 0;
+  room.current = null;
+  room.tiebreaker = null;
+  room.final = null;
+  room.settings.randomTeams = false;
+  TEAMS.forEach((team) => {
+    room.teams[team].words = [];
+    room.teams[team].hintHistory = [];
+    room.teams[team].score = { correct: 0, interceptions: 0, lives: room.settings?.startingLives || CONSTANTS.STARTING_LIVES };
+  });
+  room.imageMap = {};
+  room.chat ||= {};
+  room.chat.team = { red: [], blue: [] };
+  room.chat.spectator = [];
+  Object.values(room.players || {}).forEach((player) => {
+    player.team = null;
+    player.spectator = true;
+  });
+  io.to(room.code).emit("room:inactiveClosed", { reason: "noPlayers" });
+  await emitRoom(room);
+  await emitRoomList();
 }
 
 async function closeRoomForNoPlayers(room) {
@@ -1195,9 +1228,9 @@ async function cleanupAbandonedRooms() {
         await deleteRoom(code).catch(() => {});
         continue;
       }
-      if (!emptyRoom && noActivePlayers) {
-        console.log(`Closing room without active players: ${code}`);
-        await closeRoomForNoPlayers(room);
+      if (shouldReturnSpectatorsToLobby(room)) {
+        console.log(`Returning spectator-only match to lobby: ${code}`);
+        await returnSpectatorsToLobby(room);
         continue;
       }
       if (emptyRoom) continue;

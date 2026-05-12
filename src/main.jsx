@@ -819,10 +819,12 @@ function App() {
       setRoomEvents((events) => events.filter((item) => item.type !== "inactivity"));
     });
     socket.on("room:inactiveClosed", (payload = {}) => {
-      setRoom(null);
-      setPlayerId("");
       setRoomEvents([]);
-      clearActiveRoomSession();
+      if (payload.reason !== "noPlayers") {
+        setRoom(null);
+        setPlayerId("");
+        clearActiveRoomSession();
+      }
       setInactiveClosed(payload);
     });
     socket.on("room:starting", (payload = {}) => {
@@ -1379,7 +1381,7 @@ function StartingGameOverlay({ starting }) {
     return () => window.clearInterval(timer);
   }, []);
   const remaining = Math.max(0, Number(starting.startedAt || now) + Number(starting.duration || 5000) - now);
-  const seconds = Math.max(1, Math.ceil(remaining / 1000));
+  const seconds = Math.max(0, Math.ceil(remaining / 1000));
   return (
     <div className="confirm-overlay starting-overlay" role="status" aria-live="polite">
       <div className="confirm-modal starting-modal">
@@ -1393,7 +1395,7 @@ function StartingGameOverlay({ starting }) {
 
 function InactivityClosedModal({ reason, onClose }) {
   const text = reason === "noPlayers"
-    ? "A sala foi encerrada porque nao havia jogadores ativos. Espectadores nao mantem a sala aberta."
+    ? "Partida encerrada por falta de jogadores."
     : "A sala foi encerrada por inatividade. Voce voltou para o menu principal.";
   return (
     <div className="confirm-overlay" role="dialog" aria-modal="true">
