@@ -614,12 +614,15 @@ io.on("connection", (socket) => {
 
   socket.on("game:start", (_payload, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
-    startGame(room, socket.id);
     io.to(room.code).emit("room:starting", { startedAt: Date.now(), duration: 5000 });
-    await resolveRoomImages(room);
+    await sleep(5000);
+    startGame(room, socket.id);
     await createActiveMatch(room);
     await emitRoom(room);
     await emitRoomList();
+    resolveRoomImages(room)
+      .then(() => emitRoom(room))
+      .catch((error) => console.error("resolveRoomImages failed", error));
     return { ok: true };
   }));
 
@@ -846,6 +849,10 @@ function safe(reply, fn) {
     .then(fn)
     .then((result) => reply?.({ ok: true, ...result }))
     .catch((error) => reply?.({ ok: false, error: error.message || "Erro inesperado." }));
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function cacheImage(key, payload) {
