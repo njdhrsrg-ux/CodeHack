@@ -928,6 +928,10 @@ function cacheImage(key, payload) {
   return normalized;
 }
 
+function emptyImagePayload() {
+  return { url: null, source: "fallback" };
+}
+
 function proxiedImageUrl(url) {
   const value = String(url || "");
   if (!/^https?:\/\//i.test(value)) return value;
@@ -938,26 +942,22 @@ async function findImagePayload(query, category) {
   const cacheKey = `${category}:${query}`.toLocaleLowerCase();
   if (imageCache.has(cacheKey)) return imageCache.get(cacheKey);
   const pokemon = await pokemonImage(query);
-  if (pokemon) return cacheImage(cacheKey, { url: pokemon, source: "pokeapi" });
+  if (await imageAvailable(pokemon)) return cacheImage(cacheKey, { url: pokemon, source: "pokeapi" });
   if (category === "Geral") {
     const pexels = await pexelsImage(query);
-    if (pexels) return cacheImage(cacheKey, { url: pexels.url, source: "pexels", photographer: pexels.photographer, page: pexels.page });
+    if (pexels && await imageAvailable(pexels.url)) return cacheImage(cacheKey, { url: pexels.url, source: "pexels", photographer: pexels.photographer, page: pexels.page });
   }
   if (category === "Filmes") {
     const poster = await omdbImage(query);
-    if (poster) return cacheImage(cacheKey, { url: poster, source: "omdb" });
-  }
-  if (["Anime", "Jogos", "Geek"].includes(category)) {
-    const wiki = await wikiImage(query);
-    if (wiki) return cacheImage(cacheKey, { url: wiki, source: "wikimedia" });
+    if (await imageAvailable(poster)) return cacheImage(cacheKey, { url: poster, source: "omdb" });
   }
   if (!/\bpokemon\b/i.test(query)) {
     const google = await googleImage(query);
-    if (google) return cacheImage(cacheKey, { url: google, source: "google" });
+    if (await imageAvailable(google)) return cacheImage(cacheKey, { url: google, source: "google" });
   }
   const wiki = await wikiImage(query);
-  if (wiki) return cacheImage(cacheKey, { url: wiki, source: "wikimedia" });
-  return cacheImage(cacheKey, { url: null, source: "fallback" });
+  if (await imageAvailable(wiki)) return cacheImage(cacheKey, { url: wiki, source: "wikimedia" });
+  return emptyImagePayload();
 }
 
 async function resolveRoomImages(room) {
@@ -1111,6 +1111,23 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 4500) {
     return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
+  }
+}
+
+async function imageAvailable(url) {
+  if (!url) return false;
+  try {
+    const response = await fetchWithTimeout(url, {
+      headers: {
+        "User-Agent": "CodeHackImageProbe/1.0",
+        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+      }
+    }, 3500);
+    if (!response.ok) return false;
+    const contentType = response.headers.get("content-type") || "";
+    return !contentType || contentType.toLowerCase().startsWith("image/");
+  } catch {
+    return false;
   }
 }
 
