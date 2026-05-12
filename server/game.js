@@ -64,6 +64,41 @@ export function makePlayer(id, name = "Operador", isHost = false, avatar = "", c
   };
 }
 
+export function normalizeRoom(room) {
+  if (!room || typeof room !== "object") return null;
+  room.code = String(room.code || "").trim().toUpperCase();
+  room.name = cleanRoomName(room.name || room.code || "Sala");
+  room.password = cleanRoomPassword(room.password);
+  room.publicRoom = room.publicRoom !== false;
+  room.players = normalizeObject(room.players);
+  room.departedPlayers = normalizeObject(room.departedPlayers);
+  room.settings = {
+    category: room.settings?.category || "Geral",
+    customWords: Array.isArray(room.settings?.customWords) ? room.settings.customWords.map(cleanWord).filter(Boolean) : [],
+    wordCount: clamp(Number(room.settings?.wordCount ?? 4), 4, 6),
+    startingLives: clamp(Number(room.settings?.startingLives ?? STARTING_LIVES), 1, 5),
+    winIntercepts: clamp(Number(room.settings?.winIntercepts ?? WIN_INTERCEPTS), 1, 5),
+    randomTeams: Boolean(room.settings?.randomTeams)
+  };
+  room.teams = room.teams && typeof room.teams === "object" ? room.teams : {};
+  TEAMS.forEach((team) => {
+    room.teams[team] = normalizeTeamState(room.teams[team], room.settings.startingLives);
+  });
+  room.round = Number(room.round || 0);
+  room.phase = room.phase || "lobby";
+  room.current = normalizeCurrent(room.current, room.settings.wordCount);
+  room.tiebreaker = normalizeTiebreaker(room.tiebreaker, room.settings.wordCount);
+  room.final = room.final || null;
+  room.chat = normalizeChat(room.chat);
+  room.log = toArray(room.log);
+  room.imageMap = normalizeObject(room.imageMap);
+  room.createdAt = Number(room.createdAt || Date.now());
+  room.updatedAt = Number(room.updatedAt || room.createdAt || Date.now());
+  if (!room.hostId || !room.players[room.hostId]) transferHost(room);
+  else syncHostFlags(room);
+  return room;
+}
+
 export function publicRoom(room, viewerId) {
   const viewer = room.players[viewerId];
   const { departedPlayers: _departedPlayers, password: _password, ...visibleRoom } = room;
@@ -950,6 +985,110 @@ function makeChatState() {
     team: { red: [], blue: [] },
     spectator: []
   };
+}
+
+function normalizeTeamState(team, startingLives = STARTING_LIVES) {
+  const base = makeTeamState();
+  const score = team?.score || {};
+  return {
+    ...base,
+    ...normalizeObject(team),
+    words: toArray(team?.words),
+    hintHistory: toArray(team?.hintHistory).map(normalizeHintHistoryEntry),
+    score: {
+      correct: Number(score.correct || 0),
+      interceptions: Number(score.interceptions || 0),
+      lives: Number(score.lives ?? startingLives)
+    },
+    codexIndex: Number(team?.codexIndex ?? -1)
+  };
+}
+
+function normalizeCurrent(current, wordCount) {
+  if (!current || typeof current !== "object") return null;
+  const normalized = { ...current };
+  normalized.turns = normalized.turns && typeof normalized.turns === "object" ? normalized.turns : {};
+  TEAMS.forEach((team) => {
+    normalized.turns[team] = normalizeTurn(normalized.turns[team], wordCount);
+  });
+  normalized.result = normalized.result || null;
+  normalized.resultConfirmedBy = toArray(normalized.resultConfirmedBy);
+  normalized.nextPhase = normalized.nextPhase || "playing";
+  return normalized;
+}
+
+function normalizeTurn(turn, wordCount) {
+  const base = makeTurn(wordCount);
+  const normalized = { ...base, ...normalizeObject(turn) };
+  normalized.code = toArray(turn?.code);
+  if (normalized.code.length !== MAX_HINTS) normalized.code = defaultGuess(wordCount);
+  normalized.hints = toArray(turn?.hints);
+  normalized.proposals = normalized.proposals && typeof normalized.proposals === "object" ? normalized.proposals : {};
+  normalized.proposals.team = normalizeProposal(normalized.proposals.team, wordCount);
+  normalized.proposals.intercept = normalizeProposal(normalized.proposals.intercept, wordCount);
+  return normalized;
+}
+
+function normalizeProposal(proposal, wordCount) {
+  return {
+    ...makeProposal(wordCount),
+    ...normalizeObject(proposal),
+    guess: toArray(proposal?.guess).length ? toArray(proposal.guess) : defaultGuess(wordCount),
+    confirmedBy: toArray(proposal?.confirmedBy),
+    finalized: Boolean(proposal?.finalized)
+  };
+}
+
+function normalizeHintHistoryEntry(entry) {
+  return {
+    ...normalizeObject(entry),
+    code: toArray(entry?.code),
+    hints: toArray(entry?.hints),
+    teamGuess: toArray(entry?.teamGuess),
+    interceptGuess: toArray(entry?.interceptGuess),
+    confirmedBy: toArray(entry?.confirmedBy)
+  };
+}
+
+function normalizeTiebreaker(tiebreaker, wordCount) {
+  if (!tiebreaker || typeof tiebreaker !== "object") return null;
+  const normalized = {};
+  TEAMS.forEach((team) => {
+    const entry = tiebreaker[team] || {};
+    normalized[team] = {
+      targetTeam: entry.targetTeam || otherTeam(team),
+      guess: normalizeWordGuess(toArray(entry.guess), wordCount),
+      updatedBy: entry.updatedBy || null,
+      confirmedBy: toArray(entry.confirmedBy),
+      finalized: Boolean(entry.finalized)
+    };
+  });
+  return normalized;
+}
+
+function normalizeChat(chat) {
+  const base = makeChatState();
+  return {
+    global: toArray(chat?.global),
+    team: {
+      red: toArray(chat?.team?.red),
+      blue: toArray(chat?.team?.blue)
+    },
+    spectator: toArray(chat?.spectator || base.spectator)
+  };
+}
+
+function normalizeObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? { ...value } : {};
+}
+
+function toArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+  return Object.keys(value)
+    .sort((left, right) => Number(left) - Number(right))
+    .map((key) => value[key])
+    .filter((item) => item !== undefined && item !== null);
 }
 
 function cleanName(name) {

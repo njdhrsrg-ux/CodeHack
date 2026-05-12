@@ -38,6 +38,7 @@ import {
   kickPlayer,
   makeRoom,
   movePlayer,
+  normalizeRoom,
   publicRoom,
   removePlayer,
   roomJoinPreview,
@@ -365,8 +366,8 @@ async function currentRoom(socket) {
 
 async function getRoom(code) {
   const normalizedCode = String(code || "").trim().toUpperCase();
-  const localRoom = rooms.get(normalizedCode);
-  const databaseRoom = await loadRoom(normalizedCode);
+  const localRoom = normalizeRoom(rooms.get(normalizedCode));
+  const databaseRoom = normalizeRoom(await loadRoom(normalizedCode));
   const room = newestRoom(localRoom, databaseRoom);
   if (!room) throw new Error("Sala nao encontrada.");
   rooms.set(normalizedCode, room);
@@ -398,9 +399,10 @@ async function emitRoomList() {
 async function publicRoomList() {
   const databaseRooms = await listRooms();
   databaseRooms.forEach((room) => {
+    room = normalizeRoom(room);
     if (!room?.code) return;
     const normalizedCode = String(room.code).trim().toUpperCase();
-    rooms.set(normalizedCode, newestRoom(rooms.get(normalizedCode), room));
+    rooms.set(normalizedCode, newestRoom(normalizeRoom(rooms.get(normalizedCode)), room));
   });
   return Array.from(rooms.values())
     .filter((room) => room.publicRoom !== false)
@@ -692,6 +694,7 @@ async function loadRoomsFromDatabase() {
     const roomsFromDb = await listRooms();
     if (roomsFromDb && Array.isArray(roomsFromDb)) {
       roomsFromDb.forEach((room) => {
+        room = normalizeRoom(room);
         if (room && room.code) {
           rooms.set(room.code, room);
         }
@@ -709,10 +712,18 @@ async function cleanupAbandonedRooms() {
     const now = Date.now();
     const oneHourAgo = now - (60 * 60 * 1000); // 1 hour in milliseconds
 
-    for (const [code, room] of rooms.entries()) {
+    const databaseRooms = await listRooms().catch(() => []);
+    databaseRooms.forEach((room) => {
+      room = normalizeRoom(room);
+      if (room?.code) rooms.set(room.code, newestRoom(normalizeRoom(rooms.get(room.code)), room));
+    });
+
+    for (const [code, roomValue] of rooms.entries()) {
+      const room = normalizeRoom(roomValue);
       // Only clean up rooms with no players that haven't been updated in over an hour
-      if (Object.keys(room.players).length === 0 &&
-          (!room.updatedAt || room.updatedAt < oneHourAgo)) {
+      const emptyRoom = !room || Object.keys(room.players || {}).length === 0;
+      const staleRoom = !room?.updatedAt || room.updatedAt < oneHourAgo;
+      if (emptyRoom && staleRoom) {
         console.log(`Cleaning up abandoned room: ${code}`);
         rooms.delete(code);
         await deleteRoom(code).catch(() => {});
