@@ -651,12 +651,10 @@ io.on("connection", (socket) => {
       return { cancelled: true };
     }
     startGame(liveRoom, socket.id);
+    await resolveRoomImages(liveRoom);
     await createActiveMatch(liveRoom);
     await emitRoom(liveRoom);
     await emitRoomList();
-    resolveRoomImages(liveRoom)
-      .then(() => emitRoom(liveRoom))
-      .catch((error) => console.error("resolveRoomImages failed", error));
     return { ok: true };
   }));
 
@@ -963,17 +961,57 @@ async function findImagePayload(query, category) {
 async function resolveRoomImages(room) {
   const category = room.settings?.category || "";
   room.imageMap = {};
-  const words = TEAMS.flatMap((team) => room.teams?.[team]?.words || []);
-  await Promise.all(words.map(async (word) => {
-    const key = imageCacheKey(word, category);
-    if (category === "Pokemon") {
-      room.imageMap[key] = proxiedImageUrl(pokemonSpriteUrl(word));
-      return;
+  const usedWords = new Set(TEAMS.flatMap((team) => room.teams?.[team]?.words || []));
+  const replacementPool = shuffledImageReplacementPool(room, usedWords);
+  for (const team of TEAMS) {
+    const words = room.teams?.[team]?.words || [];
+    for (let index = 0; index < words.length; index += 1) {
+      const resolved = await resolveWordWithImage(words[index], category, replacementPool, usedWords);
+      words[index] = resolved.word;
+      room.imageMap[imageCacheKey(resolved.word, category)] = resolved.url;
     }
-    const query = serverImageSearchQuery(word, category);
-    const payload = await findImagePayload(query, category);
-    room.imageMap[key] = payload?.url || "";
-  }));
+  }
+}
+
+async function resolveWordWithImage(initialWord, category, replacementPool, usedWords) {
+  const candidates = [initialWord, ...replacementPool].filter(Boolean);
+  for (const word of candidates) {
+    if (word !== initialWord && usedWords.has(word)) continue;
+    const url = await resolveImageUrlForWord(word, category);
+    if (!url) continue;
+    if (word !== initialWord) {
+      usedWords.delete(initialWord);
+      usedWords.add(word);
+    }
+    return { word, url };
+  }
+  return { word: initialWord, url: "" };
+}
+
+async function resolveImageUrlForWord(word, category) {
+  if (category === "Pokemon") {
+    const url = proxiedImageUrl(pokemonSpriteUrl(word));
+    return await imageAvailable(pokemonSpriteUrl(word)) ? url : "";
+  }
+  const query = serverImageSearchQuery(word, category);
+  const payload = await findImagePayload(query, category);
+  return payload?.url || "";
+}
+
+function shuffledImageReplacementPool(room, usedWords) {
+  const category = room.settings?.category;
+  const customWords = Array.isArray(room.settings?.customWords) ? room.settings.customWords : [];
+  const bank = category === "Personalizada" ? customWords : CONSTANTS.WORD_BANKS?.[category] || [];
+  return shuffleValues([...new Set(bank.map((word) => String(word || "").trim()).filter(Boolean).filter((word) => !usedWords.has(word)))]);
+}
+
+function shuffleValues(values) {
+  const copy = [...values];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const other = Math.floor(Math.random() * (index + 1));
+    [copy[index], copy[other]] = [copy[other], copy[index]];
+  }
+  return copy;
 }
 
 function imageCacheKey(word, category) {
@@ -1017,7 +1055,7 @@ async function googleImage(query) {
   url.searchParams.set("key", key);
   url.searchParams.set("cx", cx);
   url.searchParams.set("searchType", "image");
-  url.searchParams.set("num", "1");
+  url.searchParams.set("num", "5");
   url.searchParams.set("safe", "active");
   url.searchParams.set("hl", "en");
   url.searchParams.set("lr", "lang_en");
@@ -1026,7 +1064,11 @@ async function googleImage(query) {
     const response = await fetchWithTimeout(url);
     if (!response.ok) return null;
     const data = await response.json();
-    return data.items?.[0]?.link || null;
+    const links = (data.items || []).map((item) => item?.link).filter(Boolean);
+    for (const link of links) {
+      if (await imageAvailable(link)) return link;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -1134,14 +1176,14 @@ async function imageAvailable(url) {
 async function wikiImage(query) {
   for (const term of imageSearchTerms(query)) {
     const summaryImage = await wikiSummaryImage(term);
-    if (summaryImage) return summaryImage;
+    if (await imageAvailable(summaryImage)) return summaryImage;
 
     const commons = new URL("https://commons.wikimedia.org/w/api.php");
     commons.searchParams.set("action", "query");
     commons.searchParams.set("generator", "search");
     commons.searchParams.set("gsrsearch", term);
     commons.searchParams.set("gsrnamespace", "6");
-    commons.searchParams.set("gsrlimit", "1");
+    commons.searchParams.set("gsrlimit", "5");
     commons.searchParams.set("prop", "imageinfo");
     commons.searchParams.set("iiprop", "url");
     commons.searchParams.set("format", "json");
@@ -1150,8 +1192,11 @@ async function wikiImage(query) {
       const response = await fetchWithTimeout(commons);
       if (response.ok) {
         const data = await response.json();
-        const page = Object.values(data.query?.pages || {})[0];
-        if (page?.imageinfo?.[0]?.url) return page.imageinfo[0].url;
+        const pages = Object.values(data.query?.pages || {});
+        for (const page of pages) {
+          const url = page?.imageinfo?.[0]?.url;
+          if (await imageAvailable(url)) return url;
+        }
       }
     } catch {
       // Keep the image lookup best-effort; gameplay should not depend on it.
@@ -1161,7 +1206,7 @@ async function wikiImage(query) {
       const response = await fetchWithTimeout(summary);
       if (!response.ok) continue;
       const data = await response.json();
-      if (data.thumbnail?.source) return data.thumbnail.source;
+      if (await imageAvailable(data.thumbnail?.source)) return data.thumbnail.source;
     } catch {
       // Try the next term.
     }
