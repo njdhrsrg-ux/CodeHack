@@ -91,6 +91,7 @@ const rooms = new Map();
 const sessions = new Map();
 const pendingDisconnects = new Map();
 const imageCache = new Map();
+const TEAMS = ["red", "blue"];
 
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -106,34 +107,18 @@ app.get("/api/image", async (req, res) => {
   const query = String(req.query.q || "").trim();
   const category = String(req.query.category || "").trim();
   if (!query || query === "CRIPTOGRAFADA") return res.status(400).json({ error: "query required" });
-  const cacheKey = `${category}:${query}`.toLocaleLowerCase();
-  if (imageCache.has(cacheKey)) return res.json(imageCache.get(cacheKey));
-  const pokemon = await pokemonImage(query);
-  if (pokemon) return cacheImage(cacheKey, res, { url: pokemon, source: "pokeapi" });
-  if (category === "Geral") {
-    const pexels = await pexelsImage(query);
-    if (pexels) return cacheImage(cacheKey, res, { url: pexels.url, source: "pexels", photographer: pexels.photographer, page: pexels.page });
-  }
-  if (category === "Filmes") {
-    const poster = await omdbImage(query);
-    if (poster) return cacheImage(cacheKey, res, { url: poster, source: "omdb" });
-  }
-  if (!/\bpokemon\b/i.test(query)) {
-    const google = await googleImage(query);
-    if (google) return cacheImage(cacheKey, res, { url: google, source: "google" });
-  }
-  const wiki = await wikiImage(query);
-  if (wiki) return cacheImage(cacheKey, res, { url: wiki, source: "wikimedia" });
-  cacheImage(cacheKey, res, { url: null, source: "fallback" });
+  return res.json(await findImagePayload(query, category));
 });
 app.use(express.static(distPath));
 app.get("/{*splat}", (_req, res) => res.sendFile(path.join(distPath, "index.html")));
 
 io.on("connection", (socket) => {
   socket.emit("constants", CONSTANTS);
-  socket.emit("rooms:update", publicRoomList());
+  publicRoomList()
+    .then((roomList) => socket.emit("rooms:update", roomList))
+    .catch((error) => console.error("publicRoomList failed", error));
 
-  socket.on("rooms:list", (_payload, reply) => safe(reply, () => ({ rooms: publicRoomList() })));
+  socket.on("rooms:list", (_payload, reply) => safe(reply, async () => ({ rooms: await publicRoomList() })));
 
   socket.on("auth:me", ({ token }, reply) => safe(reply, async () => ({ user: await meFromToken(token) })));
   socket.on("auth:register", (payload, reply) => safe(reply, () => registerUser(payload)));
@@ -154,18 +139,17 @@ io.on("connection", (socket) => {
   socket.on("room:create", ({ name, avatar, clientId, roomName, password, publicRoom: isPublicRoom, authToken }, reply) => safe(reply, async () => {
     clearPendingDisconnect(clientId);
     const user = await authUserByToken(authToken);
-    const room = uniqueRoom(socket.id, user?.displayName || name, user?.avatar || avatar, clientId, { roomName, password: isPublicRoom === false ? "" : password, publicRoom: isPublicRoom });
+    const room = await uniqueRoom(socket.id, user?.displayName || name, user?.avatar || avatar, clientId, { roomName, password: isPublicRoom === false ? "" : password, publicRoom: isPublicRoom });
     attachUser(room.players[socket.id], user);
     sessions.set(socket.id, room.code);
     socket.join(room.code);
-    emitRoom(room);
-    emitRoomList();
-    await saveRoom(room).catch(() => {});
+    await emitRoom(room);
+    await emitRoomList();
     return { room: publicRoom(room, socket.id), playerId: socket.id };
   }));
 
   socket.on("room:join", ({ code, name, avatar, clientId, role, password, authToken }, reply) => safe(reply, async () => {
-    const room = getRoom(code);
+    const room = await getRoom(code);
     const user = await authUserByToken(authToken);
     validateRoomPassword(room, password);
     const allowActiveTakeover = clearPendingDisconnect(clientId);
@@ -175,14 +159,14 @@ io.on("connection", (socket) => {
     detachPreviousSocket(join.previousId, room.code);
     sessions.set(socket.id, room.code);
     socket.join(room.code);
-    emitRoom(room);
-    emitRoomList();
+    await emitRoom(room);
+    await emitRoomList();
     if (join.eventType !== "resume") emitRoomEvent(room, socket.id, "join", room.players[join.playerId]);
     return { room: publicRoom(room, join.playerId), playerId: join.playerId };
   }));
 
   socket.on("room:resume", ({ code, name, avatar, clientId, role, authToken }, reply) => safe(reply, async () => {
-    const room = getRoom(code);
+    const room = await getRoom(code);
     const user = await authUserByToken(authToken);
     const allowActiveTakeover = clearPendingDisconnect(clientId);
     const join = addPlayer(room, socket.id, user?.displayName || name, user?.avatar || avatar, clientId, role, { allowActiveTakeover, userId: user?.id });
@@ -191,14 +175,14 @@ io.on("connection", (socket) => {
     detachPreviousSocket(join.previousId, room.code);
     sessions.set(socket.id, room.code);
     socket.join(room.code);
-    emitRoom(room);
-    emitRoomList();
+    await emitRoom(room);
+    await emitRoomList();
     if (join.eventType !== "resume") emitRoomEvent(room, socket.id, "join", room.players[join.playerId]);
     return { room: publicRoom(room, join.playerId), playerId: join.playerId };
   }));
 
   socket.on("room:leave", (_payload, reply) => safe(reply, async () => {
-    const room = currentRoom(socket);
+    const room = await currentRoom(socket);
     const code = room.code;
     const removed = removePlayer(room, socket.id);
     sessions.delete(socket.id);
@@ -209,132 +193,133 @@ io.on("connection", (socket) => {
       await deleteRoom(code).catch(() => {});
     }
     else {
-      emitRoom(room);
+      await emitRoom(room);
       if (removed) emitRoomEvent(room, socket.id, "leave", removed);
     }
-    emitRoomList();
+    await emitRoomList();
     return { ok: true };
   }));
 
-  socket.on("room:settings", (settings, reply) => safe(reply, () => {
-    const room = currentRoom(socket);
+  socket.on("room:settings", (settings, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
     updateSettings(room, socket.id, settings);
-    emitRoom(room);
-    emitRoomList();
+    await emitRoom(room);
+    await emitRoomList();
     return { ok: true };
   }));
 
-  socket.on("host:move", ({ playerId, team }, reply) => safe(reply, () => {
-    const room = currentRoom(socket);
+  socket.on("host:move", ({ playerId, team }, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
     movePlayer(room, socket.id, playerId, team);
-    emitRoom(room);
+    await emitRoom(room);
     return { ok: true };
   }));
 
-  socket.on("player:team", ({ team }, reply) => safe(reply, () => {
-    const room = currentRoom(socket);
+  socket.on("player:team", ({ team }, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
     chooseTeam(room, socket.id, team);
-    emitRoom(room);
+    await emitRoom(room);
     return { ok: true };
   }));
 
   socket.on("player:avatar", ({ avatar, authToken }, reply) => safe(reply, async () => {
-    const room = currentRoom(socket);
+    const room = await currentRoom(socket);
     const user = await authUserByToken(authToken);
     const updatedAvatar = user ? (await updateUserProfile(authToken, { avatar })).user.avatar : updatePlayerAvatar(room, socket.id, avatar);
     if (room.players[socket.id]) room.players[socket.id].avatar = updatedAvatar;
     io.to(room.code).emit("player:avatarUpdate", { playerId: socket.id, avatar: updatedAvatar });
-    emitRoom(room);
+    await emitRoom(room);
     return { room: publicRoom(room, socket.id) };
   }));
 
-  socket.on("host:kick", ({ playerId }, reply) => safe(reply, () => {
-    const room = currentRoom(socket);
+  socket.on("host:kick", ({ playerId }, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
     kickPlayer(room, socket.id, playerId);
     io.to(playerId).emit("room:kicked");
-    emitRoom(room);
-    emitRoomList();
+    await emitRoom(room);
+    await emitRoomList();
     return { ok: true };
   }));
 
   socket.on("host:returnLobby", (_payload, reply) => safe(reply, async () => {
-    const room = currentRoom(socket);
+    const room = await currentRoom(socket);
     await discardActiveMatch(room);
     hostReturnLobby(room, socket.id);
-    emitRoom(room);
-    emitRoomList();
+    await emitRoom(room);
+    await emitRoomList();
     return { ok: true };
   }));
 
-  socket.on("host:autoTeams", (_payload, reply) => safe(reply, () => {
-    const room = currentRoom(socket);
+  socket.on("host:autoTeams", (_payload, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
     autoTeams(room, socket.id);
-    emitRoom(room);
+    await emitRoom(room);
     return { ok: true };
   }));
 
-  socket.on("chat:send", ({ scope, text }, reply) => safe(reply, () => {
-    const room = currentRoom(socket);
+  socket.on("chat:send", ({ scope, text }, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
     sendChatMessage(room, socket.id, scope, text);
-    emitRoom(room);
+    await emitRoom(room);
     return { ok: true };
   }));
 
   socket.on("game:start", (_payload, reply) => safe(reply, async () => {
-    const room = currentRoom(socket);
+    const room = await currentRoom(socket);
     startGame(room, socket.id);
-    createActiveMatch(room).catch((error) => console.error("createMatch failed", error));
-    emitRoom(room);
-    emitRoomList();
+    await resolveRoomImages(room);
+    await createActiveMatch(room);
+    await emitRoom(room);
+    await emitRoomList();
     return { ok: true };
   }));
 
-  socket.on("game:hints", ({ hints }, reply) => safe(reply, () => {
-    const room = currentRoom(socket);
+  socket.on("game:hints", ({ hints }, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
     submitHints(room, socket.id, hints);
-    emitRoom(room);
+    await emitRoom(room);
     return { ok: true };
   }));
 
-  socket.on("game:updateGuess", ({ kind, guess, targetTeam }, reply) => safe(reply, () => {
-    const room = currentRoom(socket);
+  socket.on("game:updateGuess", ({ kind, guess, targetTeam }, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
     updateGuess(room, socket.id, kind, guess, targetTeam);
-    emitRoom(room);
+    await emitRoom(room);
     return { ok: true };
   }));
 
-  socket.on("game:confirmDecision", ({ kind, targetTeam }, reply) => safe(reply, () => {
-    const room = currentRoom(socket);
+  socket.on("game:confirmDecision", ({ kind, targetTeam }, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
     confirmDecision(room, socket.id, kind, targetTeam);
-    emitRoom(room);
+    await emitRoom(room);
     return { ok: true };
   }));
 
-  socket.on("game:confirmResult", (_payload, reply) => safe(reply, () => {
-    const room = currentRoom(socket);
+  socket.on("game:confirmResult", (_payload, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
     confirmResult(room, socket.id);
-    emitRoom(room);
+    await emitRoom(room);
     return { ok: true };
   }));
 
-  socket.on("game:updateTiebreaker", ({ words }, reply) => safe(reply, () => {
-    const room = currentRoom(socket);
+  socket.on("game:updateTiebreaker", ({ words }, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
     updateTiebreaker(room, socket.id, words);
-    emitRoom(room);
+    await emitRoom(room);
     return { ok: true };
   }));
 
-  socket.on("game:confirmTiebreaker", (_payload, reply) => safe(reply, () => {
-    const room = currentRoom(socket);
+  socket.on("game:confirmTiebreaker", (_payload, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
     confirmTiebreaker(room, socket.id);
-    emitRoom(room);
+    await emitRoom(room);
     return { ok: true };
   }));
 
-  socket.on("game:confirmFinal", (_payload, reply) => safe(reply, () => {
-    const room = currentRoom(socket);
+  socket.on("game:confirmFinal", (_payload, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
     confirmFinal(room, socket.id);
-    emitRoom(room);
+    await emitRoom(room);
     return { ok: true };
   }));
 
@@ -345,50 +330,54 @@ io.on("connection", (socket) => {
     const player = room.players[socket.id];
     const clientId = player?.clientId || socket.id;
     sessions.delete(socket.id);
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       pendingDisconnects.delete(clientId);
-      if (!rooms.has(code)) return;
-      const liveRoom = rooms.get(code);
+      const liveRoom = await getRoom(code).catch(() => null);
+      if (!liveRoom) return;
       const removed = removePlayer(liveRoom, socket.id);
       if (!removed) return;
       if ((Object.keys(liveRoom.players).length === 0 || onlyTestBots(liveRoom)) && liveRoom.phase === "lobby") {
-        discardActiveMatch(liveRoom).catch((error) => console.error("discardMatch failed", error));
+        await discardActiveMatch(liveRoom).catch((error) => console.error("discardMatch failed", error));
         rooms.delete(code);
-        // Don't delete from database on disconnect - only when players explicitly leave
-        // deleteRoom(code).catch(() => {});
+        await deleteRoom(code).catch((error) => console.error("deleteRoom failed", error));
       }
       else {
-        emitRoom(liveRoom);
+        await emitRoom(liveRoom);
         emitRoomEvent(liveRoom, socket.id, "leave", removed);
       }
-      emitRoomList();
+      await emitRoomList();
     }, 1500);
     pendingDisconnects.set(clientId, timer);
   });
 });
 
-function uniqueRoom(playerId, name, avatar, clientId, roomOptions) {
+async function uniqueRoom(playerId, name, avatar, clientId, roomOptions) {
   let room = makeRoom(playerId, name, avatar, clientId, roomOptions);
-  while (rooms.has(room.code)) room = makeRoom(playerId, name, avatar, clientId, roomOptions);
+  while (rooms.has(room.code) || await loadRoom(room.code)) room = makeRoom(playerId, name, avatar, clientId, roomOptions);
   rooms.set(room.code, room);
   return room;
 }
 
-function currentRoom(socket) {
+async function currentRoom(socket) {
   const code = sessions.get(socket.id);
   return getRoom(code);
 }
 
-function getRoom(code) {
-  const room = rooms.get(String(code || "").trim().toUpperCase());
+async function getRoom(code) {
+  const normalizedCode = String(code || "").trim().toUpperCase();
+  const localRoom = rooms.get(normalizedCode);
+  const databaseRoom = await loadRoom(normalizedCode);
+  const room = newestRoom(localRoom, databaseRoom);
   if (!room) throw new Error("Sala nao encontrada.");
+  rooms.set(normalizedCode, room);
   return room;
 }
 
-function emitRoom(room) {
+async function emitRoom(room) {
   room.updatedAt = Date.now(); // Update timestamp for cleanup tracking
-  recordMatch(room).catch((error) => console.error("recordMatch failed", error));
-  saveRoom(room).catch((error) => console.error("saveRoom failed", error));
+  await recordMatch(room).catch((error) => console.error("recordMatch failed", error));
+  await saveRoom(room);
+  rooms.set(room.code, room);
   Object.keys(room.players).forEach((playerId) => {
     io.to(playerId).emit("room:update", publicRoom(room, playerId));
   });
@@ -402,28 +391,44 @@ function attachUser(player, user) {
   player.avatar = user.avatar || player.avatar || "";
 }
 
-function emitRoomList() {
-  io.emit("rooms:update", publicRoomList());
+async function emitRoomList() {
+  io.emit("rooms:update", await publicRoomList());
 }
 
-function publicRoomList() {
+async function publicRoomList() {
+  const databaseRooms = await listRooms();
+  databaseRooms.forEach((room) => {
+    if (!room?.code) return;
+    const normalizedCode = String(room.code).trim().toUpperCase();
+    rooms.set(normalizedCode, newestRoom(rooms.get(normalizedCode), room));
+  });
   return Array.from(rooms.values())
     .filter((room) => room.publicRoom !== false)
-    .map((room) => {
-      const players = Object.values(room.players);
-      const host = room.players[room.hostId] || players.find((player) => player.isHost);
-      return {
-        code: room.code,
-        name: room.name || room.code,
-        hostName: host?.name || "Host",
-        playerCount: players.length,
-        phase: room.phase,
-        inGame: room.phase !== "lobby",
-        hasPassword: Boolean(room.password),
-        category: room.settings?.category || "Geral",
-        updatedAt: room.updatedAt || room.createdAt || 0
-      };
-    });
+    .map(roomSummary);
+}
+
+function newestRoom(localRoom, databaseRoom) {
+  if (!localRoom) return databaseRoom;
+  if (!databaseRoom) return localRoom;
+  const localUpdated = Number(localRoom.updatedAt || localRoom.createdAt || 0);
+  const databaseUpdated = Number(databaseRoom.updatedAt || databaseRoom.createdAt || 0);
+  return databaseUpdated >= localUpdated ? databaseRoom : localRoom;
+}
+
+function roomSummary(room) {
+  const players = Object.values(room.players || {});
+  const host = room.players?.[room.hostId] || players.find((player) => player.isHost);
+  return {
+    code: room.code,
+    name: room.name || room.code,
+    hostName: host?.name || "Host",
+    playerCount: players.length,
+    phase: room.phase,
+    inGame: room.phase !== "lobby",
+    hasPassword: Boolean(room.password),
+    category: room.settings?.category || "Geral",
+    updatedAt: room.updatedAt || room.createdAt || 0
+  };
 }
 
 function validateRoomPassword(room, password) {
@@ -470,9 +475,78 @@ function safe(reply, fn) {
     .catch((error) => reply?.({ ok: false, error: error.message || "Erro inesperado." }));
 }
 
-function cacheImage(key, res, payload) {
+function cacheImage(key, payload) {
   imageCache.set(key, payload);
-  return res.json(payload);
+  return payload;
+}
+
+async function findImagePayload(query, category) {
+  const cacheKey = `${category}:${query}`.toLocaleLowerCase();
+  if (imageCache.has(cacheKey)) return imageCache.get(cacheKey);
+  const pokemon = await pokemonImage(query);
+  if (pokemon) return cacheImage(cacheKey, { url: pokemon, source: "pokeapi" });
+  if (category === "Geral") {
+    const pexels = await pexelsImage(query);
+    if (pexels) return cacheImage(cacheKey, { url: pexels.url, source: "pexels", photographer: pexels.photographer, page: pexels.page });
+  }
+  if (category === "Filmes") {
+    const poster = await omdbImage(query);
+    if (poster) return cacheImage(cacheKey, { url: poster, source: "omdb" });
+  }
+  if (!/\bpokemon\b/i.test(query)) {
+    const google = await googleImage(query);
+    if (google) return cacheImage(cacheKey, { url: google, source: "google" });
+  }
+  const wiki = await wikiImage(query);
+  if (wiki) return cacheImage(cacheKey, { url: wiki, source: "wikimedia" });
+  return cacheImage(cacheKey, { url: null, source: "fallback" });
+}
+
+async function resolveRoomImages(room) {
+  const category = room.settings?.category || "";
+  room.imageMap = {};
+  const words = TEAMS.flatMap((team) => room.teams?.[team]?.words || []);
+  await Promise.all(words.map(async (word) => {
+    const key = imageCacheKey(word, category);
+    if (category === "Pokemon") {
+      room.imageMap[key] = pokemonSpriteUrl(word);
+      return;
+    }
+    const query = serverImageSearchQuery(word, category);
+    const payload = await findImagePayload(query, category);
+    room.imageMap[key] = payload?.url || "";
+  }));
+}
+
+function imageCacheKey(word, category) {
+  return `${category || ""}:${encodeURIComponent(String(word || "").trim().toLowerCase())}`;
+}
+
+function serverImageSearchQuery(word, category) {
+  const cleanWord = String(word || "").trim();
+  if (category === "Geral" || category === "Famosos") return cleanWord;
+  const suffix = {
+    Anime: "anime character",
+    Filmes: "movie",
+    Jogos: "video game character",
+    Geek: "fictional character"
+  }[category] || category || "";
+  return `${cleanWord} ${suffix}`.trim();
+}
+
+function pokemonSpriteUrl(word) {
+  const slug = String(word || "")
+    .replace(/^Mr\.?\s+(Mime|Rime)$/i, "mr$1")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\./g, "")
+    .replace(/♀/g, "-f")
+    .replace(/♂/g, "-m")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return slug ? `https://projectpokemon.org/images/normal-sprite/${slug}.gif` : "";
 }
 
 async function googleImage(query) {

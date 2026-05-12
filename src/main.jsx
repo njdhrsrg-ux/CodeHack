@@ -628,7 +628,7 @@ function App() {
                 })}><RotateCcw size={17} /> Voltar ao lobby</button>
               )}
               <div className="home-user-strip topbar-profile-strip">
-                <button className="settings-avatar-preview small avatar-profile-button" title="Configuracoes" aria-label="Configuracoes" onClick={() => setPlayerSettingsOpen(true)}>
+                <button className="settings-avatar-preview small avatar-profile-button avatar-top-button" title="Configuracoes" aria-label="Configuracoes" onClick={() => setPlayerSettingsOpen(true)}>
                   {authUser?.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={28} />}
                 </button>
                 <strong>{authUser?.displayName || me?.name || "Jogador"}</strong>
@@ -1218,7 +1218,7 @@ function Home({ action, toast, playerAvatar, authUser, roomDirectory, onOpenRoom
     <section className="home-grid enter">
       <div className="console-panel">
         <div className="home-user-strip">
-          <button className="settings-avatar-preview small avatar-profile-button" title="Configuracoes" aria-label="Configuracoes" onClick={onOpenSettings}>
+          <button className="settings-avatar-preview small avatar-profile-button avatar-top-button" title="Configuracoes" aria-label="Configuracoes" onClick={onOpenSettings}>
             {authUser?.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={32} />}
           </button>
           {authUser ? (
@@ -1296,7 +1296,7 @@ function RoomDirectory({ rooms, constants, action, toast, playerAvatar, authUser
       <section className="panel rooms-filter-panel">
         <div className="rooms-filter-top">
           <div className="home-user-strip rooms-profile-strip">
-            <button className="settings-avatar-preview small avatar-profile-button" title="Configuracoes" aria-label="Configuracoes" onClick={onOpenSettings}>
+            <button className="settings-avatar-preview small avatar-profile-button avatar-top-button" title="Configuracoes" aria-label="Configuracoes" onClick={onOpenSettings}>
               {authUser?.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={32} />}
             </button>
             <div>
@@ -1759,7 +1759,7 @@ function Game({ room, playerId, constants, action, toast, playerAvatar }) {
       <div className="game-grid">
         <aside className="left-rail">
           <RoundCounter room={room} constants={constants} compact />
-          <WordsPanel team={myTeam} words={room.teams[myTeam]?.words || []} category={room.settings.category} />
+          <WordsPanel team={myTeam} words={room.teams[myTeam]?.words || []} category={room.settings.category} imageMap={room.imageMap} />
           <GamePlayersPanel room={room} playerId={playerId} constants={constants} action={action} playerAvatar={playerAvatar} />
         </aside>
 
@@ -1818,7 +1818,7 @@ function SpectatorRound({ room, playerId, constants }) {
       {TEAMS.map((team) => (
         <div className={`spectator-team-column team-surface ${team}`} key={team}>
           <p className="eyebrow"><RadioTower size={16} /> {constants.TEAM_NAMES[team]}</p>
-          <WordsPanel team={team} words={room.teams[team]?.words || []} category={room.settings.category} />
+          <WordsPanel team={team} words={room.teams[team]?.words || []} category={room.settings.category} imageMap={room.imageMap} />
           <SpectatorHints hints={room.current?.turns?.[team]?.hints || []} />
           <GuessPhase room={room} playerId={playerId} kind="team" targetTeam={team} title="Descriptografia" hints={room.current?.turns?.[team]?.hints || []} action={() => Promise.resolve({ ok: false })} />
           <GuessPhase room={room} playerId={playerId} kind="intercept" targetTeam={team} title="Interceptacao" hints={room.current?.turns?.[team]?.hints || []} action={() => Promise.resolve({ ok: false })} />
@@ -2013,6 +2013,7 @@ function GuessPhase({ room, playerId, kind, targetTeam, title, hints, action }) 
   const canAct = !room.blocked && me?.team === expectedTeam && (!isOwnCoderGuess || soloCoderTest) && hints.length > 0 && !proposal?.finalized;
   const canViewSharedGuess = (me?.spectator || me?.team === expectedTeam) && hints.length > 0;
   const voters = room.players.filter((player) => !player.spectator && player.team === expectedTeam && player.connected && (kind !== "team" || player.id !== turn?.coderId || soloCoderTest));
+  const interceptLocked = kind === "intercept" && room.round === 1;
 
   if (!turn) {
     return (
@@ -2025,6 +2026,18 @@ function GuessPhase({ room, playerId, kind, targetTeam, title, hints, action }) 
 
   function updateShared(nextGuess) {
     action("game:updateGuess", { kind, targetTeam, guess: nextGuess });
+  }
+
+  if (interceptLocked) {
+    return (
+      <div className={`decision-card team-surface ${targetTeam}`}>
+        <div className="decision-title">
+          <strong>{title}</strong>
+          <span>Rodada 2+</span>
+        </div>
+        <WaitingState label="Interceptacao disponivel a partir da segunda rodada." />
+      </div>
+    );
   }
 
   return (
@@ -2327,12 +2340,12 @@ function RoundCounter({ room, constants, compact = false }) {
   );
 }
 
-function WordsPanel({ team, words, category }) {
+function WordsPanel({ team, words, category, imageMap }) {
   return (
     <div className={`words-panel team-surface ${team || ""}`}>
       {words.map((word, index) => (
         <div className="word-card" key={`${category}-${word}-${index}`}>
-          <WordImage word={word} index={index} category={category} />
+          <WordImage word={word} index={index} category={category} imageUrl={imageUrlForWord(imageMap, word, category)} />
           <div>
             <strong><span className="word-number">#{index + 1} </span>{word}</strong>
           </div>
@@ -2342,14 +2355,19 @@ function WordsPanel({ team, words, category }) {
   );
 }
 
-function WordImage({ word, index, category }) {
+function WordImage({ word, index, category, imageUrl = undefined }) {
   const seed = Array.from(word).reduce((sum, char) => sum + char.charCodeAt(0), 0) + index * 23;
   const [failed, setFailed] = useState(word === "CRIPTOGRAFADA");
   const [remoteUrl, setRemoteUrl] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const url = category === "Pokemon" ? pokemonDbImageUrl(word) : remoteUrl;
+  const url = imageUrl !== undefined ? imageUrl : category === "Pokemon" ? pokemonDbImageUrl(word) : remoteUrl;
 
   useEffect(() => {
+    if (imageUrl !== undefined) {
+      setRemoteUrl(imageUrl || "");
+      setFailed(!imageUrl);
+      return undefined;
+    }
     if (category === "Pokemon" || word === "CRIPTOGRAFADA") return;
     let active = true;
     const cacheKey = imageCacheKey(word, category);
@@ -2385,7 +2403,7 @@ function WordImage({ word, index, category }) {
       active = false;
       controller.abort();
     };
-  }, [word, category]);
+  }, [word, category, imageUrl]);
 
   if (failed || !url) return <div className="mock-image" style={{ "--hue": seed % 360 }} aria-label={`Imagem relacionada a ${word}`}>{word.slice(0, 2).toUpperCase()}</div>;
   return (
@@ -2403,7 +2421,13 @@ function WordImage({ word, index, category }) {
 }
 
 function imageCacheKey(word, category) {
-  return `${category || ""}:${String(word || "").trim().toLowerCase()}`;
+  return `${category || ""}:${encodeURIComponent(String(word || "").trim().toLowerCase())}`;
+}
+
+function imageUrlForWord(imageMap, word, category) {
+  if (!imageMap) return undefined;
+  const key = imageCacheKey(word, category);
+  return Object.prototype.hasOwnProperty.call(imageMap, key) ? imageMap[key] || "" : undefined;
 }
 
 function HintsList({ hints }) {
@@ -2535,7 +2559,7 @@ function FinalWords({ room, constants }) {
                 const right = hasTiebreaker && normalizeWordText(guess) === normalizeWordText(word);
                 return (
                   <div className="final-word-card" key={`${team}-${word}-${index}`}>
-                    <WordImage word={word} index={index} category={room.settings.category} />
+                    <WordImage word={word} index={index} category={room.settings.category} imageUrl={imageUrlForWord(room.imageMap, word, room.settings.category)} />
                     <div className="final-word-copy">
                       <span><span className="word-number">#{index + 1} </span>{word}</span>
                       {hasTiebreaker && (

@@ -451,6 +451,15 @@ function beginRound(room) {
     nextPhase: "playing"
   };
   TEAMS.forEach((team) => chooseCoder(room, team));
+  if (room.round === 1) {
+    TEAMS.forEach((team) => {
+      const proposal = room.current.turns[team].proposals.intercept;
+      proposal.guess = [];
+      proposal.confirmedBy = [];
+      proposal.finalized = true;
+      proposal.updatedBy = null;
+    });
+  }
   autoPilotTestTurns(room);
   touch(room);
 }
@@ -540,8 +549,8 @@ function scoreRound(room) {
     const rival = otherTeam(team);
     const turn = room.current.turns[team];
     const teamGuess = turn.proposals.team.guess;
-    const interceptGuess = turn.proposals.intercept.guess;
-    const intercepted = sameCode(turn.code, interceptGuess);
+    const interceptGuess = room.round === 1 ? [] : turn.proposals.intercept.guess;
+    const intercepted = room.round > 1 && sameCode(turn.code, interceptGuess);
     const teamCorrect = intercepted ? null : sameCode(turn.code, teamGuess);
     if (intercepted) room.teams[rival].score.interceptions += 1;
     else if (teamCorrect) room.teams[team].score.correct += 1;
@@ -674,7 +683,7 @@ function replacePlayerReference(room, oldId, newId) {
 function allDecisionsFinalized(room) {
   return TEAMS.every((team) => {
     const proposals = room.current.turns[team].proposals;
-    return proposals.team.finalized && proposals.intercept.finalized;
+    return proposals.team.finalized && (room.round === 1 || proposals.intercept.finalized);
   });
 }
 
@@ -798,6 +807,7 @@ function guardDecision(room, playerId, kind, targetTeam, turn) {
   if (!player || !turn) throw new Error("Jogador fora desta decisao.");
   if (!turn.hints.length) throw new Error("As dicas deste codigo ainda nao foram enviadas.");
   if (turn.proposals[kind].finalized) throw new Error("Esta decisao ja foi fechada.");
+  if (kind === "intercept" && room.round === 1) throw new Error("Interceptacao libera a partir da segunda rodada.");
   if (kind === "team") {
     if (player.team !== targetTeam) throw new Error("Apenas o proprio time pode descriptografar.");
     if (playerId === turn.coderId && !allowSoloCoderDecision(room, targetTeam)) throw new Error("O codificador nao vota no proprio codigo.");
@@ -807,6 +817,7 @@ function guardDecision(room, playerId, kind, targetTeam, turn) {
 }
 
 function eligibleDecisionPlayers(room, kind, targetTeam) {
+  if (kind === "intercept" && room.round === 1) return [];
   const team = kind === "team" ? targetTeam : otherTeam(targetTeam);
   const players = teamPlayers(room, team).filter((player) => (
     player.connected && !player.testBot && (kind !== "team" || player.id !== room.current.turns[targetTeam].coderId)

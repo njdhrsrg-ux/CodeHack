@@ -336,8 +336,8 @@ export async function createActiveMatch(room) {
 export async function syncActiveMatch(room) {
   if (!room.matchSession?.id || room.matchSession.closed || room.matchSession.cancelled) return;
   if (room.phase === "roundResult" && room.current?.result && !room.matchSession.recordedRounds.includes(room.round)) {
-    await recordRoundStats(room);
     room.matchSession.recordedRounds.push(room.round);
+    await recordRoundStats(room);
   }
   await updateActiveMatchSnapshots(room);
   if (room.final && room.phase === "gameOver") await finalizeActiveMatch(room);
@@ -604,6 +604,9 @@ export async function saveRoom(room) {
     if (room.log) {
       roomData.log = cleanObject(room.log) || {};
     }
+    if (room.imageMap) {
+      roomData.imageMap = cleanObject(room.imageMap) || {};
+    }
     if (room.matchSession) {
       const cleanedSession = cleanObject(room.matchSession);
       if (cleanedSession) {
@@ -657,4 +660,3 @@ export async function listRooms() {
     return [];
   }
 }
-
