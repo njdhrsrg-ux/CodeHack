@@ -457,6 +457,7 @@ app.get("/api/image-proxy", async (req, res) => {
     const contentType = response.headers.get("content-type") || "";
     if (contentType && !contentType.toLowerCase().startsWith("image/")) return res.sendStatus(415);
     const bytes = Buffer.from(await response.arrayBuffer());
+    if (!isLikelyImage(bytes, contentType)) return res.sendStatus(415);
     res.setHeader("Content-Type", contentType || "image/jpeg");
     res.setHeader("Cache-Control", "public, max-age=86400");
     return res.end(bytes);
@@ -639,6 +640,14 @@ io.on("connection", (socket) => {
     const room = await currentRoom(socket);
     sendChatMessage(room, socket.id, scope, text);
     await emitRoom(room);
+    return { ok: true };
+  }));
+
+  socket.on("image:broken", ({ word, category, url }, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
+    invalidateRoomImage(room, word, category, url);
+    await emitRoom(room);
+    startRoomImageResolver(room.code);
     return { ok: true };
   }));
 
@@ -1002,6 +1011,19 @@ async function resolveImageUrlForWord(word, category) {
   return payload?.url || "";
 }
 
+function invalidateRoomImage(room, word, category, url) {
+  const cleanWord = String(word || "").trim();
+  const imageCategory = String(category || room.settings?.category || "").trim();
+  if (!cleanWord || !imageCategory) return;
+  const key = imageCacheKey(cleanWord, imageCategory);
+  if (room.imageMap?.[key] && (!url || room.imageMap[key] === url)) delete room.imageMap[key];
+  const query = serverImageSearchQuery(cleanWord, imageCategory);
+  imageCache.delete(`${imageCategory}:${query}`.toLocaleLowerCase());
+  imageSearchTerms(query).forEach((term) => {
+    imageCache.delete(`${imageCategory}:${term}`.toLocaleLowerCase());
+  });
+}
+
 function missingRoomImages(room) {
   const category = room.settings?.category || "";
   return TEAMS.flatMap((team) => room.teams?.[team]?.words || [])
@@ -1161,10 +1183,26 @@ async function imageAvailable(url) {
     }, 3500);
     if (!response.ok) return false;
     const contentType = response.headers.get("content-type") || "";
-    return !contentType || contentType.toLowerCase().startsWith("image/");
+    if (contentType && !contentType.toLowerCase().startsWith("image/")) return false;
+    const bytes = Buffer.from(await response.arrayBuffer());
+    return isLikelyImage(bytes, contentType);
   } catch {
     return false;
   }
+}
+
+function isLikelyImage(bytes, contentType = "") {
+  if (!bytes?.length) return false;
+  const type = String(contentType || "").toLowerCase();
+  if (type.includes("svg")) return bytes.toString("utf8", 0, Math.min(bytes.length, 512)).includes("<svg");
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return true;
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return true;
+  if (bytes.length >= 6 && bytes.toString("ascii", 0, 3) === "GIF") return true;
+  if (bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP") return true;
+  if (bytes.length >= 12 && bytes.toString("ascii", 4, 8) === "ftyp" && /avif|heic|heif/.test(bytes.toString("ascii", 8, 16))) return true;
+  if (bytes.length >= 2 && bytes[0] === 0x42 && bytes[1] === 0x4d) return true;
+  if (bytes.length >= 4 && bytes[0] === 0x00 && bytes[1] === 0x00 && bytes[2] === 0x01 && bytes[3] === 0x00) return true;
+  return false;
 }
 
 async function wikiImage(query) {

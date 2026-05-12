@@ -2945,15 +2945,18 @@ function WordImage({ word, index, category, imageUrl = undefined }) {
   const [remoteUrl, setRemoteUrl] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [imageRetry, setImageRetry] = useState(0);
+  const [reportedBroken, setReportedBroken] = useState("");
   const rawUrl = imageUrl !== undefined ? imageUrl : category === "Pokemon" ? pokemonDbImageUrl(word) : remoteUrl;
   const url = normalizeImageUrl(rawUrl);
   const displayedUrl = imageRetry ? `${url}${url.includes("?") ? "&" : "?"}retry=${imageRetry}` : url;
+  const waitingForServerImage = imageUrl !== undefined && !imageUrl && word !== "CRIPTOGRAFADA";
 
   useEffect(() => {
     setImageRetry(0);
+    setReportedBroken("");
     if (imageUrl !== undefined) {
       setRemoteUrl(imageUrl || "");
-      setFailed(!imageUrl);
+      setFailed(word === "CRIPTOGRAFADA");
       return undefined;
     }
     if (category === "Pokemon" || word === "CRIPTOGRAFADA") return;
@@ -2993,13 +2996,26 @@ function WordImage({ word, index, category, imageUrl = undefined }) {
     };
   }, [word, category, imageUrl]);
 
-  if (failed || !url) return <div className="mock-image" style={{ "--hue": seed % 360 }} aria-label={`Imagem relacionada a ${word}`}>{word.slice(0, 2).toUpperCase()}</div>;
+  if (word === "CRIPTOGRAFADA") return <div className="mock-image" style={{ "--hue": seed % 360 }} aria-label={`Imagem relacionada a ${word}`}>{word.slice(0, 2).toUpperCase()}</div>;
+  if (waitingForServerImage || failed || !url) {
+    return (
+      <div className="word-image-loading" aria-label={`Buscando imagem relacionada a ${word}`}>
+        <span className="waiting-spinner" aria-hidden="true" />
+      </div>
+    );
+  }
   return (
     <>
       <button className="word-image-button" type="button" onClick={() => setExpanded(true)} aria-label={`Ampliar imagem relacionada a ${word}`}>
         <img className="word-image" src={displayedUrl} alt={`Imagem relacionada a ${word}`} loading="lazy" onError={() => {
           if (imageRetry < 2) setImageRetry((retry) => retry + 1);
-          else setFailed(true);
+          else {
+            setFailed(true);
+            if (reportedBroken !== url) {
+              setReportedBroken(url);
+              socket.emit("image:broken", { word, category, url: rawUrl });
+            }
+          }
         }} />
       </button>
       {expanded && createPortal((

@@ -2525,7 +2525,8 @@ main {
 }
 
 .mock-image,
-.word-image {
+.word-image,
+.word-image-loading {
   width: 44px;
   aspect-ratio: 1;
   border-radius: 4px;
@@ -2589,6 +2590,20 @@ main {
   font-weight: 800;
   color: var(--surface-accent, var(--accent));
   background: transparent;
+}
+
+.word-image-loading {
+  display: grid;
+  place-items: center;
+  color: var(--surface-accent, var(--accent));
+  background: transparent;
+  opacity: 0.82;
+}
+
+.word-image-loading .waiting-spinner {
+  width: 24px;
+  border-width: 2px;
+  animation-duration: 1500ms;
 }
 
 .word-name {
