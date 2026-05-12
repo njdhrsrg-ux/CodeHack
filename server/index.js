@@ -645,15 +645,10 @@ io.on("connection", (socket) => {
   socket.on("game:start", (_payload, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
     startGame(structuredClone(room), socket.id);
-    const baselineUpdatedAt = Number(room.updatedAt || 0);
-    io.to(room.code).emit("room:starting", { duration: 5000 });
-    await sleep(5000);
     const liveRoom = await getRoom(room.code);
-    if (Number(liveRoom.updatedAt || 0) !== baselineUpdatedAt || liveRoom.phase !== "lobby") {
-      io.to(room.code).emit("room:startingCancelled");
-      return { cancelled: true };
-    }
+    if (liveRoom.phase !== "lobby") return { cancelled: true };
     startGame(liveRoom, socket.id);
+    liveRoom.imageMap = {};
     await createActiveMatch(liveRoom);
     await emitRoom(liveRoom);
     await emitRoomList();
@@ -966,14 +961,11 @@ async function findImagePayload(query, category) {
 async function resolveRoomImages(room) {
   const category = room.settings?.category || "";
   room.imageMap ||= {};
-  for (const team of TEAMS) {
-    const words = room.teams?.[team]?.words || [];
-    for (let index = 0; index < words.length; index += 1) {
-      const word = words[index];
-      const key = imageCacheKey(word, category);
-      if (room.imageMap[key]) continue;
-      room.imageMap[key] = await resolveImageUrlForWord(word, category);
-    }
+  const missing = missingRoomImages(room);
+  for (const word of missing) {
+    const key = imageCacheKey(word, category);
+    const url = await resolveImageUrlForWord(word, category);
+    if (url) room.imageMap[key] = url;
   }
   return room.imageMap;
 }
@@ -983,7 +975,8 @@ async function startRoomImageResolver(code) {
   if (!roomCode || imageResolveJobs.has(roomCode)) return;
   imageResolveJobs.add(roomCode);
   try {
-    for (let attempt = 0; attempt < 12; attempt += 1) {
+    let attempt = 0;
+    while (true) {
       const room = await getRoom(roomCode).catch(() => null);
       if (!room || room.phase === "lobby") break;
       const before = JSON.stringify(room.imageMap || {});
@@ -991,6 +984,7 @@ async function startRoomImageResolver(code) {
       const after = JSON.stringify(room.imageMap || {});
       if (after !== before) await emitRoom(room);
       if (!missingRoomImages(room).length) break;
+      attempt += 1;
       await sleep(Math.min(3000 + attempt * 1500, 15000));
     }
   } finally {
@@ -1270,6 +1264,7 @@ async function loadRoomsFromDatabase() {
         room = normalizeRoom(room);
         if (room && room.code) {
           rooms.set(room.code, room);
+          if (room.phase !== "lobby" && missingRoomImages(room).length) startRoomImageResolver(room.code);
         }
       });
       console.log(`Loaded ${roomsFromDb.length} rooms from the database`);

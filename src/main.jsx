@@ -717,7 +717,6 @@ function App() {
   const [toast, setToast] = useState("");
   const [roomEvents, setRoomEvents] = useState([]);
   const [inactiveClosed, setInactiveClosed] = useState(null);
-  const [startingRoom, setStartingRoom] = useState(null);
   const [joinChoice, setJoinChoice] = useState(null);
   const [passwordJoin, setPasswordJoin] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -793,7 +792,6 @@ function App() {
     socket.on("room:update", (nextRoom) => {
       if (nextRoom?.viewerId) setPlayerId(nextRoom.viewerId);
       setRoom(hydrateRoom(nextRoom));
-      setStartingRoom(null);
       if (nextRoom?.inactivityClosesAt) {
         setRoomEvents((events) => [
           ...events.filter((item) => item.type !== "inactivity"),
@@ -840,15 +838,6 @@ function App() {
       }
       setInactiveClosed(payload);
     });
-    socket.on("room:starting", (payload = {}) => {
-      setStartingRoom({
-        startedAt: Date.now(),
-        duration: payload.duration || 5000
-      });
-    });
-    socket.on("room:startingCancelled", () => {
-      setStartingRoom(null);
-    });
     return () => {
       socket.off("constants");
       socket.off("rooms:update");
@@ -859,8 +848,6 @@ function App() {
       socket.off("room:inactivityWarning");
       socket.off("room:inactivityClear");
       socket.off("room:inactiveClosed");
-      socket.off("room:starting");
-      socket.off("room:startingCancelled");
     };
   }, []);
 
@@ -1096,7 +1083,6 @@ function App() {
         />
       )}
       <RoomEventStack events={roomEvents} />
-      {startingRoom && <StartingGameOverlay starting={startingRoom} />}
       {inactiveClosed && <InactivityClosedModal reason={inactiveClosed.reason} onClose={() => setInactiveClosed(null)} />}
       {joinChoice && (
         <JoinChoiceModal
@@ -1388,24 +1374,6 @@ function InactivityEventCard({ event, now }) {
         <strong>Sala inativa</strong>
         {" interaja para impedir o encerramento."}
       </span>
-    </div>
-  );
-}
-
-function StartingGameOverlay({ starting }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(timer);
-  }, []);
-  const remaining = Math.max(0, Number(starting.startedAt || now) + Number(starting.duration || 5000) - now);
-  const seconds = Math.max(0, Math.ceil(remaining / 1000));
-  return (
-    <div className="confirm-overlay starting-overlay" role="status" aria-live="polite">
-      <div className="confirm-modal starting-modal">
-        <div className="starting-countdown">{seconds}</div>
-        <p>Partida iniciando..</p>
-      </div>
     </div>
   );
 }
