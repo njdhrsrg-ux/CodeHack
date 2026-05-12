@@ -3130,8 +3130,8 @@ function SearchableWordSelect({ value, options, category, placeholder, duplicate
 function imageUrlForWord(imageMap, word, category) {
   if (!imageMap) return undefined;
   const key = imageCacheKey(word, category);
-  if (!Object.prototype.hasOwnProperty.call(imageMap, key)) return undefined;
-  return imageMap[key] || undefined;
+  if (!Object.prototype.hasOwnProperty.call(imageMap, key)) return "";
+  return imageMap[key] || "";
 }
 
 function WordName({ word, category }) {

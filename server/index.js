@@ -436,6 +436,33 @@ app.get("/api/image", async (req, res) => {
   if (!query || query === "CRIPTOGRAFADA") return res.status(400).json({ error: "query required" });
   return res.json(await findImagePayload(query, category));
 });
+app.get("/api/image-proxy", async (req, res) => {
+  const rawUrl = String(req.query.u || "");
+  let target;
+  try {
+    target = new URL(rawUrl);
+  } catch {
+    return res.sendStatus(400);
+  }
+  if (!["http:", "https:"].includes(target.protocol)) return res.sendStatus(400);
+  try {
+    const response = await fetchWithTimeout(target, {
+      headers: {
+        "User-Agent": "CodeHackImageProxy/1.0",
+        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+      }
+    }, 8000);
+    if (!response.ok) return res.sendStatus(502);
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType && !contentType.toLowerCase().startsWith("image/")) return res.sendStatus(415);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    res.setHeader("Content-Type", contentType || "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    return res.end(bytes);
+  } catch {
+    return res.sendStatus(504);
+  }
+});
 app.use(express.static(distPath));
 app.get("/{*splat}", (_req, res) => res.sendFile(path.join(distPath, "index.html")));
 
@@ -856,8 +883,15 @@ function sleep(ms) {
 }
 
 function cacheImage(key, payload) {
-  imageCache.set(key, payload);
-  return payload;
+  const normalized = payload?.url ? { ...payload, url: proxiedImageUrl(payload.url) } : payload;
+  imageCache.set(key, normalized);
+  return normalized;
+}
+
+function proxiedImageUrl(url) {
+  const value = String(url || "");
+  if (!/^https?:\/\//i.test(value)) return value;
+  return `/api/image-proxy?u=${encodeURIComponent(value)}`;
 }
 
 async function findImagePayload(query, category) {
@@ -893,7 +927,7 @@ async function resolveRoomImages(room) {
   await Promise.all(words.map(async (word) => {
     const key = imageCacheKey(word, category);
     if (category === "Pokemon") {
-      room.imageMap[key] = pokemonSpriteUrl(word);
+      room.imageMap[key] = proxiedImageUrl(pokemonSpriteUrl(word));
       return;
     }
     const query = serverImageSearchQuery(word, category);
