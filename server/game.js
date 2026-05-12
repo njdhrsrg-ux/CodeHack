@@ -70,8 +70,8 @@ export function normalizeRoom(room) {
   room.name = cleanRoomName(room.name || room.code || "Sala");
   room.password = cleanRoomPassword(room.password);
   room.publicRoom = room.publicRoom !== false;
-  room.players = normalizeObject(room.players);
-  room.departedPlayers = normalizeObject(room.departedPlayers);
+  room.players = Object.fromEntries(Object.entries(normalizeObject(room.players)).map(([id, player]) => [id, normalizePlayer(player, id)]));
+  room.departedPlayers = Object.fromEntries(Object.entries(normalizeObject(room.departedPlayers)).map(([id, player]) => [id, normalizePlayer(player, player?.id || id)]));
   room.settings = {
     category: room.settings?.category || "Geral",
     customWords: Array.isArray(room.settings?.customWords) ? room.settings.customWords.map(cleanWord).filter(Boolean) : [],
@@ -1075,6 +1075,30 @@ function normalizeChat(chat) {
       blue: toArray(chat?.team?.blue)
     },
     spectator: toArray(chat?.spectator || base.spectator)
+  };
+}
+
+function normalizePlayer(player, fallbackId) {
+  const normalized = normalizeObject(player);
+  const id = String(normalized.id || fallbackId || "");
+  const team = TEAMS.includes(normalized.team) ? normalized.team : null;
+  return {
+    id,
+    clientId: cleanClientId(normalized.clientId || id),
+    sessionTag: normalized.sessionTag || makeSessionTag(normalized.clientId || id),
+    userId: normalized.userId || null,
+    username: normalized.username || "",
+    name: cleanName(normalized.name),
+    avatar: cleanAvatar(normalized.avatar),
+    team,
+    spectator: team === null || Boolean(normalized.spectator),
+    isHost: Boolean(normalized.isHost),
+    connected: normalized.connected !== false,
+    joinedRound: normalized.joinedRound ?? null,
+    joinedAt: Number(normalized.joinedAt || Date.now()),
+    rejoinedAt: normalized.rejoinedAt || null,
+    leftAt: normalized.leftAt || null,
+    testBot: Boolean(normalized.testBot)
   };
 }
 

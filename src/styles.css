@@ -730,6 +730,7 @@ main {
 .topbar-profile-strip {
   padding: 0.35rem 0.55rem;
   max-width: 260px;
+  align-items: center;
 }
 
 .topbar-profile-strip strong {
@@ -2435,6 +2436,12 @@ main {
   border-radius: 8px;
   background: rgba(2, 7, 14, 0.98);
   box-shadow: 0 18px 34px rgba(0, 0, 0, 0.42), 0 0 22px var(--surface-soft, var(--accent-soft));
+}
+
+.search-select-menu-portal {
+  position: fixed;
+  right: auto;
+  z-index: 60000;
 }
 
 .search-select-menu input {

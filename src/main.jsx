@@ -337,6 +337,59 @@ const IMAGE_ORIGIN = {
   }
 };
 
+const ORIGIN_FALLBACK = {
+  Anime: {
+    "Ash Ketchum": "Pokemon", "Misty": "Pokemon", "Brock": "Pokemon", "Serena": "Pokemon",
+    "Yugi Muto": "Yu-Gi-Oh!", "Seto Kaiba": "Yu-Gi-Oh!", "Joey Wheeler": "Yu-Gi-Oh!", "Yami Yugi": "Yu-Gi-Oh!",
+    "Natsu Dragneel": "Fairy Tail", "Lucy Heartfilia": "Fairy Tail", "Erza Scarlet": "Fairy Tail", "Gray Fullbuster": "Fairy Tail",
+    "Meliodas": "The Seven Deadly Sins", "Ban": "The Seven Deadly Sins", "Diane": "The Seven Deadly Sins", "Escanor": "The Seven Deadly Sins",
+    "Rimuru Tempest": "That Time I Got Reincarnated as a Slime", "Raphtalia": "The Rising of the Shield Hero", "Naofumi Iwatani": "The Rising of the Shield Hero",
+    "Subaru Natsuki": "Re:Zero", "Emilia": "Re:Zero", "Rem": "Re:Zero", "Ram": "Re:Zero",
+    "Kazuma Sato": "KonoSuba", "Aqua": "KonoSuba", "Megumin": "KonoSuba", "Darkness": "KonoSuba",
+    "Kirito": "Sword Art Online", "Asuna Yuuki": "Sword Art Online", "Sinon": "Sword Art Online", "Eugeo": "Sword Art Online",
+    "Yuji Itadori": "Jujutsu Kaisen", "Ryomen Sukuna": "Jujutsu Kaisen", "Maki Zenin": "Jujutsu Kaisen", "Toge Inumaki": "Jujutsu Kaisen", "Panda": "Jujutsu Kaisen", "Yuta Okkotsu": "Jujutsu Kaisen",
+    "Denji": "Chainsaw Man", "Power": "Chainsaw Man", "Makima": "Chainsaw Man", "Kobeni Higashiyama": "Chainsaw Man", "Pochita": "Chainsaw Man",
+    "Anya Forger": "Spy x Family", "Loid Forger": "Spy x Family", "Yor Forger": "Spy x Family", "Bond Forger": "Spy x Family",
+    "Frieren": "Frieren", "Fern": "Frieren", "Stark": "Frieren", "Himmel": "Frieren",
+    "Maomao": "The Apothecary Diaries", "Jinshi": "The Apothecary Diaries",
+    "Thorfinn": "Vinland Saga", "Askeladd": "Vinland Saga", "Canute": "Vinland Saga",
+    "Senku Ishigami": "Dr. Stone", "Kohaku": "Dr. Stone", "Shoyo Hinata": "Haikyuu!!", "Tobio Kageyama": "Haikyuu!!",
+    "Violet Evergarden": "Violet Evergarden", "Guts": "Berserk", "Griffith": "Berserk", "Casca": "Berserk",
+    "Alucard": "Hellsing", "Motoko Kusanagi": "Ghost in the Shell", "Conan Edogawa": "Detective Conan",
+    "Saber": "Fate/stay night", "Rin Tohsaka": "Fate/stay night", "Shirou Emiya": "Fate/stay night",
+    "Lupin III": "Lupin III", "Gintoki Sakata": "Gintama", "Mugen": "Samurai Champloo", "Jin": "Samurai Champloo",
+    "Simon": "Gurren Lagann", "Kamina": "Gurren Lagann", "Ryuko Matoi": "Kill la Kill", "Satsuki Kiryuin": "Kill la Kill",
+    "Kaguya Shinomiya": "Kaguya-sama", "Miyuki Shirogane": "Kaguya-sama", "Marin Kitagawa": "My Dress-Up Darling"
+  },
+  Jogos: {
+    "Wario": "Super Mario", "Waluigi": "Super Mario", "Rosalina": "Super Mario", "Midna": "The Legend of Zelda",
+    "Amy Rose": "Sonic the Hedgehog", "Dr Eggman": "Sonic the Hedgehog", "Cammy White": "Street Fighter", "Akuma": "Street Fighter",
+    "Kitana": "Mortal Kombat", "Mileena": "Mortal Kombat", "Raiden": "Mortal Kombat", "Shao Kahn": "Mortal Kombat",
+    "Squall Leonhart": "Final Fantasy VIII", "Tidus": "Final Fantasy X", "Yuna": "Final Fantasy X", "Lightning": "Final Fantasy XIII",
+    "Cortana": "Halo", "Marcus Fenix": "Gears of War", "Commander Shepard": "Mass Effect", "Morrigan": "Dragon Age",
+    "Arthur Morgan": "Red Dead Redemption", "Dutch van der Linde": "Red Dead Redemption", "Tommy Vercetti": "Grand Theft Auto", "Niko Bellic": "Grand Theft Auto",
+    "Dante": "Devil May Cry", "Vergil": "Devil May Cry", "Bayonetta": "Bayonetta", "Freya": "God of War",
+    "Malenia": "Elden Ring", "Radahn": "Elden Ring", "Ranni": "Elden Ring", "Solaire": "Dark Souls",
+    "Sekiro": "Sekiro", "Doom Slayer": "Doom", "Isaac Clarke": "Dead Space", "Pyramid Head": "Silent Hill",
+    "Booker DeWitt": "BioShock Infinite", "Elizabeth": "BioShock Infinite", "Corvo Attano": "Dishonored",
+    "Jesse Faden": "Control", "Sam Fisher": "Splinter Cell", "Kazuma Kiryu": "Yakuza", "Goro Majima": "Yakuza",
+    "Sans": "Undertale", "Papyrus": "Undertale", "Cuphead": "Cuphead", "Hollow Knight": "Hollow Knight",
+    "Banjo": "Banjo-Kazooie", "Kazooie": "Banjo-Kazooie", "Ratchet": "Ratchet & Clank", "Clank": "Ratchet & Clank"
+  },
+  Geek: {
+    "Batgirl": "DC Comics", "Nightwing": "DC Comics", "Red Hood": "DC Comics", "Deathstroke": "DC Comics", "Riddler": "DC Comics",
+    "Moon Knight": "Marvel Comics", "Daredevil": "Marvel Comics", "Punisher": "Marvel Comics", "Venom": "Marvel Comics", "Carnage": "Marvel Comics", "Miles Morales": "Marvel Comics",
+    "Invincible": "Invincible", "Omni-Man": "Invincible", "Atom Eve": "Invincible",
+    "Bender": "Futurama", "Fry": "Futurama", "Leela": "Futurama", "Peter Griffin": "Family Guy", "Stewie Griffin": "Family Guy",
+    "Rick Grimes": "The Walking Dead", "Daryl Dixon": "The Walking Dead", "Walter White": "Breaking Bad", "Jesse Pinkman": "Breaking Bad", "Saul Goodman": "Better Call Saul",
+    "Daenerys Targaryen": "Game of Thrones", "Jon Snow": "Game of Thrones", "Tyrion Lannister": "Game of Thrones", "Arya Stark": "Game of Thrones",
+    "The Mandalorian": "Star Wars", "Din Djarin": "Star Wars", "Boba Fett": "Star Wars", "Anakin Skywalker": "Star Wars", "R2-D2": "Star Wars",
+    "Worf": "Star Trek", "Seven of Nine": "Star Trek", "Paul Atreides": "Dune", "Chani": "Dune",
+    "Buffy Summers": "Buffy the Vampire Slayer", "Sarah Connor": "Terminator", "T-800": "Terminator", "Ellen Ripley": "Alien",
+    "Neo": "The Matrix", "Trinity": "The Matrix", "Morpheus": "The Matrix", "Agent Smith": "The Matrix"
+  }
+};
+
 function hydrateRoom(nextRoom) {
   if (!nextRoom) return nextRoom;
   const avatars = nextRoom.avatars || {};
@@ -628,9 +681,7 @@ function App() {
                 })}><RotateCcw size={17} /> Voltar ao lobby</button>
               )}
               <div className="home-user-strip topbar-profile-strip">
-                <button className="settings-avatar-preview small avatar-profile-button" title="Configuracoes" aria-label="Configuracoes" onClick={() => setPlayerSettingsOpen(true)}>
-                  {authUser?.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={28} />}
-                </button>
+                <SettingsAvatarButton avatar={authUser?.avatar} onClick={() => setPlayerSettingsOpen(true)} />
                 <strong>{authUser?.displayName || me?.name || "Jogador"}</strong>
               </div>
             </div>
@@ -831,6 +882,7 @@ function RetroSelect({ value, options, onChange, disabled = false }) {
   const [open, setOpen] = useState(false);
   const [menuRect, setMenuRect] = useState(null);
   const triggerRef = useRef(null);
+  const menuRef = useRef(null);
   const items = options.map((option) => (
     typeof option === "string" ? { value: option, label: option } : option
   ));
@@ -839,24 +891,26 @@ function RetroSelect({ value, options, onChange, disabled = false }) {
     if (!open) return undefined;
     function updateRect() {
       const rect = triggerRef.current?.getBoundingClientRect();
-      if (rect) setMenuRect({ left: rect.left, top: rect.bottom + 6, width: rect.width });
+      const zoom = siteZoom();
+      if (rect) setMenuRect({ left: rect.left / zoom, top: (rect.bottom + 6) / zoom, width: rect.width / zoom });
+    }
+    function close(event) {
+      if (triggerRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
+      setOpen(false);
     }
     updateRect();
+    document.addEventListener("mousedown", close);
     window.addEventListener("resize", updateRect);
     window.addEventListener("scroll", updateRect, true);
     return () => {
+      document.removeEventListener("mousedown", close);
       window.removeEventListener("resize", updateRect);
       window.removeEventListener("scroll", updateRect, true);
     };
   }, [open]);
 
   return (
-    <div
-      className={`retro-select ${open ? "open" : ""} ${disabled ? "disabled" : ""}`}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
-      }}
-    >
+    <div className={`retro-select ${open ? "open" : ""} ${disabled ? "disabled" : ""}`}>
       <button
         ref={triggerRef}
         type="button"
@@ -870,7 +924,7 @@ function RetroSelect({ value, options, onChange, disabled = false }) {
         <i aria-hidden="true" />
       </button>
       {open && menuRect && createPortal(
-        <div className="retro-select-menu retro-select-menu-portal" role="listbox" style={{ left: menuRect.left, top: menuRect.top, width: menuRect.width }}>
+        <div ref={menuRef} className="retro-select-menu retro-select-menu-portal" role="listbox" style={{ left: menuRect.left, top: menuRect.top, width: menuRect.width }}>
           {items.map((option) => (
             <button
               type="button"
@@ -932,6 +986,14 @@ function RoomEventStack({ events }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function SettingsAvatarButton({ avatar, onClick }) {
+  return (
+    <button className="settings-avatar-preview small avatar-profile-button" title="Configuracoes" aria-label="Configuracoes" onClick={onClick}>
+      {avatar ? <img src={avatar} alt="" /> : <UserCircle size={32} />}
+    </button>
   );
 }
 
@@ -1218,9 +1280,7 @@ function Home({ action, toast, playerAvatar, authUser, roomDirectory, onOpenRoom
     <section className="home-grid enter">
       <div className="console-panel">
         <div className="home-user-strip">
-          <button className="settings-avatar-preview small avatar-profile-button" title="Configuracoes" aria-label="Configuracoes" onClick={onOpenSettings}>
-            {authUser?.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={32} />}
-          </button>
+          <SettingsAvatarButton avatar={authUser?.avatar} onClick={onOpenSettings} />
           {authUser ? (
             <div>
               <strong>{authUser.displayName}</strong>
@@ -1296,9 +1356,7 @@ function RoomDirectory({ rooms, constants, action, toast, playerAvatar, authUser
       <section className="panel rooms-filter-panel">
         <div className="rooms-filter-top">
           <div className="home-user-strip rooms-profile-strip">
-            <button className="settings-avatar-preview small avatar-profile-button" title="Configuracoes" aria-label="Configuracoes" onClick={onOpenSettings}>
-              {authUser?.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={32} />}
-            </button>
+            <SettingsAvatarButton avatar={authUser?.avatar} onClick={onOpenSettings} />
             <div>
               <strong>{authUser ? authUser.displayName : (splitGuestDisplayName(name.trim()).name || guestName())}</strong>
             </div>
@@ -1753,6 +1811,7 @@ function Game({ room, playerId, constants, action, toast, playerAvatar }) {
   const myTeam = me?.team;
   const rival = otherTeam(myTeam);
   const winner = getWinner(room, constants);
+  const roundResultRevealed = useRoundResultRevealed(room);
 
   return (
     <section className="game-page enter">
@@ -1774,7 +1833,7 @@ function Game({ room, playerId, constants, action, toast, playerAvatar }) {
 
         <aside className="right-rail">
           <div className="side-panel scoreboard-panel">
-            <ScoreBoard room={room} constants={constants} playerId={playerId} ordered />
+            <ScoreBoard room={room} constants={constants} playerId={playerId} ordered revealScores={roundResultRevealed} />
           </div>
           <ChatPanel room={room} playerId={playerId} action={action} scope="team" />
         </aside>
@@ -1786,6 +1845,7 @@ function Game({ room, playerId, constants, action, toast, playerAvatar }) {
 
 function SpectatorGame({ room, playerId, constants, action, toast, playerAvatar }) {
   const winner = getWinner(room, constants);
+  const roundResultRevealed = useRoundResultRevealed(room);
   return (
     <section className="game-page spectator-page enter">
       <div className="spectator-game-grid">
@@ -1801,7 +1861,7 @@ function SpectatorGame({ room, playerId, constants, action, toast, playerAvatar 
         </div>
         <aside className="right-rail">
           <div className="side-panel scoreboard-panel">
-            <ScoreBoard room={room} constants={constants} playerId={playerId} ordered />
+            <ScoreBoard room={room} constants={constants} playerId={playerId} ordered revealScores={roundResultRevealed} />
           </div>
           <GamePlayersPanel room={room} playerId={playerId} constants={constants} action={() => Promise.resolve({ ok: false })} playerAvatar={playerAvatar} />
           <ChatPanel room={room} playerId={playerId} action={action} scope="spectator" />
@@ -2149,6 +2209,7 @@ function RoundResult({ room, playerId, constants, action }) {
   const results = room.current.result;
   const me = room.players.find((player) => player.id === playerId);
   const orderedTeams = me?.team ? [me.team, otherTeam(me.team)] : TEAMS;
+  const revealed = useRoundResultRevealed(room);
   useAutoAdvanceRoundResult(room, playerId, action, me);
   return (
     <div className={`phase-card result-phase team-surface ${me?.team || ""} reveal`}>
@@ -2162,12 +2223,34 @@ function RoundResult({ room, playerId, constants, action }) {
             constants={constants}
             viewerTeam={me?.team}
             fromSide={index === 0 ? "from-right" : "from-left"}
+            round={room.round}
           />
         ))}
       </div>
-      <WaitingState label={me?.spectator ? "Acompanhando..." : "Proxima rodada em instantes..."} />
+      {revealed && <WaitingState label={roundResultNextLabel(room, me)} />}
     </div>
   );
+}
+
+function useRoundResultRevealed(room) {
+  const [revealed, setRevealed] = useState(room.phase !== "roundResult");
+  useEffect(() => {
+    if (room.phase !== "roundResult") {
+      setRevealed(true);
+      return undefined;
+    }
+    setRevealed(false);
+    const timer = window.setTimeout(() => setRevealed(true), room.round === 1 ? 4300 : 9300);
+    return () => window.clearTimeout(timer);
+  }, [room.phase, room.current?.id, room.round]);
+  return revealed;
+}
+
+function roundResultNextLabel(room, me) {
+  if (me?.spectator) return "Acompanhando...";
+  if (room.current?.nextPhase === "gameOver") return "Fim da partida em instantes...";
+  if (room.current?.nextPhase === "tiebreaker") return "Desempate em instantes...";
+  return "Proxima rodada em instantes...";
 }
 
 function useAutoAdvanceRoundResult(room, playerId, action, me) {
@@ -2180,25 +2263,31 @@ function useAutoAdvanceRoundResult(room, playerId, action, me) {
   }, [room.phase, room.current?.id, room.blocked, me?.spectator, playerId]);
 }
 
-function ResultTeamTile({ team, results, constants, viewerTeam, fromSide }) {
+function ResultTeamTile({ team, results, constants, viewerTeam, fromSide, round }) {
   const ownResult = results[team];
   const rivalResult = results[otherTeam(team)];
   useResultSounds(ownResult, team, viewerTeam);
+  const firstRound = round === 1;
+  const decryptDelay = firstRound ? 0.4 : 5.5;
+  const decryptStatusDelay = firstRound ? 3.4 : 8.5;
+  const correctDelay = firstRound ? 3.9 : 9;
   return (
     <div className={`result-tile team-surface ${team}`} key={team}>
       <span>{constants.TEAM_NAMES[team]}</span>
       <div className="result-code-list">
-        <AnimatedInterceptLine
-          outgoingValues={rivalResult.interceptGuess}
-          incomingValues={ownResult.interceptGuess}
-          outgoingTeam={team}
-          incomingTeam={otherTeam(team)}
-          status={ownResult.intercepted}
-          revealDelay={0.2}
-          fromSide={fromSide}
-        />
+        {!firstRound && (
+          <AnimatedInterceptLine
+            outgoingValues={rivalResult.interceptGuess}
+            incomingValues={ownResult.interceptGuess}
+            outgoingTeam={team}
+            incomingTeam={otherTeam(team)}
+            status={ownResult.intercepted}
+            revealDelay={0.2}
+            fromSide={fromSide}
+          />
+        )}
         {ownResult.decryptionSkipped ? (
-          <div className="result-code-line skipped decrypt-reveal" style={{ "--reveal-delay": "5.5s" }}>
+          <div className="result-code-line skipped decrypt-reveal" style={{ "--reveal-delay": `${decryptDelay}s` }}>
             <strong>Descriptografia ignorada</strong>
           </div>
         ) : (
@@ -2207,12 +2296,12 @@ function ResultTeamTile({ team, results, constants, viewerTeam, fromSide }) {
             tone={team}
             status={ownResult.teamCorrect}
             className="decrypt-reveal"
-            revealDelay={5.5}
-            statusDelay={8.5}
+            revealDelay={decryptDelay}
+            statusDelay={decryptStatusDelay}
             reading
           />
         )}
-        <CodeLine values={ownResult.code} tone="correct" className="correct-reveal" revealDelay={9} />
+        <CodeLine values={ownResult.code} tone="correct" className="correct-reveal" revealDelay={correctDelay} />
       </div>
     </div>
   );
@@ -2313,13 +2402,13 @@ function GameOver({ room, playerId, constants, winner, action }) {
   );
 }
 
-function ScoreBoard({ room, constants, playerId, ordered = false }) {
+function ScoreBoard({ room, constants, playerId, ordered = false, revealScores = true }) {
   const me = room.players.find((player) => player.id === playerId);
   const teams = ordered && me?.team ? [me.team, otherTeam(me.team)] : TEAMS;
   return (
     <div className="scoreboard">
       {teams.map((team) => {
-        const score = room.teams[team].score;
+        const score = revealScores ? room.teams[team].score : previousRoundScore(room, team, constants);
         return (
           <div className={`score team-surface ${team}`} key={team}>
             <span>{constants.TEAM_NAMES[team]}</span>
@@ -2436,22 +2525,54 @@ function DisabledInterceptState() {
   );
 }
 
+function previousRoundScore(room, team, constants) {
+  const current = room.teams[team].score || {};
+  const score = { correct: current.correct || 0, interceptions: current.interceptions || 0, lives: current.lives ?? startingLivesLimit(room, constants) };
+  if (room.phase !== "roundResult" || !room.current?.result) return score;
+  TEAMS.forEach((targetTeam) => {
+    const result = room.current.result[targetTeam];
+    if (!result) return;
+    const rival = otherTeam(targetTeam);
+    if (result.intercepted && rival === team) score.interceptions = Math.max(0, score.interceptions - 1);
+    else if (targetTeam === team && result.teamCorrect) score.correct = Math.max(0, score.correct - 1);
+    else if (targetTeam === team && result.teamCorrect === false) score.lives = Math.min(startingLivesLimit(room, constants), score.lives + 1);
+  });
+  return score;
+}
+
 function SearchableWordSelect({ value, options, category, placeholder, onChange }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value || "");
+  const [menuRect, setMenuRect] = useState(null);
   const wrapRef = useRef(null);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     setQuery(value || "");
   }, [value]);
 
   useEffect(() => {
-    function close(event) {
-      if (!wrapRef.current?.contains(event.target)) setOpen(false);
+    if (!open) return undefined;
+    function updateRect() {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      const zoom = siteZoom();
+      if (rect) setMenuRect({ left: rect.left / zoom, top: (rect.bottom + 6) / zoom, width: rect.width / zoom });
     }
+    function close(event) {
+      if (wrapRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
+      setOpen(false);
+    }
+    updateRect();
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
+    window.addEventListener("resize", updateRect);
+    window.addEventListener("scroll", updateRect, true);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      window.removeEventListener("resize", updateRect);
+      window.removeEventListener("scroll", updateRect, true);
+    };
+  }, [open]);
 
   const normalized = stripAccents(query).toLowerCase();
   const filtered = options
@@ -2463,11 +2584,11 @@ function SearchableWordSelect({ value, options, category, placeholder, onChange 
 
   return (
     <div className="search-select" ref={wrapRef}>
-      <button type="button" className="search-select-trigger" onClick={() => setOpen(!open)}>
+      <button ref={triggerRef} type="button" className="search-select-trigger" onClick={() => setOpen(!open)}>
         {value ? <WordName word={value} category={category} /> : <span className="muted-option">{placeholder}</span>}
       </button>
-      {open && (
-        <div className="search-select-menu">
+      {open && menuRect && createPortal(
+        <div ref={menuRef} className="search-select-menu search-select-menu-portal" style={{ left: menuRect.left, top: menuRect.top, width: menuRect.width }}>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -2489,7 +2610,8 @@ function SearchableWordSelect({ value, options, category, placeholder, onChange 
               </button>
             )) : <span className="empty-option">Nenhuma palavra encontrada.</span>}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -2514,7 +2636,25 @@ function WordName({ word, category }) {
 function wordOrigin(word, category) {
   if (!["Anime", "Jogos", "Geek"].includes(category)) return "";
   const cleanWord = String(word || "").trim();
-  return IMAGE_ORIGIN[category]?.[cleanWord] || IMAGE_ORIGIN[category]?.[imageAlias(cleanWord)] || "";
+  return IMAGE_ORIGIN[category]?.[cleanWord]
+    || ORIGIN_FALLBACK[category]?.[cleanWord]
+    || IMAGE_ORIGIN[category]?.[imageAlias(cleanWord)]
+    || ORIGIN_FALLBACK[category]?.[imageAlias(cleanWord)]
+    || originFromTaggedName(cleanWord, category);
+}
+
+function originFromTaggedName(word, category) {
+  if (category === "Geek") {
+    for (const suffix of ["Star Wars", "Star Trek", "Marvel", "DC", "The Matrix"]) {
+      if (word.endsWith(` ${suffix}`)) return suffix;
+    }
+  }
+  if (category === "Jogos") {
+    for (const suffix of ["Borderlands", "Left 4 Dead", "Silent Hill", "Final Fantasy", "Grand Theft Auto"]) {
+      if (word.endsWith(` ${suffix}`)) return suffix;
+    }
+  }
+  return "";
 }
 
 function tiebreakerWordOptions(room, constants) {
@@ -2558,7 +2698,7 @@ function playerCardMarker(room, player) {
   const state = playerConfirmState(room, player);
   if (state === "both") labels.push("Descriptografia e interceptacao confirmadas");
   else if (state === "team") labels.push("Descriptografia confirmada");
-  else if (state === "intercept") labels.push("Interceptacao confirmada");
+  else if (state === "intercept" && room.round > 1) labels.push("Interceptacao confirmada");
   return labels.join(" • ");
 }
 
@@ -2567,7 +2707,7 @@ function playerConfirmState(room, player) {
   const ownTurn = room.current.turns[player.team];
   const rivalTurn = room.current.turns[otherTeam(player.team)];
   const teamConfirmed = ownTurn?.proposals?.team?.confirmedBy?.includes(player.id) || false;
-  const interceptConfirmed = rivalTurn?.proposals?.intercept?.confirmedBy?.includes(player.id) || false;
+  const interceptConfirmed = room.round > 1 && (rivalTurn?.proposals?.intercept?.confirmedBy?.includes(player.id) || false);
   if (teamConfirmed && interceptConfirmed) return "both";
   if (teamConfirmed) return "team";
   if (interceptConfirmed) return "intercept";
@@ -2835,6 +2975,11 @@ function stripAccents(value) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
+function siteZoom() {
+  const value = Number.parseFloat(window.getComputedStyle(document.body).zoom || "1");
+  return Number.isFinite(value) && value > 0 ? value : 1;
+}
+
 function guestName() {
   return "Jogador";
 }
@@ -2998,10 +3143,9 @@ function useResultSounds(result, team, viewerTeam) {
     const key = `${team}-${result.intercepted}-${result.teamCorrect}-${result.code.join("-")}`;
     if (playedKey.current === key) return;
     playedKey.current = key;
-    window.setTimeout(() => playTone(result.intercepted ? "intercepted" : "notIntercepted"), 5000);
-    if (!result.intercepted) {
-      window.setTimeout(() => playTone(result.teamCorrect ? "decryptOk" : "decryptBad"), 8500);
-    }
+    const hasIntercept = Boolean(result.interceptGuess?.length);
+    if (hasIntercept) window.setTimeout(() => playTone(result.intercepted ? "intercepted" : "notIntercepted"), 5000);
+    if (!result.intercepted) window.setTimeout(() => playTone(result.teamCorrect ? "decryptOk" : "decryptBad"), hasIntercept ? 8500 : 3400);
   }, [result, team, viewerTeam]);
 }
 
