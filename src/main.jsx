@@ -44,6 +44,7 @@ const socketUrl = import.meta.env.VITE_SOCKET_URL || (window.location.port === "
 const socket = io(socketUrl, { autoConnect: true });
 const TEAMS = ["red", "blue"];
 const wordImageCache = new Map();
+const apiBaseUrl = socketUrl.replace(/\/$/, "");
 const DEFAULT_CONSTANTS = {
   WORD_BANKS: { Geral: [], Anime: [], Pokemon: [], Filmes: [], Jogos: [], Geek: [], Famosos: [] },
   TEAM_NAMES: { red: "Time Vermelho", blue: "Time Azul" },
@@ -771,6 +772,18 @@ function App() {
     });
   });
 
+  function loadProfile(userId) {
+    if (!userId) return;
+    socket.emit("auth:profile", { userId }, (reply) => {
+      if (reply?.ok && reply.profile) {
+        setProfileUser(reply.profile);
+        if (authUser?.id === reply.profile.id) {
+          setAuthUser((current) => current ? { ...current, ...reply.profile } : reply.profile);
+        }
+      }
+    });
+  }
+
   useEffect(() => {
     socket.on("constants", setConstants);
     socket.on("rooms:update", setRoomDirectory);
@@ -850,16 +863,17 @@ function App() {
   useEffect(() => {
     function openProfile(event) {
       const userId = event.detail?.userId;
-      if (!userId) return;
-      socket.emit("auth:profile", { userId }, (reply) => {
-        if (reply?.ok && reply.profile) {
-          setProfileUser(reply.profile);
-        }
-      });
+      loadProfile(userId);
     }
     window.addEventListener("profile:open", openProfile);
     return () => window.removeEventListener("profile:open", openProfile);
-  }, []);
+  }, [authUser?.id]);
+
+  useEffect(() => {
+    if (!profileUser?.id) return undefined;
+    const timer = window.setInterval(() => loadProfile(profileUser.id), 2000);
+    return () => window.clearInterval(timer);
+  }, [profileUser?.id, authUser?.id]);
 
   useEffect(() => {
     if (!room?.inactivityClosesAt) return undefined;
@@ -979,7 +993,7 @@ function App() {
             onBack={() => setHomeView("home")}
             onOpenSettings={() => setPlayerSettingsOpen(true)}
             onOpenAuth={() => setAuthModal("login")}
-            onOpenProfile={() => setProfileUser(authUser)}
+            onOpenProfile={() => loadProfile(authUser?.id)}
             onPasswordJoin={setPasswordJoin}
           />
         ) : (
@@ -997,7 +1011,7 @@ function App() {
               roomDirectory={roomDirectory}
               onOpenRooms={() => setHomeView("rooms")}
               onOpenAuth={() => setAuthModal("login")}
-              onOpenProfile={() => setProfileUser(authUser)}
+              onOpenProfile={() => loadProfile(authUser?.id)}
               onOpenSettings={() => setPlayerSettingsOpen(true)}
               onPasswordJoin={setPasswordJoin}
             />
@@ -1128,7 +1142,7 @@ function App() {
           onOpenAuth={() => setAuthModal("login")}
           onOpenProfile={() => {
             setPlayerSettingsOpen(false);
-            setProfileUser(authUser);
+            loadProfile(authUser?.id);
           }}
           onClose={() => setPlayerSettingsOpen(false)}
         />
@@ -2959,9 +2973,13 @@ function WordImage({ word, index, category, imageUrl = undefined }) {
   const [failed, setFailed] = useState(word === "CRIPTOGRAFADA");
   const [remoteUrl, setRemoteUrl] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const url = imageUrl !== undefined ? imageUrl : category === "Pokemon" ? pokemonDbImageUrl(word) : remoteUrl;
+  const [imageRetry, setImageRetry] = useState(0);
+  const rawUrl = imageUrl !== undefined ? imageUrl : category === "Pokemon" ? pokemonDbImageUrl(word) : remoteUrl;
+  const url = normalizeImageUrl(rawUrl);
+  const displayedUrl = imageRetry ? `${url}${url.includes("?") ? "&" : "?"}retry=${imageRetry}` : url;
 
   useEffect(() => {
+    setImageRetry(0);
     if (imageUrl !== undefined) {
       setRemoteUrl(imageUrl || "");
       setFailed(!imageUrl);
@@ -2980,7 +2998,7 @@ function WordImage({ word, index, category, imageUrl = undefined }) {
     setRemoteUrl("");
     const controller = new AbortController();
     const query = imageSearchQuery(word, category);
-    fetch(`/api/image?q=${encodeURIComponent(query)}&category=${encodeURIComponent(category || "")}`, { signal: controller.signal })
+    fetch(`${apiBaseUrl}/api/image?q=${encodeURIComponent(query)}&category=${encodeURIComponent(category || "")}`, { signal: controller.signal })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
         if (!active) return;
@@ -3008,11 +3026,14 @@ function WordImage({ word, index, category, imageUrl = undefined }) {
   return (
     <>
       <button className="word-image-button" type="button" onClick={() => setExpanded(true)} aria-label={`Ampliar imagem relacionada a ${word}`}>
-        <img className="word-image" src={url} alt={`Imagem relacionada a ${word}`} loading="lazy" onError={() => setFailed(true)} />
+        <img className="word-image" src={displayedUrl} alt={`Imagem relacionada a ${word}`} loading="lazy" onError={() => {
+          if (imageRetry < 2) setImageRetry((retry) => retry + 1);
+          else setFailed(true);
+        }} />
       </button>
       {expanded && createPortal((
         <div className="image-zoom-overlay" role="presentation" onClick={() => setExpanded(false)}>
-          <img className="image-zoom" src={url} alt={`Imagem ampliada relacionada a ${word}`} />
+          <img className="image-zoom" src={displayedUrl} alt={`Imagem ampliada relacionada a ${word}`} />
         </div>
       ), document.body)}
     </>
@@ -3134,6 +3155,12 @@ function imageUrlForWord(imageMap, word, category) {
   const key = imageCacheKey(word, category);
   if (!Object.prototype.hasOwnProperty.call(imageMap, key)) return "";
   return imageMap[key] || "";
+}
+
+function normalizeImageUrl(url) {
+  const value = String(url || "");
+  if (value.startsWith("/api/")) return `${apiBaseUrl}${value}`;
+  return value;
 }
 
 function WordName({ word, category }) {
