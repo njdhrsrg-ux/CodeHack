@@ -109,6 +109,7 @@ const io = new Server(httpServer, {
 const rooms = new Map();
 const sessions = new Map();
 const pendingDisconnects = new Map();
+const emptyRoomDeleteTimers = new Map();
 const imageCache = new Map();
 const imageBinaryCache = new Map();
 const imageResolveJobs = new Set();
@@ -123,6 +124,7 @@ const IMAGE_LOOKUP_CONCURRENCY = 4;
 const ROOM_INACTIVITY_LIMIT_MS = 60 * 60 * 1000;
 const ROOM_INACTIVITY_WARNING_MS = 5 * 60 * 1000;
 const ROOM_CLEANUP_INTERVAL_MS = 30 * 1000;
+const EMPTY_ROOM_DELETE_DELAY_MS = 60 * 1000;
 const SERVER_WORD_ORIGINS = {
   Anime: {
     Happy: "Fairy Tail",
@@ -1136,6 +1138,7 @@ async function emitRoom(room) {
     room.inactivityWarningAt = null;
     room.inactivityClosesAt = null;
   }
+  if (Object.keys(room.players || {}).length > 0) cancelEmptyRoomDeletion(room.code, room);
   room.updatedAt = Date.now(); // Update timestamp for cleanup tracking
   await recordMatch(room).catch((error) => console.error("recordMatch failed", error));
   await saveRoom(room);
@@ -1291,6 +1294,46 @@ async function returnSpectatorsToLobby(room) {
 
 async function closeRoomForNoPlayers(room) {
   const code = room.code;
+  if (Object.keys(room.players || {}).length > 0) {
+    cancelEmptyRoomDeletion(code, room);
+    await emitRoom(room);
+    return;
+  }
+  if (!room.emptySince) room.emptySince = Date.now();
+  rooms.set(code, room);
+  await saveRoom(room).catch((error) => console.error("saveRoom empty room failed", error));
+  scheduleEmptyRoomDeletion(code, room.emptySince);
+  await emitRoomList();
+}
+
+function scheduleEmptyRoomDeletion(code, emptySince = Date.now()) {
+  const normalizedCode = String(code || "").trim().toUpperCase();
+  if (!normalizedCode || emptyRoomDeleteTimers.has(normalizedCode)) return;
+  const delay = Math.max(0, Number(emptySince || Date.now()) + EMPTY_ROOM_DELETE_DELAY_MS - Date.now());
+  const timer = setTimeout(() => finalizeEmptyRoomDeletion(normalizedCode).catch((error) => console.error("empty room delete failed", error)), delay);
+  emptyRoomDeleteTimers.set(normalizedCode, timer);
+}
+
+function cancelEmptyRoomDeletion(code, room = null) {
+  const normalizedCode = String(code || "").trim().toUpperCase();
+  const timer = emptyRoomDeleteTimers.get(normalizedCode);
+  if (timer) clearTimeout(timer);
+  emptyRoomDeleteTimers.delete(normalizedCode);
+  if (room?.emptySince) room.emptySince = null;
+}
+
+async function finalizeEmptyRoomDeletion(code) {
+  emptyRoomDeleteTimers.delete(code);
+  const room = await getRoom(code).catch(() => null);
+  if (!room || Object.keys(room.players || {}).length > 0) {
+    if (room) cancelEmptyRoomDeletion(code, room);
+    return;
+  }
+  const emptySince = Number(room.emptySince || Date.now());
+  if (Date.now() - emptySince < EMPTY_ROOM_DELETE_DELAY_MS) {
+    scheduleEmptyRoomDeletion(code, emptySince);
+    return;
+  }
   io.to(code).emit("room:inactiveClosed", { reason: "noPlayers" });
   Object.keys(room.players || {}).forEach((playerId) => {
     sessions.delete(playerId);
@@ -2112,6 +2155,7 @@ async function loadRoomsFromDatabase() {
         room = normalizeAnyRoom(room);
         if (room && room.code) {
           rooms.set(room.code, room);
+          if (Object.keys(room.players || {}).length === 0 && room.emptySince) scheduleEmptyRoomDeletion(room.code, room.emptySince);
           if (room.phase !== "lobby" && missingRoomImages(room).length) startRoomImageResolver(room.code);
         }
       });
@@ -2126,8 +2170,6 @@ async function loadRoomsFromDatabase() {
 async function cleanupAbandonedRooms() {
   try {
     const now = Date.now();
-    const oneHourAgo = now - ROOM_INACTIVITY_LIMIT_MS;
-
     const databaseRooms = await listRooms().catch(() => []);
     databaseRooms.forEach((room) => {
       room = normalizeAnyRoom(room);
@@ -2139,12 +2181,16 @@ async function cleanupAbandonedRooms() {
       if (!room) continue;
       const players = Object.keys(room.players || {});
       const emptyRoom = players.length === 0;
-      const noActivePlayers = !hasActiveRoomPlayers(room);
-      const staleRoom = !room?.updatedAt || room.updatedAt < oneHourAgo;
-      if (emptyRoom && staleRoom) {
-        console.log(`Cleaning up abandoned room: ${code}`);
-        rooms.delete(code);
-        await deleteRoom(code).catch(() => {});
+      if (emptyRoom) {
+        if (!room.emptySince) {
+          console.log(`Empty room detected, scheduling deletion: ${code}`);
+          await closeRoomForNoPlayers(room);
+        } else if (now - Number(room.emptySince) >= EMPTY_ROOM_DELETE_DELAY_MS) {
+          console.log(`Cleaning up empty room: ${code}`);
+          await finalizeEmptyRoomDeletion(code);
+        } else {
+          scheduleEmptyRoomDeletion(code, room.emptySince);
+        }
         continue;
       }
       if (shouldReturnSpectatorsToLobby(room)) {
