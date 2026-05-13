@@ -44,8 +44,10 @@ const ICONS = {
 const SITE_ASSETS = {
   logo: "/meira-games/logo-meira-games-640x240.svg",
   codeHackCard: "/meira-games/game-card-code-hack-900x540.svg",
+  ringboundCard: "/meira-games/game-card-ringbound-900x540.svg",
   comingSoonCard: "/meira-games/game-card-coming-soon-900x540.svg",
-  codeHackSlide: "/meira-games/slideshow-code-hack-1600x560.svg"
+  codeHackSlide: "/meira-games/slideshow-code-hack-1600x560.svg",
+  ringboundSlide: "/meira-games/slideshow-ringbound-1600x560.svg"
 };
 
 const GAME_CATALOG = [
@@ -56,6 +58,15 @@ const GAME_CATALOG = [
     description: "Deduza codigos, proteja suas palavras e intercepte a transmissao rival em tempo real.",
     cardImage: SITE_ASSETS.codeHackCard,
     heroImage: SITE_ASSETS.codeHackSlide,
+    available: true
+  },
+  {
+    id: "ringbound",
+    name: "Ringbound",
+    subtitle: "aneis de deducao",
+    description: "Associe objetos a aneis secretos, leia intersecoes e descubra a logica escondida.",
+    cardImage: SITE_ASSETS.ringboundCard,
+    heroImage: SITE_ASSETS.ringboundSlide,
     available: true
   }
 ];
@@ -70,7 +81,8 @@ const DEFAULT_CONSTANTS = {
   WIN_CORRECT: 3,
   WIN_INTERCEPTS: 2,
   STARTING_LIVES: 2,
-  MAX_ROUNDS: 8
+  MAX_ROUNDS: 8,
+  RINGBOUND: { categories: ["Geral", "Pokemon", "Filmes", "Jogos", "Anime", "Geek", "Famosos"], maxRounds: 10, ruleGroups: {} }
 };
 
 const IMAGE_ALIAS = {
@@ -1058,11 +1070,12 @@ function App() {
           <main className="home-layout">
             <div className="home-logo-frame">
               <div className="home-logo" aria-label="Logo do jogo">
-                <IconImg src={ICONS.logo} alt="Logo do jogo" className="home-logo-img" />
+                <IconImg src={selectedGame?.id === "ringbound" ? SITE_ASSETS.ringboundCard : ICONS.logo} alt="Logo do jogo" className="home-logo-img" />
               </div>
             </div>
             <Home
               action={action}
+              constants={constants}
               toast={toast}
               game={selectedGame}
               playerAvatar={playerAvatar}
@@ -1134,9 +1147,17 @@ function App() {
             }}
           >
             {room.phase === "lobby" ? (
-              <Lobby room={room} playerId={playerId} constants={constants} action={action} toast={toast} playerAvatar={playerAvatar} customCategories={customCategories} setCustomCategories={setCustomCategories} draggedPlayerId={draggedPlayerId} setDraggedPlayerId={setDraggedPlayerId} setDraggedPlayerSnapshot={setDraggedPlayerSnapshot} setDragPosition={setDragPosition} />
+              room.gameId === "ringbound" ? (
+                <RingboundLobby room={room} playerId={playerId} constants={constants} action={action} toast={toast} playerAvatar={playerAvatar} />
+              ) : (
+                <Lobby room={room} playerId={playerId} constants={constants} action={action} toast={toast} playerAvatar={playerAvatar} customCategories={customCategories} setCustomCategories={setCustomCategories} draggedPlayerId={draggedPlayerId} setDraggedPlayerId={setDraggedPlayerId} setDraggedPlayerSnapshot={setDraggedPlayerSnapshot} setDragPosition={setDragPosition} />
+              )
             ) : (
-              <Game room={room} playerId={playerId} constants={constants} action={action} toast={toast} playerAvatar={playerAvatar} />
+              room.gameId === "ringbound" ? (
+                <RingboundGame room={room} playerId={playerId} constants={constants} action={action} toast={toast} playerAvatar={playerAvatar} />
+              ) : (
+                <Game room={room} playerId={playerId} constants={constants} action={action} toast={toast} playerAvatar={playerAvatar} />
+              )
             )}
           </main>
         </>
@@ -1974,7 +1995,7 @@ function localStorageToken() {
   }
 }
 
-function Home({ action, toast, game, playerAvatar, authUser, roomDirectory, onOpenRooms, onBackToPortal, onOpenAuth, onOpenProfile, onOpenSettings, onPasswordJoin }) {
+function Home({ action, constants, toast, game, playerAvatar, authUser, roomDirectory, onOpenRooms, onBackToPortal, onOpenAuth, onOpenProfile, onOpenSettings, onPasswordJoin }) {
   const [name, setName] = useLocalState("decrypto:name", "");
   const [code, setCode] = useLocalState("decrypto:lastRoomCode", "");
   const [createOpen, setCreateOpen] = useState(false);
@@ -2037,14 +2058,26 @@ function Home({ action, toast, game, playerAvatar, authUser, roomDirectory, onOp
         {toast && <p className="toast">{toast}</p>}
       </div>
       {createOpen && (
-        <CreateRoomModal
-          playerName={displayName}
-          onCancel={() => setCreateOpen(false)}
-          onCreate={async (settings) => {
-            const reply = await action("room:create", { name: displayName, avatar: authUser?.avatar || "", clientId: makeRoomClientId(), ...settings });
-            if (reply?.ok) setCreateOpen(false);
-          }}
-        />
+        game?.id === "ringbound" ? (
+          <RingboundCreateRoomModal
+            playerName={displayName}
+            constants={constants.RINGBOUND || {}}
+            onCancel={() => setCreateOpen(false)}
+            onCreate={async (settings) => {
+              const reply = await action("room:create", { name: displayName, avatar: authUser?.avatar || "", clientId: makeRoomClientId(), ...settings });
+              if (reply?.ok) setCreateOpen(false);
+            }}
+          />
+        ) : (
+          <CreateRoomModal
+            playerName={displayName}
+            onCancel={() => setCreateOpen(false)}
+            onCreate={async (settings) => {
+              const reply = await action("room:create", { name: displayName, avatar: authUser?.avatar || "", clientId: makeRoomClientId(), ...settings });
+              if (reply?.ok) setCreateOpen(false);
+            }}
+          />
+        )
       )}
     </section>
   );
@@ -2056,7 +2089,7 @@ function RoomDirectory({ rooms, constants, game, action, toast, playerAvatar, au
   const [passwordFilter, setPasswordFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sortMode, setSortMode] = useState("name");
-  const categories = Object.keys(constants.WORD_BANKS || {});
+  const categories = game?.id === "ringbound" ? constants.RINGBOUND?.categories || [] : Object.keys(constants.WORD_BANKS || {});
   const visibleRooms = [...rooms]
     .filter((room) => phaseFilter === "all" || (phaseFilter === "playing" ? room.inGame : !room.inGame))
     .filter((room) => passwordFilter === "all" || (passwordFilter === "with" ? room.hasPassword : !room.hasPassword))
@@ -2370,6 +2403,288 @@ function NumberStepper({ value, onChange, disabled }) {
       <button type="button" disabled={disabled || current >= 5} onClick={() => onChange(clampNumber(current + 1, 1, 5))}>+</button>
     </div>
   );
+}
+
+function RingboundLobby({ room, playerId, constants, action, toast, playerAvatar }) {
+  const isHost = room.hostId === playerId;
+  const categories = constants.RINGBOUND?.categories?.length ? constants.RINGBOUND.categories : DEFAULT_CONSTANTS.RINGBOUND.categories;
+  return (
+    <section className="ringbound-lobby enter">
+      <div className="ringbound-lobby-grid">
+        <div className="panel ringbound-room-panel">
+          <div className="ringbound-section-title">
+            <strong>Jogadores</strong>
+            <span>{room.players.length}/12</span>
+          </div>
+          <div className="ringbound-player-list">
+            {room.players.map((player) => (
+              <div className={`ringbound-player-card ${player.id === playerId ? "self" : ""}`} key={player.id}>
+                <PlayerIdentity player={player} fallbackAvatar={playerAvatar} />
+                {player.isHost && <IconImg src={ICONS.leader} alt="Host" className="leader-icon" />}
+              </div>
+            ))}
+          </div>
+          <ChatPanel room={room} playerId={playerId} action={action} scope="global" />
+        </div>
+
+        <div className="panel ringbound-settings-panel">
+          <label>Categoria das cartas</label>
+          <RetroSelect
+            disabled={!isHost}
+            value={room.settings.wordCategory || "Geral"}
+            onChange={(wordCategory) => action("room:settings", { wordCategory })}
+            options={categories.map((category) => ({ value: category, label: category }))}
+          />
+          <label>Aneis</label>
+          <div className="segmented ringbound-segmented">
+            {[1, 2, 3].map((count) => (
+              <button key={count} disabled={!isHost} className={room.settings.ringCount === count ? "active" : ""} onClick={() => action("room:settings", { ringCount: count })}>{count}</button>
+            ))}
+          </div>
+          <label>Mestre dos Aneis</label>
+          <div className="segmented ringbound-segmented">
+            <button disabled={!isHost} className={room.settings.masterMode === "game" ? "active" : ""} onClick={() => action("room:settings", { masterMode: "game" })}>Jogo</button>
+            <button disabled={!isHost} className={room.settings.masterMode === "player" ? "active" : ""} onClick={() => action("room:settings", { masterMode: "player" })}>Jogador</button>
+          </div>
+          <div className="ringbound-rules-preview">
+            <strong>Como funciona</strong>
+            <p>Os aneis mostram a categoria da regra. A regra exata fica escondida, exceto para o Mestre dos Aneis.</p>
+          </div>
+          {isHost && <button className="primary" onClick={() => action("game:start")}><Zap size={17} /> Iniciar Ringbound</button>}
+          {toast && <p className="toast">{toast}</p>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function RingboundGame({ room, playerId, action, toast, playerAvatar }) {
+  const state = room.ringbound || {};
+  const rings = state.rings || [];
+  const currentItem = state.deck?.[0];
+  const master = room.players.find((player) => player.id === state.ringMasterId);
+  const currentPlayerId = ringboundCurrentPlayerId(room);
+  const isCurrentPlayer = currentPlayerId === playerId;
+  const isMaster = state.ringMasterId === playerId;
+  const currentPlayer = room.players.find((player) => player.id === currentPlayerId);
+  const [selection, setSelection] = useState(["A", "B", "C"].slice(0, rings.length));
+  const [masterSelection, setMasterSelection] = useState([]);
+
+  useEffect(() => {
+    setSelection(["A", "B", "C"].slice(0, rings.length));
+    setMasterSelection([]);
+  }, [currentItem?.id, rings.length]);
+
+  if (room.phase === "gameOver") {
+    return <RingboundGameOver room={room} playerId={playerId} action={action} playerAvatar={playerAvatar} />;
+  }
+
+  return (
+    <section className="ringbound-game enter">
+      <aside className="ringbound-side panel">
+        <RingboundScore room={room} playerId={playerId} />
+        <RingboundPlayers room={room} playerId={playerId} currentPlayerId={currentPlayerId} playerAvatar={playerAvatar} />
+      </aside>
+      <main className="ringbound-table panel">
+        <div className="ringbound-round-head">
+          <span>Rodada {state.round || 1}/{state.round + (state.deck?.length || 0) - 1 || 1}</span>
+          {master ? <span>Mestre dos Aneis: {master.name}</span> : <span>Mestre dos Aneis: jogo</span>}
+        </div>
+        <RingboundBoard rings={rings} placed={state.placed || []} />
+        <div className="ringbound-turn-card">
+          {currentItem ? (
+            <>
+              <p className="eyebrow">{isCurrentPlayer ? "Sua vez" : `Vez de ${currentPlayer?.name || "jogador"}`}</p>
+              <div className="ringbound-item-focus">
+                <WordImage word={currentItem.label} index={state.round || 0} category={room.settings.wordCategory} />
+                <strong className="ringbound-current-item">{currentItem.label}</strong>
+              </div>
+              <RingboundChoice rings={rings} value={selection} onChange={setSelection} disabled={!isCurrentPlayer || Boolean(state.pending)} />
+              <button className="primary" disabled={!isCurrentPlayer || Boolean(state.pending)} onClick={() => action("ringbound:guess", { ringIds: selection })}>
+                <Play size={17} /> Posicionar
+              </button>
+            </>
+          ) : (
+            <strong>Todos os itens foram posicionados.</strong>
+          )}
+          {state.pending && (
+            <div className="ringbound-pending">
+              <strong>Palpite aguardando validacao</strong>
+              <p>{playerName(room, state.pending.playerId)} colocou <b>{state.pending.item?.label}</b> em {ringboundComboLabel(state.pending.guess)}</p>
+              {isMaster ? (
+                <>
+                  <RingboundChoice rings={rings} value={masterSelection} onChange={setMasterSelection} />
+                  <div className="inline-actions">
+                    <button className="primary" onClick={() => action("ringbound:resolve", { ringIds: state.pending.guess })}><Check size={17} /> Palpite correto</button>
+                    <button onClick={() => action("ringbound:resolve", { ringIds: masterSelection })}><X size={17} /> Corrigir posicao</button>
+                  </div>
+                </>
+              ) : (
+                <p className="small">O Mestre dos Aneis esta analisando a jogada.</p>
+              )}
+            </div>
+          )}
+          {toast && <p className="toast">{toast}</p>}
+        </div>
+      </main>
+      <aside className="ringbound-side panel">
+        <RingboundRules rings={rings} />
+        <RingboundLog room={room} />
+      </aside>
+    </section>
+  );
+}
+
+function RingboundBoard({ rings, placed }) {
+  return (
+    <div className={`ringbound-board rings-${rings.length}`}>
+      <div className="ringbound-venn">
+        {rings.map((ring, index) => (
+          <div className={`ringbound-ring ring-${index}`} key={ring.id} style={{ "--ring-color": ring.color }}>
+            <span>{ring.id}</span>
+          </div>
+        ))}
+      </div>
+      <div className="ringbound-zone-list">
+        {ringboundZones(rings).map((zone) => {
+          const items = placed.filter((item) => ringboundComboKey(item.correct) === ringboundComboKey(zone.ids));
+          return (
+            <div className="ringbound-zone" key={zone.key}>
+              <strong>{zone.label}</strong>
+              <div>{items.length ? items.map((item) => <span key={item.id} className={item.success ? "success" : "miss"}>{item.label}</span>) : <em>vazio</em>}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function RingboundChoice({ rings, value, onChange, disabled = false }) {
+  const selected = new Set(value || []);
+  function toggle(id) {
+    const next = selected.has(id) ? [...selected].filter((item) => item !== id) : [...selected, id];
+    onChange(next.sort());
+  }
+  return (
+    <div className="ringbound-choice">
+      {rings.map((ring) => (
+        <button key={ring.id} disabled={disabled} className={selected.has(ring.id) ? "active" : ""} style={{ "--ring-color": ring.color }} onClick={() => toggle(ring.id)}>
+          Anel {ring.id}
+        </button>
+      ))}
+      <button disabled={disabled} className={!selected.size ? "active outside" : "outside"} onClick={() => onChange([])}>Fora</button>
+    </div>
+  );
+}
+
+function RingboundRules({ rings }) {
+  return (
+    <div className="ringbound-rules">
+      <strong>Categorias dos aneis</strong>
+      {rings.map((ring) => (
+        <div className="ringbound-rule-row" key={ring.id} style={{ "--ring-color": ring.color }}>
+          <span>Anel {ring.id}</span>
+          <b>{ring.groupLabel}</b>
+          {ring.label && <small>{ring.label}</small>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RingboundScore({ room, playerId }) {
+  const scores = room.ringbound?.scores || {};
+  const ordered = [...room.players].sort((left, right) => Number(scores[right.id] || 0) - Number(scores[left.id] || 0));
+  return (
+    <div className="ringbound-score">
+      <strong>Pontuacao</strong>
+      {ordered.map((player) => (
+        <div className={player.id === playerId ? "self" : ""} key={player.id}>
+          <span>{player.name}</span>
+          <b>{scores[player.id] || 0}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RingboundPlayers({ room, playerId, currentPlayerId, playerAvatar }) {
+  return (
+    <div className="ringbound-players">
+      <strong>Jogadores</strong>
+      {room.players.map((player) => (
+        <div className={`ringbound-player-card ${player.id === playerId ? "self" : ""} ${player.id === currentPlayerId ? "turn" : ""}`} key={player.id}>
+          <PlayerIdentity player={player} fallbackAvatar={playerAvatar} />
+          {player.id === room.ringbound?.ringMasterId && <span className="ringbound-master-badge">Mestre</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RingboundLog({ room }) {
+  const log = room.ringbound?.log || [];
+  return (
+    <div className="ringbound-log">
+      <strong>Historico</strong>
+      {log.length ? log.slice().reverse().map((entry, index) => (
+        <p key={`${entry.item}-${index}`}>
+          <b>{entry.item}</b> em {ringboundComboLabel(entry.guess)} {entry.success ? "acertou" : `corrigido para ${ringboundComboLabel(entry.correct)}`}
+        </p>
+      )) : <p className="small">As jogadas aparecem aqui.</p>}
+    </div>
+  );
+}
+
+function RingboundGameOver({ room, playerId, action, playerAvatar }) {
+  const scores = room.ringbound?.scores || {};
+  const winner = [...room.players].sort((left, right) => Number(scores[right.id] || 0) - Number(scores[left.id] || 0))[0];
+  return (
+    <section className="ringbound-game enter">
+      <main className="ringbound-table panel ringbound-final">
+        <strong>Resultado Ringbound</strong>
+        <p>{winner ? `${winner.name} venceu com ${scores[winner.id] || 0} pontos.` : "Partida encerrada."}</p>
+        <RingboundBoard rings={room.ringbound?.rings || []} placed={room.ringbound?.placed || []} />
+        {room.hostId === playerId && <button className="primary" onClick={() => action("host:returnLobby")}><RotateCcw size={17} /> Voltar ao lobby</button>}
+      </main>
+      <aside className="ringbound-side panel">
+        <RingboundPlayers room={room} playerId={playerId} currentPlayerId="" playerAvatar={playerAvatar} />
+      </aside>
+    </section>
+  );
+}
+
+function ringboundCurrentPlayerId(room) {
+  const state = room.ringbound || {};
+  const order = (state.turnOrder || []).filter((id) => room.players.some((player) => player.id === id && player.connected) && id !== state.ringMasterId);
+  if (!order.length) return "";
+  return order[(state.turnIndex || 0) % order.length];
+}
+
+function ringboundZones(rings) {
+  const ids = rings.map((ring) => ring.id);
+  const zones = [{ key: "outside", ids: [], label: "Fora dos aneis" }];
+  ids.forEach((id) => zones.push({ key: id, ids: [id], label: `Anel ${id}` }));
+  if (ids.length >= 2) zones.push({ key: `${ids[0]}${ids[1]}`, ids: [ids[0], ids[1]], label: `Intersecao ${ids[0]} + ${ids[1]}` });
+  if (ids.length >= 3) {
+    zones.push({ key: `${ids[0]}${ids[2]}`, ids: [ids[0], ids[2]], label: `Intersecao ${ids[0]} + ${ids[2]}` });
+    zones.push({ key: `${ids[1]}${ids[2]}`, ids: [ids[1], ids[2]], label: `Intersecao ${ids[1]} + ${ids[2]}` });
+    zones.push({ key: ids.join(""), ids, label: "Centro dos tres aneis" });
+  }
+  return zones;
+}
+
+function ringboundComboKey(ids = []) {
+  return [...ids].sort().join("-");
+}
+
+function ringboundComboLabel(ids = []) {
+  return ids?.length ? ids.join(" + ") : "fora";
+}
+
+function playerName(room, playerId) {
+  return room.players.find((player) => player.id === playerId)?.name || "Jogador";
 }
 
 function TeamColumn({ team, room, playerId, isHost, action, playerAvatar, draggedPlayerId, setDraggedPlayerId, setDraggedPlayerSnapshot, setDragPosition }) {
@@ -2954,6 +3269,76 @@ function RoundResult({ room, playerId, constants, action }) {
         ))}
       </div>
       {revealed && <WaitingState label={roundResultNextLabel(room, me)} />}
+    </div>
+  );
+}
+
+function RingboundCreateRoomModal({ playerName, constants, onCancel, onCreate }) {
+  const defaultName = `Sala de ${String(playerName || "Jogador").trim() || "Jogador"}`;
+  const categories = constants?.categories?.length ? constants.categories : DEFAULT_CONSTANTS.RINGBOUND.categories;
+  const [roomName, setRoomName] = useState(defaultName);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [publicRoom, setPublicRoom] = useState(true);
+  const [wordCategory, setWordCategory] = useState(categories[0] || "Geral");
+  const [ringCount, setRingCount] = useState(3);
+  const [masterMode, setMasterMode] = useState("game");
+  const valid = roomName.trim().length > 0;
+
+  return (
+    <div className="confirm-overlay" role="dialog" aria-modal="true">
+      <div className="confirm-modal create-room-modal ringbound-modal">
+        <strong>Criar sala Ringbound</strong>
+        <label>Nome da sala
+          <input value={roomName} maxLength={36} onChange={(event) => setRoomName(event.target.value)} placeholder={defaultName} />
+        </label>
+        <label>Categoria de cartas
+          <RetroSelect value={wordCategory} onChange={setWordCategory} options={categories.map((category) => ({ value: category, label: category }))} />
+        </label>
+        <label>Quantidade de aneis
+          <div className="segmented">
+            {[1, 2, 3].map((count) => (
+              <button key={count} className={ringCount === count ? "active" : ""} onClick={() => setRingCount(count)}>{count}</button>
+            ))}
+          </div>
+        </label>
+        <label>Mestre dos Aneis
+          <div className="segmented">
+            <button className={masterMode === "game" ? "active" : ""} onClick={() => setMasterMode("game")}>Controlado pelo jogo</button>
+            <button className={masterMode === "player" ? "active" : ""} onClick={() => setMasterMode("player")}>Um jogador da sala</button>
+          </div>
+        </label>
+        <label>Senha
+          <PasswordField
+            value={publicRoom ? password : ""}
+            maxLength={32}
+            disabled={!publicRoom}
+            show={showPassword}
+            setShow={setShowPassword}
+            onChange={setPassword}
+            placeholder={publicRoom ? "Opcional" : "Desativada em sala privada"}
+          />
+        </label>
+        <div className="setting-toggle-row">
+          <div className="setting-toggle-copy">
+            <span className="setting-toggle-icon"><RadioTower size={18} /></span>
+            <strong>{publicRoom ? "Sala publica" : "Sala privada"}</strong>
+          </div>
+          <button className={`toggle-switch ${publicRoom ? "on" : ""}`} onClick={() => setPublicRoom(!publicRoom)} aria-label="Alternar sala publica">
+            <span />
+          </button>
+        </div>
+        <div className="inline-actions">
+          <button onClick={onCancel}>Cancelar</button>
+          <button
+            className="primary"
+            disabled={!valid}
+            onClick={() => onCreate({ roomName: roomName.trim(), password: publicRoom ? password.trim() : "", publicRoom, wordCategory, ringCount, masterMode })}
+          >
+            <Play size={18} /> Confirmar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

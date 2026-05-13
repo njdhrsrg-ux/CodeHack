@@ -72,6 +72,21 @@ import {
   updateUserPreferences,
   updateUserProfile
 } from "./auth.js";
+import {
+  RINGBOUND_CONSTANTS,
+  normalizeRingboundRoom,
+  resolveRingboundGuess,
+  ringboundPublicRoom,
+  setupRingboundRoom,
+  startRingboundGame,
+  submitRingboundGuess,
+  updateRingboundSettings
+} from "./ringboundGame.js";
+
+const PLATFORM_CONSTANTS = {
+  ...CONSTANTS,
+  RINGBOUND: RINGBOUND_CONSTANTS
+};
 
 console.log("Starting server with environment:", {
   NODE_ENV: process.env.NODE_ENV,
@@ -771,7 +786,7 @@ app.use(express.static(distPath));
 app.get("/{*splat}", (_req, res) => res.sendFile(path.join(distPath, "index.html")));
 
 io.on("connection", (socket) => {
-  socket.emit("constants", CONSTANTS);
+  socket.emit("constants", PLATFORM_CONSTANTS);
   publicRoomList()
     .then((roomList) => socket.emit("rooms:update", roomList))
     .catch((error) => console.error("publicRoomList failed", error));
@@ -803,7 +818,7 @@ io.on("connection", (socket) => {
     socket.join(room.code);
     await emitRoom(room);
     await emitRoomList();
-    return { room: publicRoom(room, socket.id), playerId: socket.id };
+    return { room: publicRoomForPlayer(room, socket.id), playerId: socket.id };
   }));
 
   socket.on("room:join", ({ code, name, avatar, clientId, role, password, authToken, gameId }, reply) => safe(reply, async () => {
@@ -822,7 +837,7 @@ io.on("connection", (socket) => {
     await emitRoomList();
     if (room.phase !== "lobby" && missingRoomImages(room).length) startRoomImageResolver(room.code);
     if (join.eventType !== "resume") emitRoomEvent(room, socket.id, "join", room.players[join.playerId]);
-    return { room: publicRoom(room, join.playerId), playerId: join.playerId };
+    return { room: publicRoomForPlayer(room, join.playerId), playerId: join.playerId };
   }));
 
   socket.on("room:resume", ({ code, name, avatar, clientId, role, authToken, gameId }, reply) => safe(reply, async () => {
@@ -840,7 +855,7 @@ io.on("connection", (socket) => {
     await emitRoomList();
     if (room.phase !== "lobby" && missingRoomImages(room).length) startRoomImageResolver(room.code);
     if (join.eventType !== "resume") emitRoomEvent(room, socket.id, "join", room.players[join.playerId]);
-    return { room: publicRoom(room, join.playerId), playerId: join.playerId };
+    return { room: publicRoomForPlayer(room, join.playerId), playerId: join.playerId };
   }));
 
   socket.on("room:leave", (_payload, reply) => safe(reply, async () => {
@@ -873,7 +888,8 @@ io.on("connection", (socket) => {
 
   socket.on("room:settings", (settings, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
-    updateSettings(room, socket.id, settings);
+    if (roomGameId(room) === "ringbound") updateRingboundSettings(room, socket.id, settings);
+    else updateSettings(room, socket.id, settings);
     await emitRoom(room);
     await emitRoomList();
     return { ok: true };
@@ -908,7 +924,7 @@ io.on("connection", (socket) => {
     if (room.players[socket.id]) room.players[socket.id].avatar = updatedAvatar;
     io.to(room.code).emit("player:avatarUpdate", { playerId: socket.id, avatar: updatedAvatar });
     await emitRoom(room);
-    return { room: publicRoom(room, socket.id) };
+    return { room: publicRoomForPlayer(room, socket.id) };
   }));
 
   socket.on("host:kick", ({ playerId }, reply) => safe(reply, async () => {
@@ -970,6 +986,12 @@ io.on("connection", (socket) => {
 
   socket.on("game:start", (_payload, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
+    if (roomGameId(room) === "ringbound") {
+      startRingboundGame(room, socket.id);
+      await emitRoom(room);
+      await emitRoomList();
+      return { ok: true };
+    }
     startGame(structuredClone(room), socket.id);
     const liveRoom = await getRoom(room.code);
     if (liveRoom.phase !== "lobby") return { cancelled: true };
@@ -979,6 +1001,22 @@ io.on("connection", (socket) => {
     await emitRoom(liveRoom);
     await emitRoomList();
     startRoomImageResolver(liveRoom.code);
+    return { ok: true };
+  }));
+
+  socket.on("ringbound:guess", ({ ringIds }, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
+    submitRingboundGuess(room, socket.id, ringIds);
+    await emitRoom(room);
+    await emitRoomList();
+    return { ok: true };
+  }));
+
+  socket.on("ringbound:resolve", ({ ringIds }, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
+    resolveRingboundGuess(room, socket.id, ringIds);
+    await emitRoom(room);
+    await emitRoomList();
     return { ok: true };
   }));
 
@@ -1064,6 +1102,7 @@ io.on("connection", (socket) => {
 async function uniqueRoom(playerId, name, avatar, clientId, roomOptions) {
   let room = makeRoom(playerId, name, avatar, clientId, roomOptions);
   while (rooms.has(room.code) || await loadRoom(room.code)) room = makeRoom(playerId, name, avatar, clientId, roomOptions);
+  if (cleanGameId(roomOptions?.gameId) === "ringbound") setupRingboundRoom(room, roomOptions);
   rooms.set(room.code, room);
   return room;
 }
@@ -1075,8 +1114,8 @@ async function currentRoom(socket) {
 
 async function getRoom(code) {
   const normalizedCode = String(code || "").trim().toUpperCase();
-  const localRoom = normalizeRoom(rooms.get(normalizedCode));
-  const databaseRoom = normalizeRoom(await loadRoom(normalizedCode));
+  const localRoom = normalizeAnyRoom(rooms.get(normalizedCode));
+  const databaseRoom = normalizeAnyRoom(await loadRoom(normalizedCode));
   const room = newestRoom(localRoom, databaseRoom);
   if (!room) throw new Error("Sala nao encontrada.");
   rooms.set(normalizedCode, room);
@@ -1095,7 +1134,7 @@ async function emitRoom(room) {
   rooms.set(room.code, room);
   if (hadInactivityWarning) io.to(room.code).emit("room:inactivityClear");
   Object.keys(room.players).forEach((playerId) => {
-    io.to(playerId).emit("room:update", publicRoom(room, playerId));
+    io.to(playerId).emit("room:update", publicRoomForPlayer(room, playerId));
   });
 }
 
@@ -1115,10 +1154,10 @@ async function publicRoomList(gameId = "") {
   const wantedGame = cleanGameId(gameId);
   const databaseRooms = await listRooms();
   databaseRooms.forEach((room) => {
-    room = normalizeRoom(room);
+    room = normalizeAnyRoom(room);
     if (!room?.code) return;
     const normalizedCode = String(room.code).trim().toUpperCase();
-    rooms.set(normalizedCode, newestRoom(normalizeRoom(rooms.get(normalizedCode)), room));
+    rooms.set(normalizedCode, newestRoom(normalizeAnyRoom(rooms.get(normalizedCode)), room));
   });
   return Array.from(rooms.values())
     .filter((room) => room.publicRoom !== false)
@@ -1146,9 +1185,18 @@ function roomSummary(room) {
     phase: room.phase,
     inGame: room.phase !== "lobby",
     hasPassword: Boolean(room.password),
-    category: room.settings?.category || "Geral",
+    category: roomGameId(room) === "ringbound" ? room.settings?.wordCategory || "Geral" : room.settings?.category || "Geral",
     updatedAt: room.updatedAt || room.createdAt || 0
   };
+}
+
+function normalizeAnyRoom(room) {
+  const normalized = normalizeRoom(room);
+  return roomGameId(normalized) === "ringbound" ? normalizeRingboundRoom(normalized) : normalized;
+}
+
+function publicRoomForPlayer(room, playerId) {
+  return roomGameId(room) === "ringbound" ? ringboundPublicRoom(room, playerId) : publicRoom(room, playerId);
 }
 
 function validateRoomPassword(room, password) {

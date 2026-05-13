@@ -119,6 +119,285 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.ringbound-lobby,
+.ringbound-game {
+  --surface-accent: #ffb84d;
+  --accent: #ffb84d;
+  --accent-2: #39d0ff;
+  --panel: rgba(18, 14, 36, 0.9);
+  --panel-strong: rgba(24, 18, 48, 0.96);
+  --line: rgba(255, 184, 77, 0.35);
+  --muted: #c3a7d9;
+  color: #fff6de;
+}
+
+.ringbound-lobby-grid,
+.ringbound-game {
+  width: min(1500px, calc(100vw - 2rem));
+  margin: 1rem auto;
+}
+
+.ringbound-lobby-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 1.35fr) minmax(320px, 0.85fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.ringbound-room-panel,
+.ringbound-settings-panel,
+.ringbound-side,
+.ringbound-table {
+  background:
+    radial-gradient(circle at top left, rgba(255, 79, 139, 0.16), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(57, 208, 255, 0.14), transparent 38%),
+    rgba(18, 14, 36, 0.92);
+  border-color: rgba(255, 184, 77, 0.35);
+}
+
+.ringbound-section-title,
+.ringbound-round-head,
+.ringbound-score div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+}
+
+.ringbound-player-list,
+.ringbound-players,
+.ringbound-score,
+.ringbound-rules,
+.ringbound-log {
+  display: grid;
+  gap: .65rem;
+}
+
+.ringbound-player-card {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .7rem;
+  padding: .65rem .75rem;
+  border: 1px solid rgba(255, 184, 77, .24);
+  background: rgba(9, 12, 28, .72);
+  border-radius: 8px;
+}
+
+.ringbound-player-card.self,
+.ringbound-score .self {
+  border-color: #ffb84d;
+  box-shadow: 0 0 0 1px rgba(255, 184, 77, .25), 0 0 18px rgba(255, 184, 77, .14);
+}
+
+.ringbound-player-card.turn {
+  background: rgba(57, 208, 255, .14);
+  border-color: #39d0ff;
+}
+
+.ringbound-master-badge {
+  color: #ffd23f;
+  font-size: .78rem;
+}
+
+.ringbound-settings-panel {
+  display: grid;
+  gap: .85rem;
+}
+
+.ringbound-rules-preview {
+  padding: .9rem;
+  border: 1px dashed rgba(255, 184, 77, .35);
+  border-radius: 8px;
+  color: #d7c6e6;
+}
+
+.ringbound-game {
+  display: grid;
+  grid-template-columns: minmax(240px, .7fr) minmax(520px, 1.6fr) minmax(260px, .85fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.ringbound-table {
+  display: grid;
+  gap: 1rem;
+  min-height: 720px;
+}
+
+.ringbound-board {
+  display: grid;
+  gap: 1rem;
+}
+
+.ringbound-venn {
+  position: relative;
+  min-height: 360px;
+  border-radius: 12px;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255,255,255,.04) 1px, transparent 1px),
+    rgba(6, 8, 20, .75);
+  background-size: 48px 48px;
+  overflow: hidden;
+}
+
+.ringbound-ring {
+  position: absolute;
+  width: min(44%, 260px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 12px solid var(--ring-color);
+  background: color-mix(in srgb, var(--ring-color) 18%, transparent);
+  box-shadow: 0 0 34px color-mix(in srgb, var(--ring-color) 45%, transparent);
+  mix-blend-mode: screen;
+}
+
+.ringbound-ring span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(5, 6, 16, .86);
+  color: #fff;
+  border: 2px solid var(--ring-color);
+  font-family: "Press Start 2P", monospace;
+  font-size: .9rem;
+}
+
+.rings-1 .ring-0 { left: 50%; top: 50%; translate: -50% -50%; }
+.rings-2 .ring-0 { left: 32%; top: 50%; translate: -50% -50%; }
+.rings-2 .ring-1 { left: 58%; top: 50%; translate: -50% -50%; }
+.rings-3 .ring-0 { left: 38%; top: 40%; translate: -50% -50%; }
+.rings-3 .ring-1 { left: 62%; top: 40%; translate: -50% -50%; }
+.rings-3 .ring-2 { left: 50%; top: 62%; translate: -50% -50%; }
+
+.ringbound-zone-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: .65rem;
+}
+
+.ringbound-zone {
+  min-height: 88px;
+  padding: .65rem;
+  border: 1px solid rgba(255, 255, 255, .12);
+  background: rgba(6, 8, 20, .62);
+  border-radius: 8px;
+}
+
+.ringbound-zone div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-top: .45rem;
+}
+
+.ringbound-zone span {
+  padding: .28rem .42rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+}
+
+.ringbound-zone .success { color: #8dffb5; }
+.ringbound-zone .miss { color: #ff9ab1; }
+
+.ringbound-turn-card,
+.ringbound-pending {
+  display: grid;
+  gap: .85rem;
+  padding: 1rem;
+  border: 1px solid rgba(57, 208, 255, .25);
+  border-radius: 10px;
+  background: rgba(6, 10, 26, .72);
+}
+
+.ringbound-current-item {
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(1.2rem, 2.5vw, 2rem);
+  color: #fff3d7;
+}
+
+.ringbound-item-focus {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.ringbound-item-focus .word-image {
+  width: 112px;
+  height: 112px;
+}
+
+.ringbound-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem;
+}
+
+.ringbound-choice button {
+  border-color: color-mix(in srgb, var(--ring-color, #ffb84d) 60%, transparent);
+}
+
+.ringbound-choice button.active {
+  background: color-mix(in srgb, var(--ring-color, #ffb84d) 32%, rgba(8, 10, 24, .95));
+  border-color: var(--ring-color, #ffb84d);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--ring-color, #ffb84d) 25%, transparent);
+}
+
+.ringbound-choice .outside {
+  --ring-color: #b7b7c9;
+}
+
+.ringbound-rule-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .2rem .65rem;
+  align-items: baseline;
+  padding: .65rem;
+  border-left: 4px solid var(--ring-color);
+  background: rgba(6, 8, 20, .58);
+  border-radius: 6px;
+}
+
+.ringbound-rule-row span {
+  color: var(--ring-color);
+}
+
+.ringbound-rule-row small {
+  grid-column: 2;
+  color: #f8d89a;
+}
+
+.ringbound-log p {
+  margin: 0;
+  padding: .55rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .05);
+}
+
+.ringbound-final {
+  grid-column: span 2;
+}
+
+@media (max-width: 1100px) {
+  .ringbound-lobby-grid,
+  .ringbound-game {
+    grid-template-columns: 1fr;
+  }
+
+  .ringbound-table {
+    min-height: auto;
+  }
+}
+
 button.icon-only {
   width: 42px;
   min-width: 42px;

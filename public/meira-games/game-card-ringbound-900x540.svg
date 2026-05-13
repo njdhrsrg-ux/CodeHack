@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" role="img" aria-label="Placeholder Ringbound 900x540">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#151127"/>
+      <stop offset="0.55" stop-color="#171b36"/>
+      <stop offset="1" stop-color="#23101f"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="900" height="540" rx="34" fill="url(#bg)"/>
+  <g opacity=".18" stroke="#fff" stroke-width="2">
+    <path d="M0 90h900M0 180h900M0 270h900M0 360h900M0 450h900"/>
+    <path d="M90 0v540M180 0v540M270 0v540M360 0v540M450 0v540M540 0v540M630 0v540M720 0v540M810 0v540"/>
+  </g>
+  <g filter="url(#glow)" fill="none" stroke-width="18" opacity=".9">
+    <circle cx="380" cy="260" r="130" stroke="#ff4f8b"/>
+    <circle cx="520" cy="260" r="130" stroke="#39d0ff"/>
+    <circle cx="450" cy="350" r="130" stroke="#ffd23f"/>
+  </g>
+  <g font-family="'Press Start 2P', monospace" text-anchor="middle">
+    <text x="450" y="108" fill="#fff3d7" font-size="44">RINGBOUND</text>
+    <text x="450" y="468" fill="#b9d7ff" font-size="18">aneis secretos • pistas indiretas</text>
+  </g>
+</svg>
