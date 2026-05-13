@@ -2584,6 +2584,23 @@ main {
   animation: zoomIn 170ms ease-out;
 }
 
+.image-refresh-button {
+  position: fixed;
+  left: 50%;
+  bottom: clamp(1.25rem, 5vh, 3rem);
+  z-index: 10001;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: rgba(2, 8, 12, 0.92);
+  color: var(--accent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
 .mock-image {
   display: grid;
   place-items: center;

@@ -102,6 +102,10 @@ function roomRef() {
   return getDatabase().ref("rooms");
 }
 
+function wordImageRef() {
+  return getDatabase().ref("wordImages");
+}
+
 async function ensureSchema() {
   if (schemaReady) return;
   getDatabase();
@@ -659,6 +663,54 @@ export async function loadRoom(code) {
     console.error("loadRoom failed", error.message);
     return null;
   }
+}
+
+export async function loadWordImage(category, word) {
+  const key = wordImageKey(category, word);
+  if (!key) return null;
+  try {
+    await ensureSchema();
+    const doc = await wordImageRef().child(key).get();
+    return doc.exists() ? doc.val() : null;
+  } catch (error) {
+    console.error("loadWordImage failed", error.message);
+    return null;
+  }
+}
+
+export async function saveWordImage(category, word, url, source = "") {
+  const key = wordImageKey(category, word);
+  if (!key || !url) return;
+  try {
+    await ensureSchema();
+    await wordImageRef().child(key).set(cleanObject({
+      category,
+      word,
+      url,
+      source,
+      updatedAt: Date.now()
+    }));
+  } catch (error) {
+    console.error("saveWordImage failed", error.message);
+  }
+}
+
+export async function deleteWordImage(category, word) {
+  const key = wordImageKey(category, word);
+  if (!key) return;
+  try {
+    await ensureSchema();
+    await wordImageRef().child(key).remove();
+  } catch (error) {
+    console.error("deleteWordImage failed", error.message);
+  }
+}
+
+function wordImageKey(category, word) {
+  const cleanCategory = String(category || "").trim().toLowerCase();
+  const cleanWord = String(word || "").trim().toLowerCase();
+  if (!cleanCategory || !cleanWord) return "";
+  return Buffer.from(`${cleanCategory}:${cleanWord}`).toString("base64url");
 }
 
 export async function deleteRoom(code) {

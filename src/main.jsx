@@ -2297,7 +2297,7 @@ function Game({ room, playerId, constants, action, toast, playerAvatar }) {
       <div className="game-grid">
         <aside className="left-rail">
           <RoundCounter room={room} constants={constants} compact />
-          <WordsPanel team={myTeam} words={room.teams[myTeam]?.words || []} category={room.settings.category} imageMap={room.imageMap} />
+          <WordsPanel team={myTeam} words={room.teams[myTeam]?.words || []} category={room.settings.category} imageMap={room.imageMap} canRefreshImages={isBiscoitoUser(me)} />
           <GamePlayersPanel room={room} playerId={playerId} constants={constants} action={action} playerAvatar={playerAvatar} />
         </aside>
 
@@ -2348,13 +2348,14 @@ function SpectatorGame({ room, playerId, constants, action, toast, playerAvatar 
 }
 
 function SpectatorRound({ room, playerId, constants }) {
+  const me = room.players.find((player) => player.id === playerId);
   return (
     <div className="spectator-team-grid">
       {TEAMS.map((team) => (
         <div className={`spectator-team-column team-surface ${team}`} key={team}>
           <p className="eyebrow"><RadioTower size={16} /> {constants.TEAM_NAMES[team]}</p>
           <TeamScoreCard room={room} team={team} constants={constants} />
-          <WordsPanel team={team} words={room.teams[team]?.words || []} category={room.settings.category} imageMap={room.imageMap} />
+          <WordsPanel team={team} words={room.teams[team]?.words || []} category={room.settings.category} imageMap={room.imageMap} canRefreshImages={isBiscoitoUser(me)} />
           <SpectatorHints hints={room.current?.turns?.[team]?.hints || []} />
           <GuessPhase room={room} playerId={playerId} kind="team" targetTeam={team} title="Descriptografia" hints={room.current?.turns?.[team]?.hints || []} action={() => Promise.resolve({ ok: false })} />
           <GuessPhase room={room} playerId={playerId} kind="intercept" targetTeam={team} title="Interceptacao" hints={room.current?.turns?.[team]?.hints || []} action={() => Promise.resolve({ ok: false })} />
@@ -2885,7 +2886,7 @@ function GameOver({ room, playerId, constants, winner, action }) {
           <FinalScoreTile key={team} team={team} room={room} constants={constants} winner={winner} />
         ))}
       </div>
-      <FinalWords room={room} constants={constants} />
+      <FinalWords room={room} constants={constants} canRefreshImages={isBiscoitoUser(me)} />
       <ConfirmationRoster players={voters} confirmedBy={confirmed} />
       {me?.spectator ? <p className="small">Espectadores aguardam os jogadores voltarem ao lobby.</p> : (
         <button className="primary" disabled={confirmed.includes(playerId)} onClick={() => action("game:confirmFinal")}><Play size={18} /> Voltar ao lobby</button>
@@ -2924,12 +2925,12 @@ function RoundCounter({ room, constants, compact = false }) {
   );
 }
 
-function WordsPanel({ team, words, category, imageMap }) {
+function WordsPanel({ team, words, category, imageMap, canRefreshImages = false }) {
   return (
     <div className={`words-panel team-surface ${team || ""}`}>
       {words.map((word, index) => (
         <div className="word-card" key={`${category}-${word}-${index}`}>
-          <WordImage word={word} index={index} category={category} imageUrl={imageUrlForWord(imageMap, word, category)} />
+          <WordImage word={word} index={index} category={category} imageUrl={imageUrlForWord(imageMap, word, category)} canRefresh={canRefreshImages} />
           <div>
             <strong><span className="word-number">#{index + 1} </span><WordName word={word} category={category} /></strong>
           </div>
@@ -2939,7 +2940,7 @@ function WordsPanel({ team, words, category, imageMap }) {
   );
 }
 
-function WordImage({ word, index, category, imageUrl = undefined }) {
+function WordImage({ word, index, category, imageUrl = undefined, canRefresh = false }) {
   const seed = Array.from(word).reduce((sum, char) => sum + char.charCodeAt(0), 0) + index * 23;
   const [failed, setFailed] = useState(word === "CRIPTOGRAFADA");
   const [remoteUrl, setRemoteUrl] = useState("");
@@ -3029,6 +3030,20 @@ function WordImage({ word, index, category, imageUrl = undefined }) {
       {expanded && createPortal((
         <div className="image-zoom-overlay" role="presentation" onClick={() => setExpanded(false)}>
           <img className="image-zoom" src={displayedUrl} alt={`Imagem ampliada relacionada a ${word}`} />
+          {canRefresh && (
+            <button
+              className="image-refresh-button"
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setExpanded(false);
+                setFailed(true);
+                socket.emit("image:refresh", { word, category });
+              }}
+            >
+              <RotateCcw size={18} /> Nova busca
+            </button>
+          )}
         </div>
       ), document.body)}
     </>
@@ -3150,6 +3165,10 @@ function imageUrlForWord(imageMap, word, category) {
   const key = imageCacheKey(word, category);
   if (!Object.prototype.hasOwnProperty.call(imageMap, key)) return "";
   return imageMap[key] || "";
+}
+
+function isBiscoitoUser(player) {
+  return String(player?.username || "").toLowerCase() === "biscoito";
 }
 
 function normalizeImageUrl(url) {
@@ -3336,7 +3355,7 @@ function FinalScoreTile({ team, room, constants, winner }) {
   );
 }
 
-function FinalWords({ room, constants }) {
+function FinalWords({ room, constants, canRefreshImages = false }) {
   const hasTiebreaker = Boolean(room.tiebreaker && room.final?.reason === "desempate");
   return (
     <div className="final-words-grid">
@@ -3352,7 +3371,7 @@ function FinalWords({ room, constants }) {
                 const right = hasTiebreaker && normalizeWordText(guess) === normalizeWordText(word);
                 return (
                   <div className="final-word-card" key={`${team}-${word}-${index}`}>
-                    <WordImage word={word} index={index} category={room.settings.category} imageUrl={imageUrlForWord(room.imageMap, word, room.settings.category)} />
+                    <WordImage word={word} index={index} category={room.settings.category} imageUrl={imageUrlForWord(room.imageMap, word, room.settings.category)} canRefresh={canRefreshImages} />
                     <div className="final-word-copy">
                       <span><span className="word-number">#{index + 1} </span><WordName word={word} category={room.settings.category} /></span>
                       {hasTiebreaker && (

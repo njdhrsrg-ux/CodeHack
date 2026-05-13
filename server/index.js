@@ -54,11 +54,13 @@ import {
   authUserByToken,
   changeUserPassword,
   createActiveMatch,
+  deleteWordImage,
   deleteRoom,
   discardActiveMatch,
   getProfile,
   getUserPreferences,
   listRooms,
+  loadWordImage,
   loadRoom,
   loginUser,
   logoutUser,
@@ -66,6 +68,7 @@ import {
   recordMatch,
   registerUser,
   saveRoom,
+  saveWordImage,
   updateUserPreferences,
   updateUserProfile
 } from "./auth.js";
@@ -656,6 +659,16 @@ io.on("connection", (socket) => {
     return { invalidated };
   }));
 
+  socket.on("image:refresh", ({ word, category }, reply) => safe(reply, async () => {
+    const room = await currentRoom(socket);
+    const player = room.players?.[socket.id];
+    if (String(player?.username || "").toLowerCase() !== "biscoito") throw new Error("Apenas Biscoito pode refazer a busca da imagem.");
+    await refreshRoomImage(room, word, category);
+    await emitRoom(room);
+    startRoomImageResolver(room.code);
+    return { ok: true };
+  }));
+
   socket.on("game:start", (_payload, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
     startGame(structuredClone(room), socket.id);
@@ -1017,13 +1030,41 @@ async function resolveImageUrlForWord(word, category) {
       if (cached?.url && validStoredImageUrl(cached.url)) return cached.url;
       imageCache.delete(cacheKey);
     }
+    const stored = await loadStoredWordImage(category, word);
+    if (stored?.url) return cacheImage(cacheKey, { url: stored.url, source: stored.source || "word-db" }).url;
     const payload = await externalImagePayloadForWord(word, category);
-    if (payload?.url) return cacheImage(cacheKey, payload).url;
+    if (payload?.url) {
+      await saveWordImage(category, word, payload.url, payload.source);
+      return cacheImage(cacheKey, payload).url;
+    }
     return "";
   }
   const query = serverImageSearchQuery(word, category);
   const payload = await findImagePayload(query, category);
   return payload?.url || "";
+}
+
+async function loadStoredWordImage(category, word) {
+  const stored = await loadWordImage(category, word);
+  if (!stored?.url || !validStoredImageUrl(stored.url)) return null;
+  if (await imageAvailable(stored.url)) return stored;
+  markBrokenImageUrl(stored.url);
+  await deleteWordImage(category, word);
+  return null;
+}
+
+async function refreshRoomImage(room, word, category) {
+  const cleanWord = String(word || "").trim();
+  const imageCategory = String(category || room.settings?.category || "").trim();
+  if (!cleanWord || !imageCategory) return;
+  const key = imageCacheKey(cleanWord, imageCategory);
+  if (room.imageMap?.[key]) markBrokenImageUrl(room.imageMap[key]);
+  delete room.imageMap?.[key];
+  imageCache.delete(`${imageCategory}:${cleanWord}`.toLocaleLowerCase());
+  imageFailureCounts.set(imageFailureKey(cleanWord, imageCategory), 10);
+  await deleteWordImage(imageCategory, cleanWord);
+  const url = await resolveImageUrlForWord(cleanWord, imageCategory);
+  if (url) room.imageMap[key] = url;
 }
 
 async function invalidateRoomImage(room, word, category, url) {
@@ -1036,6 +1077,7 @@ async function invalidateRoomImage(room, word, category, url) {
   if (await proxiedImageStillLoads(room.imageMap[key])) return false;
   markBrokenImageUrl(room.imageMap[key]);
   delete room.imageMap[key];
+  await deleteWordImage(imageCategory, cleanWord);
   const query = serverImageSearchQuery(cleanWord, imageCategory);
   imageCache.delete(`${imageCategory}:${cleanWord}`.toLocaleLowerCase());
   imageCache.delete(`${imageCategory}:${query}`.toLocaleLowerCase());
