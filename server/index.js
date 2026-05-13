@@ -955,15 +955,9 @@ async function findImagePayload(query, category) {
     const poster = await omdbImage(query);
     if (await imageAvailable(poster)) return cacheImage(cacheKey, { url: poster, source: "omdb" });
   }
-  if (!/\bpokemon\b/i.test(query)) {
-    for (const term of imageSearchTerms(query)) {
-      const google = await googleImage(term);
-      if (await imageAvailable(google)) return cacheImage(cacheKey, { url: google, source: "google" });
-    }
-  }
-  const wiki = await wikiImage(query);
-  if (await imageAvailable(wiki)) return cacheImage(cacheKey, { url: wiki, source: "wikimedia" });
-  return cacheImage(cacheKey, { url: fallbackWordImage(query, category), source: "generated" });
+  const external = await externalImagePayload(query, category);
+  if (external?.url) return cacheImage(cacheKey, external);
+  return emptyImagePayload();
 }
 
 async function resolveRoomImages(room) {
@@ -1005,6 +999,13 @@ async function resolveImageUrlForWord(word, category) {
     const url = proxiedImageUrl(pokemonSpriteUrl(word));
     return await imageAvailable(pokemonSpriteUrl(word)) ? url : "";
   }
+  if (!["Geral", "Filmes"].includes(category)) {
+    const cacheKey = `${category}:${word}`.toLocaleLowerCase();
+    if (imageCache.has(cacheKey)) return imageCache.get(cacheKey)?.url || "";
+    const payload = await externalImagePayloadForWord(word, category);
+    if (payload?.url) return cacheImage(cacheKey, payload).url;
+    return "";
+  }
   const query = serverImageSearchQuery(word, category);
   const payload = await findImagePayload(query, category);
   return payload?.url || "";
@@ -1021,6 +1022,7 @@ async function invalidateRoomImage(room, word, category, url) {
   markBrokenImageUrl(room.imageMap[key]);
   delete room.imageMap[key];
   const query = serverImageSearchQuery(cleanWord, imageCategory);
+  imageCache.delete(`${imageCategory}:${cleanWord}`.toLocaleLowerCase());
   imageCache.delete(`${imageCategory}:${query}`.toLocaleLowerCase());
   imageSearchTerms(query).forEach((term) => {
     imageCache.delete(`${imageCategory}:${term}`.toLocaleLowerCase());
@@ -1052,6 +1054,53 @@ function serverImageSearchQuery(word, category) {
   return `${cleanWord} ${suffix}`.trim();
 }
 
+async function externalImagePayload(query, category) {
+  const terms = externalImageSearchTermsFromQuery(query);
+  for (const term of terms) {
+    const google = await googleImage(term);
+    if (google) return { url: google, source: "google" };
+  }
+  for (const term of terms) {
+    const wiki = await wikiImageForTerms([term]);
+    if (wiki) return { url: wiki, source: "wikimedia" };
+  }
+  return emptyImagePayload();
+}
+
+async function externalImagePayloadForWord(word, category) {
+  const terms = externalImageSearchTermsForWord(word, category);
+  for (const term of terms) {
+    const google = await googleImage(term);
+    if (google) return { url: google, source: "google" };
+  }
+  for (const term of terms) {
+    const wiki = await wikiImageForTerms([term]);
+    if (wiki) return { url: wiki, source: "wikimedia" };
+  }
+  return emptyImagePayload();
+}
+
+function externalImageSearchTermsForWord(word, category) {
+  const cleanWord = String(word || "").trim();
+  const origin = SERVER_WORD_ORIGINS[category]?.[cleanWord];
+  return uniqueSearchTerms(origin ? [`${cleanWord} ${origin}`, cleanWord] : [cleanWord]);
+}
+
+function externalImageSearchTermsFromQuery(query) {
+  const trimmed = String(query || "").trim();
+  const simplified = simplifyExternalSearchTerm(trimmed);
+  return uniqueSearchTerms([trimmed, simplified]);
+}
+
+function simplifyExternalSearchTerm(term) {
+  const cleaned = String(term || "")
+    .replace(/\s+(anime character|video game character|fictional character|famous person|movie)$/i, "")
+    .replace(/\s*\([^)]*\)\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned.split(/\s+/).slice(0, 2).join(" ") || cleaned;
+}
+
 function pokemonSpriteUrl(word) {
   const slug = String(word || "")
     .replace(/^Mr\.?\s+(Mime|Rime)$/i, "mr$1")
@@ -1068,26 +1117,30 @@ function pokemonSpriteUrl(word) {
 }
 
 async function googleImage(query) {
+  const links = await googleImageCandidates(query, 5);
+  return firstAvailableUrl(links);
+}
+
+async function googleImageCandidates(query, limit = 5) {
   const key = process.env.GOOGLE_API_KEY;
   const cx = process.env.GOOGLE_CSE_ID;
-  if (!key || !cx) return null;
+  if (!key || !cx) return [];
   const url = new URL("https://www.googleapis.com/customsearch/v1");
   url.searchParams.set("key", key);
   url.searchParams.set("cx", cx);
   url.searchParams.set("searchType", "image");
-  url.searchParams.set("num", "5");
+  url.searchParams.set("num", String(limit));
   url.searchParams.set("safe", "active");
   url.searchParams.set("hl", "en");
   url.searchParams.set("lr", "lang_en");
   url.searchParams.set("q", query);
   try {
     const response = await fetchWithTimeout(url);
-    if (!response.ok) return null;
+    if (!response.ok) return [];
     const data = await response.json();
-    const links = uniqueSearchTerms((data.items || []).flatMap((item) => [item?.link, item?.image?.thumbnailLink]));
-    return firstAvailableUrl(links);
+    return uniqueSearchTerms((data.items || []).map((item) => item?.link).filter(Boolean)).slice(0, limit);
   } catch {
-    return null;
+    return [];
   }
 }
 
@@ -1325,7 +1378,11 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 async function wikiImage(query) {
-  for (const term of imageSearchTerms(query)) {
+  return wikiImageForTerms(imageSearchTerms(query));
+}
+
+async function wikiImageForTerms(terms) {
+  for (const term of uniqueSearchTerms(terms)) {
     const summaryImage = await wikiSummaryImage(term);
     if (await imageAvailable(summaryImage)) return summaryImage;
 
@@ -1409,28 +1466,6 @@ function imageSearchTerms(query) {
 
 function uniqueSearchTerms(terms) {
   return [...new Set(terms.map((term) => String(term || "").trim()).filter(Boolean))];
-}
-
-function fallbackWordImage(query, category) {
-  const label = imageSearchTerms(query)[0] || query || category || "Code Hack";
-  const initials = label
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase() || "CH";
-  const color = category === "Geek" ? "#4ea1ff" : category === "Anime" ? "#ff4e88" : category === "Jogos" ? "#ffbc42" : "#36f5a2";
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" rx="18" fill="#050807"/><path d="M15 20h130v120H15z" fill="none" stroke="${color}" stroke-width="4" stroke-dasharray="9 7"/><text x="80" y="76" text-anchor="middle" font-family="monospace" font-size="44" font-weight="800" fill="${color}">${escapeSvg(initials)}</text><text x="80" y="108" text-anchor="middle" font-family="monospace" font-size="12" fill="${color}" opacity=".78">${escapeSvg(String(category || "imagem").toUpperCase())}</text></svg>`;
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
-}
-
-function escapeSvg(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 async function loadRoomsFromDatabase() {
