@@ -96,6 +96,7 @@ const imageBinaryCache = new Map();
 const imageResolveJobs = new Set();
 const brokenImageUrls = new Set();
 const imageFailureCounts = new Map();
+const googleImageWarnings = new Set();
 const TEAMS = ["red", "blue"];
 const MAX_IMAGE_CACHE_ENTRIES = 160;
 const MAX_IMAGE_CACHE_BYTES = 5 * 1024 * 1024;
@@ -1172,12 +1173,31 @@ async function googleImageCandidates(query, limit = 5) {
   url.searchParams.set("q", query);
   try {
     const response = await fetchWithTimeout(url);
-    if (!response.ok) return [];
+    if (!response.ok) {
+      await logGoogleImageError(response);
+      return [];
+    }
     const data = await response.json();
     return uniqueSearchTerms((data.items || []).map((item) => item?.link).filter(Boolean)).slice(0, limit);
   } catch {
     return [];
   }
+}
+
+async function logGoogleImageError(response) {
+  let message = `HTTP ${response.status}`;
+  let reason = "";
+  try {
+    const data = await response.json();
+    message = data.error?.message || message;
+    reason = data.error?.errors?.[0]?.reason || "";
+  } catch {
+    // Keep logging best-effort; image search can fall back to Wikimedia.
+  }
+  const key = `${response.status}:${reason}:${message}`;
+  if (googleImageWarnings.has(key)) return;
+  googleImageWarnings.add(key);
+  console.warn(`Google image search unavailable: ${message}${reason ? ` (${reason})` : ""}`);
 }
 
 async function pexelsImage(query) {
