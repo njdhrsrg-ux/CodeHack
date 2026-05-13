@@ -565,6 +565,48 @@ const SERVER_SEARCH_NAME_PATCH = {
   }
 };
 
+const SERVER_GENERAL_IMAGE_ALIAS = {
+  Casa: "house", Rua: "street", Porta: "door", Mesa: "table", Cadeira: "chair", Cama: "bed", Sofa: "sofa", Janela: "window", Parede: "wall", Chao: "floor",
+  Teto: "ceiling", Tapete: "rug", Prato: "plate", Copo: "drinking glass", Garrafa: "bottle", Colher: "spoon", Faca: "knife", Garfo: "fork", Panela: "cooking pot", Fogao: "stove",
+  Geladeira: "refrigerator", Pia: "sink", Banho: "bath", Sabao: "soap", Toalha: "towel", Escova: "brush", Pente: "comb", Camisa: "shirt", Calca: "pants", Vestido: "dress",
+  Sapato: "shoe", Meia: "sock", Chapeu: "hat", Bolsa: "bag", Mochila: "backpack", Carteira: "wallet", Chave: "key", Moeda: "coin", Nota: "banknote", Livro: "book",
+  Caderno: "notebook", Caneta: "pen", Lapis: "pencil", Borracha: "eraser", Papel: "paper", Carta: "letter envelope", Caixa: "box", Sacola: "shopping bag", Presente: "gift", Relogio: "clock",
+  Telefone: "telephone", Radio: "radio", Camera: "camera", Tela: "screen", Teclado: "keyboard", Mouse: "computer mouse", Cabo: "cable", Lampada: "lamp", Vela: "candle", Fogo: "fire",
+  Agua: "water", Gelo: "ice", Chuva: "rain", Nuvem: "cloud", Sol: "sun", Lua: "moon", Estrela: "star", Ceu: "sky", Mar: "sea", Rio: "river",
+  Lago: "lake", Praia: "beach", Areia: "sand", Pedra: "stone", Terra: "soil", Barro: "mud", Grama: "grass", Folha: "leaf", Flor: "flower", Arvore: "tree",
+  Galho: "tree branch", Raiz: "root", Fruta: "fruit", Banana: "banana", Maca: "apple", Pera: "pear", Uva: "grape", Laranja: "orange fruit", Limao: "lemon", Manga: "mango fruit",
+  Melancia: "watermelon", Abacaxi: "pineapple", Morango: "strawberry", Coco: "coconut", Tomate: "tomato", Batata: "potato", Cenoura: "carrot", Milho: "corn", Arroz: "rice", Feijao: "beans",
+  Macarrao: "pasta", Pao: "bread", Queijo: "cheese", Leite: "milk", Cafe: "coffee", Cha: "tea", Suco: "juice", Bolo: "cake", Doce: "candy", Mel: "honey",
+  Sal: "salt", Acucar: "sugar", Ovo: "egg", Carne: "meat", Peixe: "fish", Frango: "chicken food", Sopa: "soup", Pizza: "pizza", Sorvete: "ice cream", Biscoito: "cookie",
+  Cachorro: "dog", Gato: "cat", Passaro: "bird", Cavalo: "horse", Vaca: "cow", Porco: "pig", Ovelha: "sheep", Cabra: "goat", Pato: "duck", Galinha: "chicken animal",
+  Coelho: "rabbit", Rato: "mouse animal", Sapo: "frog", Cobra: "snake", Tartaruga: "turtle", Leao: "lion", Tigre: "tiger", Urso: "bear", Macaco: "monkey",
+  Elefante: "elephant", Girafa: "giraffe", Zebra: "zebra", Lobo: "wolf", Raposa: "fox", Baleia: "whale", Golfinho: "dolphin", Tubarao: "shark", Formiga: "ant", Abelha: "bee",
+  Mosca: "fly insect", Borboleta: "butterfly", Aranha: "spider", Carro: "car", Onibus: "bus", Trem: "train", Aviao: "airplane", Barco: "boat", Navio: "ship",
+  Bicicleta: "bicycle", Moto: "motorcycle", Roda: "wheel", Pneu: "tire", Volante: "steering wheel", Freio: "brake", Motor: "engine", Posto: "gas station", Ponte: "bridge", Tunel: "tunnel", Estrada: "road",
+  Escola: "school", Hospital: "hospital", Mercado: "market", Banco: "bench", Padaria: "bakery", Farmacia: "pharmacy", Igreja: "church", Praca: "town square", Parque: "park", Cinema: "movie theater",
+  Teatro: "theater", Museu: "museum", Loja: "store", Hotel: "hotel", Restaurante: "restaurant", Cozinha: "kitchen", Quarto: "bedroom", Sala: "living room", Banheiro: "bathroom", Garagem: "garage",
+  Jardim: "garden", Piscina: "swimming pool", Portao: "gate", Elevador: "elevator", Escada: "stairs", Bola: "ball", Boneca: "doll", Carrinho: "toy car", Jogo: "board game", Dado: "dice",
+  Pipa: "kite", Tambor: "drum", Violao: "acoustic guitar", Piano: "piano", Flauta: "flute", Apito: "whistle", Musica: "musical notes", Danca: "dance", Festa: "party", Time: "sports team",
+  Gol: "soccer goal", Rede: "net", Campo: "field", Quadra: "sports court", Onda: "wave", Vento: "wind", Neve: "snow", Montanha: "mountain", Vale: "valley", Ilha: "island",
+  Floresta: "forest", Deserto: "desert", Caverna: "cave", Vulcao: "volcano", Mapa: "map", Bussola: "compass", Mala: "suitcase", Viagem: "travel", Cidade: "city", Aldeia: "village",
+  Fazenda: "farm", Mae: "mother", Pai: "father", Irmao: "brother", Avo: "grandparent", Doutor: "doctor", Professor: "teacher", Aluno: "student", Motorista: "driver", Cozinheiro: "cook",
+  Pintor: "painter", Cantor: "singer", Juiz: "judge", Policia: "police officer", Bombeiro: "firefighter", Rei: "king", Rainha: "queen", Principe: "prince", Princesa: "princess",
+  Coroa: "crown", Espada: "sword", Escudo: "shield", Martelo: "hammer", Prego: "nail", Serra: "saw tool", Tesoura: "scissors", Cola: "glue", Tinta: "paint", Pincel: "paint brush",
+  Linha: "thread", Agulha: "needle", Botao: "button", Espelho: "mirror", Penteado: "hairstyle", Olho: "eye", Nariz: "nose", Boca: "mouth", Dente: "tooth", Orelha: "ear",
+  Mao: "hand", Dedo: "finger", Braco: "arm", Perna: "leg", Pe: "foot", Cabeca: "head", Cabelo: "hair", Corpo: "body", Vermelho: "red color", Azul: "blue color",
+  Verde: "green color", Amarelo: "yellow color", Preto: "black color", Branco: "white color", Rosa: "pink color", Roxo: "purple color", Cinza: "gray color", Ouro: "gold", Prata: "silver",
+  Vidro: "glass material", Madeira: "wood", Ferro: "iron metal", Plastico: "plastic", Pano: "cloth", Couro: "leather", Corda: "rope", Balde: "bucket", Vassoura: "broom", Esponja: "sponge",
+  Lixo: "trash", Cesto: "basket", Remedio: "medicine", Curativo: "bandage", Planta: "plant", Semente: "seed", Horta: "vegetable garden",
+  "Guarda chuva": "umbrella", Travesseiro: "pillow", Cobertor: "blanket", Cortina: "curtain", Almofada: "cushion", Estante: "bookcase", Prateleira: "shelf",
+  Armario: "wardrobe", Gaveta: "drawer", Cabide: "clothes hanger", "Porta retrato": "picture frame", Quadro: "picture frame", Calendario: "calendar", Agenda: "planner notebook", Jornal: "newspaper", Revista: "magazine", Envelope: "envelope",
+  Carimbo: "rubber stamp", Tesouro: "treasure chest", Cofre: "safe box", Cadeado: "padlock", Corrente: "chain", Varal: "clothesline", Pregador: "clothespin", Mangueira: "garden hose", Torneira: "faucet", Ralo: "drain",
+  Balanca: "weighing scale", Termometro: "thermometer", Ventilador: "fan", "Ar condicionado": "air conditioner", Aquecedor: "heater", Telhado: "roof", Tijolo: "brick", Cimento: "cement", "Areia movel": "quicksand", Brita: "gravel",
+  "Porta malas": "car trunk", "Para brisa": "windshield", Farol: "car headlight", Retrovisor: "rearview mirror", Semaforo: "traffic light", Faixa: "crosswalk", Esquina: "street corner", Rotatoria: "roundabout", Viaduto: "overpass",
+  Beco: "alley", Alameda: "avenue", Trilha: "trail", Acampamento: "campsite", Barraca: "tent", Lanterna: "flashlight", Fogueira: "campfire", Isqueiro: "lighter", Fosforo: "matchstick", Mergulho: "scuba diving",
+  Mascara: "diving mask", Nadadeira: "swim fins", Boia: "life buoy", Ancora: "anchor", Remo: "oar", Veleiro: "sailboat", Canoa: "canoe", Prancha: "surfboard", Patins: "roller skates", Skate: "skateboard",
+  Raquete: "racket", Peteca: "shuttlecock", Trofeu: "trophy", Medalha: "medal", Uniforme: "uniform", Chuteira: "soccer cleats", Capacete: "helmet", Luva: "glove", "Rede de pesca": "fishing net", Aquario: "aquarium"
+};
+
 const SERVER_COMPLETE_ORIGIN_PATCH = {
   Anime: {
     "Rock Lee": "Naruto", Hange: "Attack on Titan", Near: "Death Note", Mello: "Death Note", Scar: "Fullmetal Alchemist",
@@ -1328,7 +1370,8 @@ function imageCacheKey(word, category) {
 function serverImageSearchQuery(word, category) {
   const cleanWord = String(word || "").trim();
   const searchWord = serverSearchName(cleanWord, category);
-  if (category === "Geral" || category === "Famosos") return searchWord;
+  if (category === "Geral") return generalImageSearchTerm(cleanWord);
+  if (category === "Famosos") return searchWord;
   const origin = serverWordOrigin(cleanWord, category);
   if (isFictionalImageCategory(category)) return characterImageSearchTerm(searchWord, origin || fallbackFictionOrigin(category));
   const suffix = {
@@ -1403,10 +1446,19 @@ function serverSearchName(word, category) {
   return SERVER_SEARCH_NAME_PATCH[category]?.[cleanWord] || cleanWord;
 }
 
+function generalImageSearchTerm(word) {
+  const cleanWord = String(word || "").trim();
+  return SERVER_GENERAL_IMAGE_ALIAS[cleanWord] || SERVER_GENERAL_IMAGE_ALIAS[stripAccents(cleanWord)] || cleanWord;
+}
+
 function characterImageSearchTerm(word, origin) {
   const cleanWord = String(word || "").trim();
   const cleanOrigin = String(origin || "").trim();
   return cleanOrigin ? `${cleanWord} from ${cleanOrigin}` : cleanWord;
+}
+
+function stripAccents(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
 function isFictionalImageCategory(category) {
