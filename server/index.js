@@ -1174,7 +1174,7 @@ async function findImagePayload(query, category, options = {}) {
   const pokemon = await pokemonImage(query);
   if (!urlBlockedForLookup(pokemon, options.excludeUrls) && await imageAvailable(pokemon)) return cacheImage(cacheKey, { url: pokemon, source: "pokeapi" });
   if (category === "Geral") {
-    const pexels = await pexelsImage(query, { limit: 20, random: true, excludeUrls: options.excludeUrls });
+    const pexels = await pexelsImage(query, { limit: 20, randomizeFirstPage: true, excludeUrls: options.excludeUrls });
     if (pexels) return cacheImage(cacheKey, { url: pexels.url, source: "pexels", photographer: pexels.photographer, page: pexels.page });
     const wiki = await wikiImageForTerms(imageSearchTerms(query), { random: options.force, excludeUrls: options.excludeUrls });
     if (wiki) return cacheImage(cacheKey, { url: wiki, source: "wikimedia", searchQuery: query });
@@ -1516,9 +1516,10 @@ async function pexelsImage(query, options = {}) {
   url.searchParams.set("query", query);
   const perPage = Math.max(1, Math.min(Number(options.limit || 1), 20));
   url.searchParams.set("per_page", String(perPage));
+  url.searchParams.set("page", "1");
   url.searchParams.set("orientation", "square");
   url.searchParams.set("locale", "en-US");
-  console.log(`Pexels image query: "${query}" per_page=${perPage} random=${Boolean(options.random)}`);
+  console.log(`Pexels image query: "${query}" page=1 per_page=${perPage} randomize_first_page=${Boolean(options.randomizeFirstPage)}`);
   try {
     const response = await fetchWithTimeout(url, { headers: { Authorization: key } });
     if (!response.ok) {
@@ -1526,7 +1527,7 @@ async function pexelsImage(query, options = {}) {
       return null;
     }
     const data = await response.json();
-    const photos = options.random ? shuffleValues(data.photos || []) : (data.photos || []);
+    const photos = options.randomizeFirstPage ? shuffleValues(data.photos || []) : (data.photos || []);
     console.log(`Pexels image results: "${query}" candidates=${photos.length}`);
     for (const photo of photos) {
       const imageUrl = photo?.src?.medium || photo?.src?.large || photo?.src?.original;
