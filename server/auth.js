@@ -129,6 +129,11 @@ function makeStats() {
   return { wins: 0, losses: 0, draws: 0, abandoned: 0, decryptedWords: {}, interceptedWords: {} };
 }
 
+function gameIdFor(roomOrMatch) {
+  const clean = String(roomOrMatch?.gameId || "code-hack").trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+  return clean || "code-hack";
+}
+
 function rowToUser(row) {
   if (!row) return null;
   const data = typeof row.val === "function" ? row.val() : row;
@@ -502,6 +507,7 @@ function makeMatchEntry(room, player, matchId, finishedAt, won, outcome = null) 
   });
   return {
     id: matchId,
+    gameId: gameIdFor(room),
     status: finishedAt ? "finished" : "active",
     startedAt: room.matchSession?.startedAt || room.createdAt,
     finishedAt,
@@ -590,6 +596,7 @@ export async function saveRoom(room) {
     // Build a clean room object without undefined values
     const roomData = {
       code: room.code || "",
+      gameId: gameIdFor(room),
       name: room.name || "",
       password: room.password || "",
       publicRoom: room.publicRoom || false,

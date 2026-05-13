@@ -40,6 +40,25 @@ const ICONS = {
   confirmed: "/icons/confirmado.png",
   leader: "/icons/lider.png"
 };
+
+const SITE_ASSETS = {
+  logo: "/meira-games/logo-meira-games-640x240.svg",
+  codeHackCard: "/meira-games/game-card-code-hack-900x540.svg",
+  comingSoonCard: "/meira-games/game-card-coming-soon-900x540.svg",
+  codeHackSlide: "/meira-games/slideshow-code-hack-1600x560.svg"
+};
+
+const GAME_CATALOG = [
+  {
+    id: "code-hack",
+    name: "Code Hack",
+    subtitle: "combate de hackers",
+    description: "Deduza codigos, proteja suas palavras e intercepte a transmissao rival em tempo real.",
+    cardImage: SITE_ASSETS.codeHackCard,
+    heroImage: SITE_ASSETS.codeHackSlide,
+    available: true
+  }
+];
 const socketUrl = import.meta.env.VITE_SOCKET_URL || (window.location.port === "5173" ? "http://localhost:3001" : window.location.origin);
 const socket = io(socketUrl, { autoConnect: true });
 const TEAMS = ["red", "blue"];
@@ -720,6 +739,8 @@ function App() {
   const [joinChoice, setJoinChoice] = useState(null);
   const [passwordJoin, setPasswordJoin] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [selectedGameId, setSelectedGameId] = useState("");
+  const [siteView, setSiteView] = useState("home");
   const [homeView, setHomeView] = useState("home");
   const [roomDirectory, setRoomDirectory] = useState([]);
   const [authToken, setAuthToken] = useLocalState("codehack:authToken", "");
@@ -737,10 +758,12 @@ function App() {
   const [draggedPlayerSnapshot, setDraggedPlayerSnapshot] = useState(null);
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const me = room?.players.find((p) => p.id === playerId);
+  const selectedGame = GAME_CATALOG.find((game) => game.id === selectedGameId) || null;
+  const activeGameId = selectedGameId || room?.gameId || "code-hack";
   useGameSounds(room, playerId);
 
   const action = (event, payload = {}) => new Promise((resolve) => {
-    const enrichedPayload = { ...payload, clientId: payload.clientId || clientIdRef.current, authToken };
+    const enrichedPayload = { ...payload, gameId: payload.gameId || activeGameId, clientId: payload.clientId || clientIdRef.current, authToken };
     socket.emit(event, enrichedPayload, (reply) => {
       if (!reply?.ok) setToast(reply?.error || "Falha de transmissao.");
       else setToast("");
@@ -752,6 +775,7 @@ function App() {
       if (reply?.playerId || reply?.room?.viewerId) setPlayerId(reply.playerId || reply.room.viewerId);
       if (reply?.room) {
         rememberSession(reply.room, enrichedPayload, enrichedPayload.clientId);
+        setSelectedGameId(reply.room.gameId || enrichedPayload.gameId || "code-hack");
         setRoom(hydrateRoom(reply.room));
       }
       resolve(reply);
@@ -785,9 +809,11 @@ function App() {
 
   useEffect(() => {
     socket.on("constants", setConstants);
-    socket.on("rooms:update", setRoomDirectory);
-    socket.emit("rooms:list", {}, (reply) => {
-      if (reply?.ok && Array.isArray(reply.rooms)) setRoomDirectory(reply.rooms);
+    socket.on("rooms:update", (rooms = []) => {
+      setRoomDirectory(filterRoomsByGame(rooms, activeGameId));
+    });
+    socket.emit("rooms:list", { gameId: activeGameId }, (reply) => {
+      if (reply?.ok && Array.isArray(reply.rooms)) setRoomDirectory(filterRoomsByGame(reply.rooms, activeGameId));
     });
     socket.on("room:update", (nextRoom) => {
       if (nextRoom?.viewerId) setPlayerId(nextRoom.viewerId);
@@ -862,7 +888,13 @@ function App() {
       socket.off("room:inactivityClear");
       socket.off("room:inactiveClosed");
     };
-  }, []);
+  }, [activeGameId]);
+
+  useEffect(() => {
+    socket.emit("rooms:list", { gameId: activeGameId }, (reply) => {
+      if (reply?.ok && Array.isArray(reply.rooms)) setRoomDirectory(filterRoomsByGame(reply.rooms, activeGameId));
+    });
+  }, [activeGameId]);
 
   useEffect(() => {
     function openProfile(event) {
@@ -952,6 +984,7 @@ function App() {
       if (restored) return;
       const active = readActiveRoomSession();
       if (!active?.code || !active?.name || !active.clientId) return;
+      if (active.gameId) setSelectedGameId(active.gameId);
       restored = true;
       socket.emit("room:resume", { ...active, avatar: authUser?.avatar || "" }, (reply) => {
         if (!reply?.ok) {
@@ -961,7 +994,10 @@ function App() {
         }
         setToast("");
         if (reply?.playerId || reply?.room?.viewerId) setPlayerId(reply.playerId || reply.room.viewerId);
-        if (reply?.room) setRoom(hydrateRoom(reply.room));
+        if (reply?.room) {
+          setSelectedGameId(reply.room.gameId || active.gameId || "code-hack");
+          setRoom(hydrateRoom(reply.room));
+        }
       });
     }
     if (socket.connected) restoreActiveRoom();
@@ -983,18 +1019,36 @@ function App() {
   }
 
   return (
-    <div className={`app-shell ${!room && homeView === "home" ? "home-screen" : ""} ${room?.phase === "lobby" ? "neutral" : me?.team || "neutral"}`}>
-      {matrixEnabled && <MatrixRain />}
+    <div className={`app-shell ${!room && !selectedGameId ? "meira-site-shell" : ""} ${!room && selectedGameId && homeView === "home" ? "home-screen" : ""} ${room?.phase === "lobby" ? "neutral" : me?.team || "neutral"}`}>
+      {matrixEnabled && selectedGameId && <MatrixRain />}
       {!room ? (
-        homeView === "rooms" ? (
+        !selectedGameId ? (
+          <MeiraGamesSite
+            view={siteView}
+            setView={setSiteView}
+            games={GAME_CATALOG}
+            authUser={authUser}
+            onOpenAuth={() => setAuthModal("login")}
+            onOpenProfile={() => loadProfile(authUser?.id)}
+            onSelectGame={(gameId) => {
+              setSelectedGameId(gameId);
+              setHomeView("home");
+            }}
+          />
+        ) : homeView === "rooms" ? (
           <RoomDirectory
             rooms={roomDirectory}
             constants={constants}
+            game={selectedGame}
             action={action}
             toast={toast}
             playerAvatar={playerAvatar}
             authUser={authUser}
             onBack={() => setHomeView("home")}
+            onBackToPortal={() => {
+              setSelectedGameId("");
+              setHomeView("home");
+            }}
             onOpenSettings={() => setPlayerSettingsOpen(true)}
             onOpenAuth={() => setAuthModal("login")}
             onOpenProfile={() => loadProfile(authUser?.id)}
@@ -1010,10 +1064,12 @@ function App() {
             <Home
               action={action}
               toast={toast}
+              game={selectedGame}
               playerAvatar={playerAvatar}
               authUser={authUser}
               roomDirectory={roomDirectory}
               onOpenRooms={() => setHomeView("rooms")}
+              onBackToPortal={() => setSelectedGameId("")}
               onOpenAuth={() => setAuthModal("login")}
               onOpenProfile={() => loadProfile(authUser?.id)}
               onOpenSettings={() => setPlayerSettingsOpen(true)}
@@ -1184,6 +1240,153 @@ function App() {
         </div>
       )}
     </div>
+  );
+}
+
+function MeiraGamesSite({ view, setView, games, authUser, onOpenAuth, onOpenProfile, onSelectGame }) {
+  const availableGames = games.filter((game) => game.available);
+  const currentView = view || "home";
+  return (
+    <div className="meira-site">
+      <MeiraHeader view={currentView} setView={setView} authUser={authUser} onOpenAuth={onOpenAuth} onOpenProfile={onOpenProfile} />
+      <main className="meira-main">
+        {currentView === "games" && <MeiraGamesGrid games={games} onSelectGame={onSelectGame} />}
+        {currentView === "contact" && <MeiraContact />}
+        {currentView === "home" && <MeiraHome games={games} availableCount={availableGames.length} onSelectGame={onSelectGame} />}
+      </main>
+      <MeiraFooter setView={setView} />
+    </div>
+  );
+}
+
+function MeiraHeader({ view, setView, authUser, onOpenAuth, onOpenProfile }) {
+  return (
+    <header className="meira-header">
+      <nav className="meira-nav" aria-label="Navegacao principal">
+        <button className={view === "home" ? "active" : ""} onClick={() => setView("home")}>Inicio</button>
+        <button className={view === "games" ? "active" : ""} onClick={() => setView("games")}>Jogos</button>
+        <button className={view === "contact" ? "active" : ""} onClick={() => setView("contact")}>Contato</button>
+      </nav>
+      <img className="meira-logo-main" src={SITE_ASSETS.logo} alt="Meira Games" />
+      <div className="meira-auth">
+        {authUser ? (
+          <button onClick={onOpenProfile}>
+            <span className="meira-header-avatar">{authUser.avatar ? <img src={authUser.avatar} alt="" /> : <UserCircle size={20} />}</span>
+            {authUser.displayName}
+          </button>
+        ) : (
+          <button onClick={onOpenAuth}><UserCircle size={18} /> Entrar / Criar conta</button>
+        )}
+      </div>
+    </header>
+  );
+}
+
+function MeiraHome({ games, availableCount, onSelectGame }) {
+  const featured = games[0];
+  return (
+    <div className="meira-page enter">
+      <section className="meira-hero-slider">
+        <img src={featured.heroImage} alt={`${featured.name} destaque`} />
+        <div>
+          <span>Jogo em destaque</span>
+          <h1>{featured.name}</h1>
+          <p>{featured.description}</p>
+          <button className="primary" onClick={() => onSelectGame(featured.id)}><Play size={18} /> Jogar agora</button>
+        </div>
+      </section>
+      <section className="meira-info-grid">
+        <article>
+          <h2>Fliperama online</h2>
+          <p>Meira Games reune jogos multiplayer personalizaveis, salas em tempo real e perfis globais para acompanhar suas partidas.</p>
+        </article>
+        <article>
+          <h2>{availableCount} jogo disponivel</h2>
+          <p>O catalogo comeca com Code Hack e foi preparado para receber novos jogos sem misturar salas, historicos ou estatisticas.</p>
+        </article>
+        <article>
+          <h2>Conquistas</h2>
+          <p>Placeholder para medalhas, desafios semanais e marcos especiais do jogador.</p>
+        </article>
+        <article>
+          <h2>Amigos</h2>
+          <p>Placeholder para lista de amigos, convites rapidos e presenca online.</p>
+        </article>
+        <article className="meira-news-card">
+          <h2>Noticias</h2>
+          <p>Code Hack abriu o portal. Em breve, novas mesas digitais chegam ao Meira Games.</p>
+        </article>
+      </section>
+    </div>
+  );
+}
+
+function MeiraGamesGrid({ games, onSelectGame }) {
+  return (
+    <div className="meira-page enter">
+      <section className="meira-section-head">
+        <h1>Jogos</h1>
+        <p>Escolha uma mesa, chame seus amigos e entre no modo arcade.</p>
+      </section>
+      <div className="meira-games-grid">
+        {games.map((game) => (
+          <button className="meira-game-card" key={game.id} onClick={() => game.available && onSelectGame(game.id)} disabled={!game.available}>
+            <img src={game.cardImage} alt={game.name} />
+            <span>
+              <strong>{game.name}</strong>
+              <em>{game.description}</em>
+            </span>
+          </button>
+        ))}
+        <div className="meira-game-card coming-soon">
+          <img src={SITE_ASSETS.comingSoonCard} alt="Novos jogos em breve" />
+          <span>
+            <strong>Novos jogos</strong>
+            <em>O proximo cartucho ainda esta carregando.</em>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MeiraContact() {
+  return (
+    <div className="meira-page enter">
+      <section className="meira-contact panel">
+        <h1>Quem somos</h1>
+        <p>Meira Games e um espaco para transformar jogos de mesa, deducao e estrategia em experiencias online com personalidade propria.</p>
+        <div className="meira-contact-list">
+          <p><strong>Email</strong><span>contato@meiragames.example</span></p>
+          <p><strong>Discord</strong><span>discord.gg/meiragames-placeholder</span></p>
+          <p><strong>Instagram</strong><span>@meiragames.placeholder</span></p>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function MeiraFooter({ setView }) {
+  return (
+    <footer className="meira-footer">
+      <div>
+        <img src={SITE_ASSETS.logo} alt="Meira Games" />
+        <p>Jogos online personalizaveis com salas em tempo real, perfis globais e uma pitada de fliperama.</p>
+      </div>
+      <nav>
+        <strong>Navegacao</strong>
+        <button onClick={() => setView("home")}>Inicio</button>
+        <button onClick={() => setView("games")}>Jogos</button>
+        <button onClick={() => setView("contact")}>Contato</button>
+      </nav>
+      <label>
+        Idioma
+        <select value="pt-BR" onChange={() => {}}>
+          <option value="pt-BR">Portugues Brasil</option>
+          <option value="en-US">English em breve</option>
+        </select>
+      </label>
+    </footer>
   );
 }
 
@@ -1501,14 +1704,15 @@ function AuthModal({ mode, setMode, authAction, onClose }) {
 
 function ProfilePage({ profile, isOwn, authAction, onBack, onLogout }) {
   const [tab, setTab] = useState("stats");
+  const [gameTab, setGameTab] = useState("code-hack");
   const [draftName, setDraftName] = useState(profile.displayName || "");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordRepeat, setNewPasswordRepeat] = useState("");
   const [accountError, setAccountError] = useState("");
   const [selectedMatch, setSelectedMatch] = useState(null);
-  const matches = profile.matches || [];
-  const stats = profile.stats || { wins: 0, losses: 0, decryptedWords: {}, interceptedWords: {} };
+  const matches = (profile.matches || []).filter((match) => String(match.gameId || "code-hack") === gameTab);
+  const stats = gameStatsForProfile(profile, gameTab);
   useEffect(() => {
     setDraftName(profile.displayName || "");
   }, [profile.displayName]);
@@ -1564,6 +1768,20 @@ function ProfilePage({ profile, isOwn, authAction, onBack, onLogout }) {
         {isOwn && <button className={tab === "account" ? "active" : ""} onClick={() => setTab("account")}>Conta</button>}
         <button className={tab === "stats" ? "active" : ""} onClick={() => setTab("stats")}>Estatisticas</button>
         <button className={tab === "history" ? "active" : ""} onClick={() => setTab("history")}>Historico</button>
+      </div>
+      <div className="segmented profile-game-tabs">
+        {GAME_CATALOG.map((game) => (
+          <button
+            key={game.id}
+            className={gameTab === game.id ? "active" : ""}
+            onClick={() => {
+              setGameTab(game.id);
+              setSelectedMatch(null);
+            }}
+          >
+            {game.name}
+          </button>
+        ))}
       </div>
       {tab === "account" && isOwn && (
         <section className="panel profile-account-panel">
@@ -1670,6 +1888,20 @@ function MatchDetails({ match }) {
   );
 }
 
+function gameStatsForProfile(profile, gameId) {
+  if (gameId === "code-hack") {
+    return profile.stats || { wins: 0, losses: 0, draws: 0, abandoned: 0, decryptedWords: {}, interceptedWords: {} };
+  }
+  const matches = (profile.matches || []).filter((match) => String(match.gameId || "code-hack") === gameId && match.status !== "active");
+  return matches.reduce((stats, match) => {
+    if (match.outcome === "win") stats.wins += 1;
+    else if (match.outcome === "draw") stats.draws += 1;
+    else if (match.outcome === "abandoned") stats.abandoned += 1;
+    else stats.losses += 1;
+    return stats;
+  }, { wins: 0, losses: 0, draws: 0, abandoned: 0, decryptedWords: {}, interceptedWords: {} });
+}
+
 function MatchTiebreakerGuess({ match, team, index }) {
   const guesser = otherTeam(team);
   const guess = match.tiebreaker?.[guesser]?.guess?.[index];
@@ -1742,7 +1974,7 @@ function localStorageToken() {
   }
 }
 
-function Home({ action, toast, playerAvatar, authUser, roomDirectory, onOpenRooms, onOpenAuth, onOpenProfile, onOpenSettings, onPasswordJoin }) {
+function Home({ action, toast, game, playerAvatar, authUser, roomDirectory, onOpenRooms, onBackToPortal, onOpenAuth, onOpenProfile, onOpenSettings, onPasswordJoin }) {
   const [name, setName] = useLocalState("decrypto:name", "");
   const [code, setCode] = useLocalState("decrypto:lastRoomCode", "");
   const [createOpen, setCreateOpen] = useState(false);
@@ -1789,6 +2021,7 @@ function Home({ action, toast, playerAvatar, authUser, roomDirectory, onOpenRoom
             </label>
           )}
         </div>
+        <button onClick={onBackToPortal}><ArrowLeft size={18} /> Meira Games</button>
         <button className="primary" onClick={() => setCreateOpen(true)}><Play size={18} /> Criar sala</button>
         {authUser ? <button onClick={onOpenProfile}><UserCircle size={18} /> Perfil</button> : <button onClick={onOpenAuth}><UserCircle size={18} /> Criar conta / Entrar</button>}
         <button onClick={onOpenRooms}><RadioTower size={18} /> Salas</button>
@@ -1817,7 +2050,7 @@ function Home({ action, toast, playerAvatar, authUser, roomDirectory, onOpenRoom
   );
 }
 
-function RoomDirectory({ rooms, constants, action, toast, playerAvatar, authUser, onBack, onOpenSettings, onOpenAuth, onOpenProfile, onPasswordJoin }) {
+function RoomDirectory({ rooms, constants, game, action, toast, playerAvatar, authUser, onBack, onBackToPortal, onOpenSettings, onOpenAuth, onOpenProfile, onPasswordJoin }) {
   const [name, setName] = useLocalState("decrypto:name", "");
   const [phaseFilter, setPhaseFilter] = useState("all");
   const [passwordFilter, setPasswordFilter] = useState("all");
@@ -1854,7 +2087,10 @@ function RoomDirectory({ rooms, constants, action, toast, playerAvatar, authUser
             </div>
             {!authUser && <button className="compact-action" onClick={onOpenAuth}><UserCircle size={18} /> Entrar</button>}
           </div>
-          <button onClick={onBack}><LogOut size={17} /> Menu principal</button>
+          <div className="inline-actions">
+            <button onClick={onBackToPortal}><ArrowLeft size={17} /> Meira Games</button>
+            <button onClick={onBack}><LogOut size={17} /> Menu principal</button>
+          </div>
         </div>
         <div className="rooms-filter-grid">
           <label>Status
@@ -3575,6 +3811,11 @@ function guestName() {
   return "Jogador";
 }
 
+function filterRoomsByGame(rooms = [], gameId = "code-hack") {
+  const expected = String(gameId || "code-hack").trim().toLowerCase();
+  return (rooms || []).filter((room) => String(room.gameId || "code-hack").trim().toLowerCase() === expected);
+}
+
 function makeRoomClientId() {
   return `room:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 12)}`;
 }
@@ -3616,6 +3857,7 @@ function rememberSession(room, payload = {}, clientId = getGhostClientId()) {
     if (room?.code && name) {
       sessionStorage.setItem("codehack:activeRoom", JSON.stringify({
         code: room.code,
+        gameId: room.gameId || payload.gameId || "code-hack",
         name,
         clientId
       }));

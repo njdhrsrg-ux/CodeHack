@@ -229,6 +229,249 @@ h2 {
   padding: 1rem;
 }
 
+.app-shell.meira-site-shell {
+  --accent: #ffcc33;
+  --accent-2: #39ffba;
+  --accent-soft: rgba(255, 204, 51, 0.18);
+  --line: rgba(255, 204, 51, 0.32);
+  padding: 0;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(255, 79, 139, 0.18), transparent 28rem),
+    radial-gradient(circle at 82% 12%, rgba(57, 255, 186, 0.14), transparent 24rem),
+    linear-gradient(180deg, #0b0b22 0%, #15102d 52%, #09091a 100%);
+}
+
+.meira-site {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+.meira-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem clamp(1rem, 3vw, 2.4rem);
+  background: rgba(9, 8, 28, 0.88);
+  border-bottom: 1px solid rgba(255, 204, 51, 0.25);
+  backdrop-filter: blur(14px);
+}
+
+.meira-nav,
+.meira-auth {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.meira-auth {
+  justify-content: flex-end;
+}
+
+.meira-header button,
+.meira-footer button {
+  border-color: rgba(255, 204, 51, 0.25);
+  background: rgba(24, 18, 55, 0.9);
+}
+
+.meira-header button.active {
+  color: #ffef7a;
+  border-color: #ffcc33;
+  box-shadow: 0 0 18px rgba(255, 204, 51, 0.2);
+}
+
+.meira-logo-main {
+  width: clamp(220px, 28vw, 420px);
+  max-height: 150px;
+  object-fit: contain;
+}
+
+.meira-header-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.meira-header-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.meira-main {
+  padding: clamp(1rem, 2.6vw, 2.5rem);
+}
+
+.meira-page {
+  display: grid;
+  gap: 1.4rem;
+}
+
+.meira-hero-slider {
+  position: relative;
+  min-height: min(560px, 64vh);
+  border: 1px solid rgba(57, 255, 186, 0.24);
+  border-radius: 18px;
+  overflow: hidden;
+  background: #08071c;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+}
+
+.meira-hero-slider img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.72;
+}
+
+.meira-hero-slider > div {
+  position: relative;
+  z-index: 1;
+  min-height: inherit;
+  width: min(680px, 100%);
+  display: grid;
+  align-content: center;
+  gap: 1rem;
+  padding: clamp(1.4rem, 4vw, 4rem);
+  background: linear-gradient(90deg, rgba(7, 7, 25, 0.92), rgba(7, 7, 25, 0.32), transparent);
+}
+
+.meira-hero-slider span,
+.meira-section-head p {
+  color: #8cefff;
+}
+
+.meira-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.meira-info-grid article,
+.meira-contact {
+  border: 1px solid rgba(255, 204, 51, 0.2);
+  border-radius: 14px;
+  padding: 1.2rem;
+  background: rgba(17, 13, 43, 0.78);
+}
+
+.meira-info-grid h2,
+.meira-contact h1,
+.meira-section-head h1 {
+  color: #ffef7a;
+}
+
+.meira-news-card {
+  grid-column: span 2;
+}
+
+.meira-games-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(1rem, 2vw, 1.6rem);
+}
+
+.meira-game-card {
+  position: relative;
+  aspect-ratio: 5 / 3;
+  min-height: 220px;
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #14102d;
+}
+
+.meira-game-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.78) contrast(0.82) brightness(0.82);
+  transition: filter 180ms ease, transform 180ms ease;
+}
+
+.meira-game-card span {
+  position: absolute;
+  inset: auto 0 0;
+  display: grid;
+  gap: 0.4rem;
+  padding: 1rem;
+  background: linear-gradient(180deg, transparent, rgba(6, 5, 18, 0.96));
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.meira-game-card:hover:not(:disabled) img {
+  filter: saturate(1.18) contrast(1.12) brightness(1.04);
+  transform: scale(1.025);
+}
+
+.meira-game-card:hover:not(:disabled) span,
+.meira-game-card.coming-soon span {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.meira-game-card strong {
+  color: #ffef7a;
+  font-size: 1.2rem;
+}
+
+.meira-game-card em {
+  color: #dfe8ff;
+  font-style: normal;
+}
+
+.meira-contact-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.meira-contact-list p {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  padding-bottom: 0.7rem;
+}
+
+.meira-footer {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(180px, 0.8fr) minmax(220px, 0.8fr);
+  gap: 2rem;
+  padding: 2rem clamp(1rem, 3vw, 2.4rem);
+  background: #070719;
+  border-top: 1px solid rgba(255, 204, 51, 0.22);
+}
+
+.meira-footer img {
+  width: 190px;
+  max-width: 100%;
+}
+
+.meira-footer nav {
+  display: grid;
+  justify-items: start;
+  gap: 0.55rem;
+}
+
+.meira-footer nav strong {
+  color: #ffef7a;
+  font-size: 1.1rem;
+}
+
 .room-event-stack {
   position: fixed;
   top: 1rem;
@@ -3751,6 +3994,38 @@ main {
 @keyframes confirmFlash {
   0%, 100% { box-shadow: 0 0 18px var(--surface-soft, var(--accent-soft)); }
   50% { box-shadow: 0 0 34px var(--surface-soft, var(--accent-soft)); }
+}
+
+@media (max-width: 1100px) {
+  .meira-games-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .meira-footer {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .meira-header {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .meira-nav,
+  .meira-auth {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 720px) {
+  .meira-games-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .meira-hero-slider > div {
+    background: rgba(7, 7, 25, 0.82);
+  }
 }
 
 @media (max-width: 1100px) {

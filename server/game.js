@@ -15,6 +15,7 @@ export function makeRoom(hostId, hostName, hostAvatar = "", hostClientId = hostI
   const host = makePlayer(hostId, hostName, true, hostAvatar, hostClientId);
   return {
     code,
+    gameId: cleanGameId(roomOptions.gameId),
     name: cleanRoomName(roomOptions.roomName, host.name),
     password: cleanRoomPassword(roomOptions.password),
     publicRoom: roomOptions.publicRoom !== false,
@@ -67,6 +68,7 @@ export function makePlayer(id, name = "Operador", isHost = false, avatar = "", c
 export function normalizeRoom(room) {
   if (!room || typeof room !== "object") return null;
   room.code = String(room.code || "").trim().toUpperCase();
+  room.gameId = cleanGameId(room.gameId);
   room.name = cleanRoomName(room.name || room.code || "Sala");
   room.password = cleanRoomPassword(room.password);
   room.publicRoom = room.publicRoom !== false;
@@ -1144,6 +1146,11 @@ function cleanRoomName(name, hostName = "Operador") {
 
 function cleanRoomPassword(password) {
   return String(password || "").trim().slice(0, 32);
+}
+
+function cleanGameId(gameId) {
+  const clean = String(gameId || "code-hack").trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+  return clean || "code-hack";
 }
 
 function cleanClientId(clientId) {

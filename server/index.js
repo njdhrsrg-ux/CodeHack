@@ -776,7 +776,7 @@ io.on("connection", (socket) => {
     .then((roomList) => socket.emit("rooms:update", roomList))
     .catch((error) => console.error("publicRoomList failed", error));
 
-  socket.on("rooms:list", (_payload, reply) => safe(reply, async () => ({ rooms: await publicRoomList() })));
+  socket.on("rooms:list", ({ gameId } = {}, reply) => safe(reply, async () => ({ rooms: await publicRoomList(gameId) })));
 
   socket.on("auth:me", ({ token }, reply) => safe(reply, async () => ({ user: await meFromToken(token) })));
   socket.on("auth:register", (payload, reply) => safe(reply, () => registerUser(payload)));
@@ -794,10 +794,10 @@ io.on("connection", (socket) => {
     return { ok: true };
   }));
 
-  socket.on("room:create", ({ name, avatar, clientId, roomName, password, publicRoom: isPublicRoom, authToken }, reply) => safe(reply, async () => {
+  socket.on("room:create", ({ name, avatar, clientId, roomName, password, publicRoom: isPublicRoom, authToken, gameId }, reply) => safe(reply, async () => {
     clearPendingDisconnect(clientId);
     const user = await authUserByToken(authToken);
-    const room = await uniqueRoom(socket.id, user?.displayName || name, user?.avatar || avatar, clientId, { roomName, password: isPublicRoom === false ? "" : password, publicRoom: isPublicRoom });
+    const room = await uniqueRoom(socket.id, user?.displayName || name, user?.avatar || avatar, clientId, { roomName, password: isPublicRoom === false ? "" : password, publicRoom: isPublicRoom, gameId });
     attachUser(room.players[socket.id], user);
     sessions.set(socket.id, room.code);
     socket.join(room.code);
@@ -806,8 +806,9 @@ io.on("connection", (socket) => {
     return { room: publicRoom(room, socket.id), playerId: socket.id };
   }));
 
-  socket.on("room:join", ({ code, name, avatar, clientId, role, password, authToken }, reply) => safe(reply, async () => {
+  socket.on("room:join", ({ code, name, avatar, clientId, role, password, authToken, gameId }, reply) => safe(reply, async () => {
     const room = await getRoom(code);
+    validateRoomGame(room, gameId);
     const user = await authUserByToken(authToken);
     validateRoomPassword(room, password);
     const allowActiveTakeover = clearPendingDisconnect(clientId);
@@ -824,8 +825,9 @@ io.on("connection", (socket) => {
     return { room: publicRoom(room, join.playerId), playerId: join.playerId };
   }));
 
-  socket.on("room:resume", ({ code, name, avatar, clientId, role, authToken }, reply) => safe(reply, async () => {
+  socket.on("room:resume", ({ code, name, avatar, clientId, role, authToken, gameId }, reply) => safe(reply, async () => {
     const room = await getRoom(code);
+    validateRoomGame(room, gameId);
     const user = await authUserByToken(authToken);
     const allowActiveTakeover = clearPendingDisconnect(clientId);
     const join = addPlayer(room, socket.id, user?.displayName || name, user?.avatar || avatar, clientId, role, { allowActiveTakeover, userId: user?.id });
@@ -1109,7 +1111,8 @@ async function emitRoomList() {
   io.emit("rooms:update", await publicRoomList());
 }
 
-async function publicRoomList() {
+async function publicRoomList(gameId = "") {
+  const wantedGame = cleanGameId(gameId);
   const databaseRooms = await listRooms();
   databaseRooms.forEach((room) => {
     room = normalizeRoom(room);
@@ -1119,6 +1122,7 @@ async function publicRoomList() {
   });
   return Array.from(rooms.values())
     .filter((room) => room.publicRoom !== false)
+    .filter((room) => !wantedGame || roomGameId(room) === wantedGame)
     .map(roomSummary);
 }
 
@@ -1135,6 +1139,7 @@ function roomSummary(room) {
   const host = room.players?.[room.hostId] || players.find((player) => player.isHost);
   return {
     code: room.code,
+    gameId: roomGameId(room),
     name: room.name || room.code,
     hostName: host?.name || "Host",
     playerCount: players.length,
@@ -1149,6 +1154,21 @@ function roomSummary(room) {
 function validateRoomPassword(room, password) {
   if (!room.password) return;
   if (String(password || "") !== room.password) throw new Error("Senha incorreta.");
+}
+
+function validateRoomGame(room, gameId) {
+  const expectedGame = cleanGameId(gameId);
+  if (!expectedGame) return;
+  if (roomGameId(room) !== expectedGame) throw new Error("Esta sala pertence a outro jogo.");
+}
+
+function cleanGameId(gameId) {
+  const clean = String(gameId || "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+  return clean;
+}
+
+function roomGameId(room) {
+  return cleanGameId(room?.gameId) || "code-hack";
 }
 
 function emitRoomEvent(room, exceptPlayerId, type, player) {

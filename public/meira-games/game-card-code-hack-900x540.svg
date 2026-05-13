@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" role="img" aria-label="Code Hack game card placeholder">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop stop-color="#03130c"/>
+      <stop offset="1" stop-color="#072d4d"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="540" rx="36" fill="url(#g)"/>
+  <g fill="#2bff88" opacity=".28" font-family="monospace" font-size="28">
+    <text x="52" y="78">101101 // ACCESS</text>
+    <text x="52" y="132">DECRYPT ROUND</text>
+    <text x="52" y="186">0101 1100 0011</text>
+    <text x="52" y="240">INTERCEPT</text>
+  </g>
+  <rect x="104" y="292" width="692" height="122" rx="18" fill="#061710" stroke="#2bff88" stroke-width="5"/>
+  <text x="450" y="368" text-anchor="middle" font-family="monospace" font-size="54" font-weight="900" fill="#f5fff8">CODE HACK</text>
+  <text x="450" y="424" text-anchor="middle" font-family="monospace" font-size="26" fill="#7ee8ff">combate de hackers</text>
+</svg>
