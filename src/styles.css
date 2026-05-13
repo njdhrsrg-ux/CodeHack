@@ -121,14 +121,14 @@ button:disabled {
 
 .ringbound-lobby,
 .ringbound-game {
-  --surface-accent: #ffb84d;
-  --accent: #ffb84d;
-  --accent-2: #39d0ff;
-  --panel: rgba(18, 14, 36, 0.9);
-  --panel-strong: rgba(24, 18, 48, 0.96);
-  --line: rgba(255, 184, 77, 0.35);
-  --muted: #c3a7d9;
-  color: #fff6de;
+  --surface-accent: #d9b46a;
+  --accent: #d9b46a;
+  --accent-2: #9f7aea;
+  --panel: rgba(18, 12, 30, 0.9);
+  --panel-strong: rgba(25, 16, 42, 0.96);
+  --line: rgba(217, 180, 106, 0.34);
+  --muted: #cbbbe0;
+  color: #fff9e8;
 }
 
 .ringbound-lobby-grid,
@@ -149,10 +149,11 @@ button:disabled {
 .ringbound-side,
 .ringbound-table {
   background:
-    radial-gradient(circle at top left, rgba(255, 79, 139, 0.16), transparent 34%),
-    radial-gradient(circle at bottom right, rgba(57, 208, 255, 0.14), transparent 38%),
-    rgba(18, 14, 36, 0.92);
-  border-color: rgba(255, 184, 77, 0.35);
+    radial-gradient(circle at top left, rgba(217, 180, 106, 0.16), transparent 32%),
+    radial-gradient(circle at bottom right, rgba(116, 78, 174, 0.22), transparent 42%),
+    linear-gradient(145deg, rgba(26, 18, 44, 0.96), rgba(12, 10, 24, 0.94));
+  border-color: rgba(217, 180, 106, 0.42);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, .34), inset 0 0 0 1px rgba(255, 246, 218, .05);
 }
 
 .ringbound-section-title,
@@ -180,8 +181,8 @@ button:disabled {
   justify-content: space-between;
   gap: .7rem;
   padding: .65rem .75rem;
-  border: 1px solid rgba(255, 184, 77, .24);
-  background: rgba(9, 12, 28, .72);
+  border: 1px solid rgba(217, 180, 106, .24);
+  background: linear-gradient(135deg, rgba(34, 24, 52, .86), rgba(12, 12, 28, .78));
   border-radius: 8px;
 }
 
@@ -208,9 +209,27 @@ button:disabled {
 
 .ringbound-rules-preview {
   padding: .9rem;
-  border: 1px dashed rgba(255, 184, 77, .35);
+  border: 1px dashed rgba(217, 180, 106, .35);
   border-radius: 8px;
   color: #d7c6e6;
+}
+
+.ringbound-ring-settings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .65rem;
+}
+
+.ringbound-ring-settings button {
+  border-color: color-mix(in srgb, var(--ring-color) 52%, transparent);
+  background: rgba(8, 8, 20, .78);
+}
+
+.ringbound-ring-settings button.active {
+  color: #fff;
+  border-color: var(--ring-color);
+  background: color-mix(in srgb, var(--ring-color) 26%, rgba(8, 8, 20, .94));
+  box-shadow: 0 0 22px color-mix(in srgb, var(--ring-color) 22%, transparent);
 }
 
 .ringbound-game {
@@ -223,7 +242,7 @@ button:disabled {
 .ringbound-table {
   display: grid;
   gap: 1rem;
-  min-height: 720px;
+  min-height: 740px;
 }
 
 .ringbound-board {
@@ -233,13 +252,12 @@ button:disabled {
 
 .ringbound-venn {
   position: relative;
-  min-height: 360px;
-  border-radius: 12px;
+  min-height: 390px;
+  border-radius: 18px;
   background:
-    linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(255,255,255,.04) 1px, transparent 1px),
-    rgba(6, 8, 20, .75);
-  background-size: 48px 48px;
+    radial-gradient(circle at center, rgba(217, 180, 106, .12), transparent 34%),
+    repeating-radial-gradient(circle at center, rgba(255, 246, 218, .07) 0 1px, transparent 1px 42px),
+    rgba(7, 6, 18, .82);
   overflow: hidden;
 }
 
@@ -248,27 +266,10 @@ button:disabled {
   width: min(44%, 260px);
   aspect-ratio: 1;
   border-radius: 50%;
-  border: 12px solid var(--ring-color);
-  background: color-mix(in srgb, var(--ring-color) 18%, transparent);
-  box-shadow: 0 0 34px color-mix(in srgb, var(--ring-color) 45%, transparent);
+  border: 10px solid var(--ring-color);
+  background: color-mix(in srgb, var(--ring-color) 13%, transparent);
+  box-shadow: 0 0 34px color-mix(in srgb, var(--ring-color) 48%, transparent), inset 0 0 34px color-mix(in srgb, var(--ring-color) 22%, transparent);
   mix-blend-mode: screen;
-}
-
-.ringbound-ring span {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  translate: -50% -50%;
-  width: 46px;
-  height: 46px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: rgba(5, 6, 16, .86);
-  color: #fff;
-  border: 2px solid var(--ring-color);
-  font-family: "Press Start 2P", monospace;
-  font-size: .9rem;
 }
 
 .rings-1 .ring-0 { left: 50%; top: 50%; translate: -50% -50%; }
@@ -288,7 +289,7 @@ button:disabled {
   min-height: 88px;
   padding: .65rem;
   border: 1px solid rgba(255, 255, 255, .12);
-  background: rgba(6, 8, 20, .62);
+  background: rgba(10, 8, 22, .7);
   border-radius: 8px;
 }
 
@@ -311,11 +312,11 @@ button:disabled {
 .ringbound-turn-card,
 .ringbound-pending {
   display: grid;
-  gap: .85rem;
+  gap: 1.05rem;
   padding: 1rem;
-  border: 1px solid rgba(57, 208, 255, .25);
-  border-radius: 10px;
-  background: rgba(6, 10, 26, .72);
+  border: 1px solid rgba(217, 180, 106, .28);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(14, 12, 30, .86), rgba(31, 18, 45, .78));
 }
 
 .ringbound-current-item {
@@ -336,10 +337,50 @@ button:disabled {
   height: 112px;
 }
 
+.ringbound-hand {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: .8rem;
+}
+
+.ringbound-hand-card {
+  min-height: 178px;
+  display: grid;
+  grid-template-rows: 112px auto;
+  align-items: center;
+  justify-items: center;
+  gap: .55rem;
+  padding: .75rem;
+  border: 1px solid rgba(217, 180, 106, .26);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 249, 232, .07), rgba(11, 8, 24, .86));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
+}
+
+.ringbound-hand-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.ringbound-hand-card.active {
+  border-color: #d9b46a;
+  box-shadow: 0 0 0 1px rgba(217, 180, 106, .28), 0 0 28px rgba(217, 180, 106, .16);
+}
+
+.ringbound-hand-card .word-image {
+  width: 104px;
+  height: 104px;
+}
+
+.ringbound-hand-card strong {
+  font-size: 1.05rem;
+  color: #fff6de;
+  text-align: center;
+}
+
 .ringbound-choice {
   display: flex;
   flex-wrap: wrap;
-  gap: .65rem;
+  gap: .8rem;
 }
 
 .ringbound-choice button {
@@ -363,7 +404,7 @@ button:disabled {
   align-items: baseline;
   padding: .65rem;
   border-left: 4px solid var(--ring-color);
-  background: rgba(6, 8, 20, .58);
+  background: rgba(10, 8, 22, .66);
   border-radius: 6px;
 }
 

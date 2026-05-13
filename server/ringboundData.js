@@ -1,100 +1,230 @@
-export const RINGBOUND_RULE_GROUPS = {
-  material: "Material",
-  function: "Funcao",
-  place: "Lugar",
-  shape: "Forma",
-  property: "Propriedade",
-  language: "Linguagem",
-  fiction: "Universo"
+export const RINGBOUND_RING_TYPES = {
+  attribute: { id: "attribute", label: "Atributo", color: "#4aa8ff" },
+  word: { id: "word", label: "Palavra", color: "#ffd84d" },
+  place: { id: "place", label: "Lugar", color: "#ff5a6f" }
 };
 
 export const RINGBOUND_RULES = {
-  Geral: [
-    { code: "G_EDIBLE", group: "function", label: "e comestivel" },
-    { code: "G_METAL", group: "material", label: "tem metal" },
-    { code: "G_KITCHEN", group: "place", label: "fica na cozinha" },
-    { code: "G_ROUND", group: "shape", label: "e redondo" },
-    { code: "G_ELECTRIC", group: "property", label: "usa eletricidade" },
-    { code: "G_OUTDOOR", group: "place", label: "e usado ao ar livre" }
-  ],
-  Pokemon: [
-    { code: "P_FIRE", group: "property", label: "tem relacao com fogo" },
-    { code: "P_WATER", group: "property", label: "tem relacao com agua" },
-    { code: "P_FLY", group: "property", label: "voa ou levita" },
-    { code: "P_ROUND", group: "shape", label: "tem corpo arredondado" },
-    { code: "P_FAMOUS", group: "fiction", label: "e muito reconhecivel" }
-  ],
-  Filmes: [
-    { code: "F_ANIMATED", group: "property", label: "e animado" },
-    { code: "F_SPACE", group: "place", label: "envolve espaco ou ficcao cientifica" },
-    { code: "F_HERO", group: "fiction", label: "tem herois marcantes" },
-    { code: "F_OSCAR", group: "property", label: "tem prestigio/premios" },
-    { code: "F_ONEWORD", group: "language", label: "tem titulo de uma palavra" }
-  ],
-  Jogos: [
-    { code: "J_NINTENDO", group: "fiction", label: "vem de franquia Nintendo" },
-    { code: "J_WEAPON", group: "property", label: "usa armas ou combate" },
-    { code: "J_PLATFORM", group: "function", label: "vem de jogo de plataforma" },
-    { code: "J_MAGIC", group: "fiction", label: "tem fantasia ou magia" },
-    { code: "J_ICON", group: "property", label: "e mascote/iconico" }
-  ],
-  Anime: [
-    { code: "A_SHONEN", group: "fiction", label: "vem de shonen famoso" },
-    { code: "A_POWER", group: "property", label: "tem poderes sobrenaturais" },
-    { code: "A_TEAM", group: "function", label: "faz parte de grupo/equipe" },
-    { code: "A_FOOD", group: "function", label: "tem associacao com comida" },
-    { code: "A_SHORT", group: "language", label: "nome curto" }
-  ],
-  Geek: [
-    { code: "K_MARVEL", group: "fiction", label: "vem da Marvel" },
-    { code: "K_DC", group: "fiction", label: "vem da DC" },
-    { code: "K_SPACE", group: "place", label: "vem de universo espacial" },
-    { code: "K_MAGIC", group: "fiction", label: "tem magia ou sobrenatural" },
-    { code: "K_MASK", group: "property", label: "usa mascara ou identidade secreta" }
-  ],
-  Famosos: [
-    { code: "X_BRAZIL", group: "place", label: "e brasileiro" },
-    { code: "X_MUSIC", group: "function", label: "e ligado a musica" },
-    { code: "X_SPORT", group: "function", label: "e ligado a esporte" },
-    { code: "X_HISTORY", group: "property", label: "e figura historica" },
-    { code: "X_SCIENCE", group: "function", label: "e ligado a ciencia" }
-  ]
+  Geral: {
+    attribute: [
+      { code: "G_A_METAL", label: "tem metal" },
+      { code: "G_A_COLD", label: "costuma ser frio" },
+      { code: "G_A_HOLE", label: "tem um ou mais buracos" }
+    ],
+    word: [
+      { code: "G_W_3SYL", label: "tem exatamente 3 silabas" },
+      { code: "G_W_A", label: "tem a letra A" },
+      { code: "G_W_DOUBLE", label: "tem letra repetida" }
+    ],
+    place: [
+      { code: "G_P_KITCHEN", label: "pode ser encontrado na cozinha" },
+      { code: "G_P_PICNIC", label: "pode aparecer em um piquenique" },
+      { code: "G_P_SCHOOL", label: "pode ser encontrado em uma escola" }
+    ]
+  },
+  Pokemon: {
+    attribute: [
+      { code: "P_A_FIREWEAK", label: "e fraco contra fogo" },
+      { code: "P_A_EVOLVES", label: "tem evolucao na linha evolutiva" },
+      { code: "P_A_ASH", label: "ja foi do time do Ash" }
+    ],
+    word: [
+      { code: "P_W_A", label: "tem a letra A" },
+      { code: "P_W_6PLUS", label: "tem 6 ou mais letras" },
+      { code: "P_W_DOUBLE", label: "tem letra repetida" }
+    ],
+    place: [
+      { code: "P_P_KANTO", label: "aparece em Kanto" },
+      { code: "P_P_WATER", label: "pode ser encontrado perto de agua" },
+      { code: "P_P_FOREST", label: "pode ser encontrado em florestas" }
+    ]
+  },
+  Filmes: {
+    attribute: [
+      { code: "F_A_ANIMATED", label: "e animado" },
+      { code: "F_A_OSCAR", label: "venceu ou disputou Oscar importante" },
+      { code: "F_A_FANTASY", label: "tem fantasia ou ficcao especulativa" }
+    ],
+    word: [
+      { code: "F_W_ONE", label: "tem titulo de uma palavra" },
+      { code: "F_W_A", label: "tem a letra A no titulo" },
+      { code: "F_W_8PLUS", label: "tem 8 ou mais letras no titulo principal" }
+    ],
+    place: [
+      { code: "F_P_SPACE", label: "tem cenas ou tema espacial" },
+      { code: "F_P_CITY", label: "tem cidade marcante" },
+      { code: "F_P_SCHOOL", label: "tem ambiente escolar ou infantil" }
+    ]
+  },
+  Jogos: {
+    attribute: [
+      { code: "J_A_WEAPON", label: "usa arma ou combate direto" },
+      { code: "J_A_MAGIC", label: "tem magia ou poder sobrenatural" },
+      { code: "J_A_ICON", label: "e mascote ou personagem muito iconico" }
+    ],
+    word: [
+      { code: "J_W_5LESS", label: "tem 5 letras ou menos" },
+      { code: "J_W_A", label: "tem a letra A" },
+      { code: "J_W_DOUBLE", label: "tem letra repetida" }
+    ],
+    place: [
+      { code: "J_P_NINTENDO", label: "vem de franquia Nintendo" },
+      { code: "J_P_FANTASY", label: "vem de mundo de fantasia" },
+      { code: "J_P_FUTURE", label: "vem de universo futurista" }
+    ]
+  },
+  Anime: {
+    attribute: [
+      { code: "A_A_POWER", label: "tem poderes sobrenaturais" },
+      { code: "A_A_TEAM", label: "faz parte de grupo ou equipe" },
+      { code: "A_A_KIND", label: "tem aparencia ou comportamento gentil" }
+    ],
+    word: [
+      { code: "A_W_5LESS", label: "tem 5 letras ou menos" },
+      { code: "A_W_A", label: "tem a letra A" },
+      { code: "A_W_FULL", label: "e conhecido por nome e sobrenome" }
+    ],
+    place: [
+      { code: "A_P_SCHOOL", label: "tem ligacao com escola ou academia" },
+      { code: "A_P_BATTLE", label: "vem de obra centrada em batalhas" },
+      { code: "A_P_FAMILY", label: "tem familia como tema forte" }
+    ]
+  },
+  Geek: {
+    attribute: [
+      { code: "K_A_MASK", label: "usa mascara ou identidade secreta" },
+      { code: "K_A_MAGIC", label: "tem magia ou sobrenatural" },
+      { code: "K_A_POWER", label: "tem poderes extraordinarios" }
+    ],
+    word: [
+      { code: "K_W_A", label: "tem a letra A" },
+      { code: "K_W_TWO", label: "tem duas palavras no nome" },
+      { code: "K_W_8PLUS", label: "tem 8 ou mais letras" }
+    ],
+    place: [
+      { code: "K_P_MARVEL", label: "vem da Marvel" },
+      { code: "K_P_DC", label: "vem da DC" },
+      { code: "K_P_SPACE", label: "vem de universo espacial" }
+    ]
+  },
+  Famosos: {
+    attribute: [
+      { code: "X_A_BRAZIL", label: "e brasileiro" },
+      { code: "X_A_HISTORY", label: "e figura historica" },
+      { code: "X_A_ALIVE", label: "esta vivo atualmente" }
+    ],
+    word: [
+      { code: "X_W_TWO", label: "tem duas palavras no nome" },
+      { code: "X_W_A", label: "tem a letra A" },
+      { code: "X_W_7PLUS", label: "tem 7 ou mais letras no nome principal" }
+    ],
+    place: [
+      { code: "X_P_MUSIC", label: "tem ligacao com musica" },
+      { code: "X_P_SPORT", label: "tem ligacao com esporte" },
+      { code: "X_P_SCIENCE", label: "tem ligacao com ciencia" }
+    ]
+  }
 };
 
 export const RINGBOUND_ITEMS = {
   Geral: [
-    ["banana", ["G_EDIBLE", "G_KITCHEN"]], ["colher", ["G_METAL", "G_KITCHEN"]], ["panela", ["G_METAL", "G_KITCHEN"]], ["pizza", ["G_EDIBLE", "G_ROUND", "G_KITCHEN"]],
-    ["relogio", ["G_ROUND", "G_METAL"]], ["ventilador", ["G_ELECTRIC"]], ["bicicleta", ["G_METAL", "G_ROUND", "G_OUTDOOR"]], ["bola", ["G_ROUND", "G_OUTDOOR"]],
-    ["faca", ["G_METAL", "G_KITCHEN"]], ["fogao", ["G_METAL", "G_KITCHEN"]], ["abacaxi", ["G_EDIBLE", "G_KITCHEN"]], ["lanterna", ["G_ELECTRIC", "G_OUTDOOR"]]
+    ["banana", ["G_W_3SYL", "G_W_A", "G_P_KITCHEN", "G_P_PICNIC", "G_P_SCHOOL"]],
+    ["colher", ["G_A_METAL", "G_A_COLD", "G_P_KITCHEN", "G_P_PICNIC", "G_P_SCHOOL"]],
+    ["panela", ["G_A_METAL", "G_A_HOLE", "G_W_3SYL", "G_W_A", "G_P_KITCHEN"]],
+    ["pizza", ["G_A_HOLE", "G_W_A", "G_W_DOUBLE", "G_P_KITCHEN", "G_P_PICNIC"]],
+    ["relogio", ["G_A_METAL", "G_A_HOLE", "G_W_3SYL", "G_P_SCHOOL"]],
+    ["ventilador", ["G_A_METAL", "G_A_COLD", "G_P_SCHOOL"]],
+    ["bicicleta", ["G_A_METAL", "G_W_3SYL", "G_W_A", "G_P_SCHOOL"]],
+    ["bola", ["G_A_HOLE", "G_W_A", "G_P_PICNIC", "G_P_SCHOOL"]],
+    ["faca", ["G_A_METAL", "G_A_COLD", "G_W_A", "G_P_KITCHEN", "G_P_PICNIC"]],
+    ["abacaxi", ["G_W_A", "G_W_DOUBLE", "G_P_KITCHEN", "G_P_PICNIC"]],
+    ["lanterna", ["G_A_METAL", "G_A_HOLE", "G_W_3SYL", "G_W_A", "G_P_PICNIC"]],
+    ["caderno", ["G_W_3SYL", "G_P_SCHOOL"]],
+    ["garrafa", ["G_A_COLD", "G_A_HOLE", "G_W_3SYL", "G_W_A", "G_W_DOUBLE", "G_P_KITCHEN", "G_P_PICNIC", "G_P_SCHOOL"]],
+    ["queijo", ["G_A_COLD", "G_P_KITCHEN", "G_P_PICNIC"]]
   ],
   Pokemon: [
-    ["Pikachu", ["P_FAMOUS", "P_ROUND"]], ["Charizard", ["P_FIRE", "P_FLY", "P_FAMOUS"]], ["Squirtle", ["P_WATER", "P_FAMOUS"]], ["Jigglypuff", ["P_ROUND", "P_FAMOUS"]],
-    ["Gyarados", ["P_WATER", "P_FLY", "P_FAMOUS"]], ["Magikarp", ["P_WATER"]], ["Moltres", ["P_FIRE", "P_FLY"]], ["Lapras", ["P_WATER", "P_FAMOUS"]],
-    ["Gengar", ["P_ROUND", "P_FAMOUS"]], ["Blastoise", ["P_WATER", "P_FAMOUS"]], ["Charmander", ["P_FIRE", "P_FAMOUS"]], ["Butterfree", ["P_FLY"]]
+    ["Pikachu", ["P_A_EVOLVES", "P_A_ASH", "P_W_A", "P_W_6PLUS", "P_P_KANTO", "P_P_FOREST"]],
+    ["Charizard", ["P_A_ASH", "P_W_A", "P_W_6PLUS", "P_P_KANTO"]],
+    ["Squirtle", ["P_A_EVOLVES", "P_A_ASH", "P_W_6PLUS", "P_P_KANTO", "P_P_WATER"]],
+    ["Bulbasaur", ["P_A_EVOLVES", "P_A_ASH", "P_W_A", "P_W_6PLUS", "P_P_KANTO", "P_P_FOREST"]],
+    ["Jigglypuff", ["P_W_6PLUS", "P_W_DOUBLE", "P_P_KANTO", "P_P_FOREST"]],
+    ["Gyarados", ["P_A_FIREWEAK", "P_A_EVOLVES", "P_W_A", "P_W_6PLUS", "P_P_KANTO", "P_P_WATER"]],
+    ["Magikarp", ["P_A_EVOLVES", "P_W_A", "P_W_6PLUS", "P_P_KANTO", "P_P_WATER"]],
+    ["Lapras", ["P_W_A", "P_W_6PLUS", "P_P_KANTO", "P_P_WATER"]],
+    ["Gengar", ["P_A_EVOLVES", "P_W_6PLUS", "P_P_KANTO"]],
+    ["Butterfree", ["P_A_FIREWEAK", "P_A_EVOLVES", "P_A_ASH", "P_W_6PLUS", "P_W_DOUBLE", "P_P_KANTO", "P_P_FOREST"]],
+    ["Snorlax", ["P_W_A", "P_W_6PLUS", "P_P_KANTO", "P_P_FOREST"]],
+    ["Eevee", ["P_A_EVOLVES", "P_W_DOUBLE", "P_P_KANTO"]]
   ],
   Filmes: [
-    ["Toy Story", ["F_ANIMATED", "F_OSCAR"]], ["Avatar", ["F_SPACE", "F_ONEWORD"]], ["Star Wars", ["F_SPACE", "F_HERO"]], ["Matrix", ["F_SPACE", "F_ONEWORD"]],
-    ["Frozen", ["F_ANIMATED", "F_ONEWORD"]], ["Shrek", ["F_ANIMATED", "F_ONEWORD"]], ["Oppenheimer", ["F_OSCAR", "F_ONEWORD"]], ["Batman", ["F_HERO", "F_ONEWORD"]],
-    ["Wall-E", ["F_ANIMATED", "F_SPACE"]], ["Gladiador", ["F_OSCAR", "F_ONEWORD"]], ["Vingadores", ["F_HERO"]], ["Alien", ["F_SPACE", "F_ONEWORD"]]
+    ["Toy Story", ["F_A_ANIMATED", "F_A_OSCAR", "F_P_SCHOOL"]],
+    ["Avatar", ["F_A_FANTASY", "F_W_ONE", "F_W_A", "F_P_SPACE"]],
+    ["Star Wars", ["F_A_FANTASY", "F_W_A", "F_P_SPACE"]],
+    ["Matrix", ["F_A_FANTASY", "F_W_ONE", "F_W_A", "F_P_CITY"]],
+    ["Frozen", ["F_A_ANIMATED", "F_W_ONE", "F_P_SCHOOL"]],
+    ["Shrek", ["F_A_ANIMATED", "F_A_FANTASY", "F_W_ONE"]],
+    ["Oppenheimer", ["F_A_OSCAR", "F_W_ONE", "F_W_8PLUS", "F_P_CITY"]],
+    ["Batman", ["F_A_FANTASY", "F_W_ONE", "F_W_A", "F_P_CITY"]],
+    ["Wall-E", ["F_A_ANIMATED", "F_W_ONE", "F_P_SPACE"]],
+    ["Gladiador", ["F_A_OSCAR", "F_W_ONE", "F_W_A", "F_W_8PLUS"]],
+    ["Alien", ["F_A_FANTASY", "F_W_ONE", "F_W_A", "F_P_SPACE"]],
+    ["Escola de Rock", ["F_W_A", "F_P_SCHOOL"]]
   ],
   Jogos: [
-    ["Mario", ["J_NINTENDO", "J_PLATFORM", "J_ICON"]], ["Link", ["J_NINTENDO", "J_MAGIC", "J_ICON"]], ["Sonic", ["J_PLATFORM", "J_ICON"]], ["Kratos", ["J_WEAPON", "J_ICON"]],
-    ["Kirby", ["J_NINTENDO", "J_PLATFORM", "J_ICON"]], ["Samus", ["J_NINTENDO", "J_WEAPON", "J_ICON"]], ["Cloud", ["J_WEAPON", "J_MAGIC"]], ["Scorpion", ["J_WEAPON", "J_ICON"]],
-    ["Zelda", ["J_NINTENDO", "J_MAGIC"]], ["Doom Slayer", ["J_WEAPON"]], ["Pac-Man", ["J_ICON"]], ["Donkey Kong", ["J_NINTENDO", "J_PLATFORM", "J_ICON"]]
+    ["Mario", ["J_A_ICON", "J_W_5LESS", "J_W_A", "J_P_NINTENDO"]],
+    ["Link", ["J_A_WEAPON", "J_A_MAGIC", "J_A_ICON", "J_W_5LESS", "J_P_NINTENDO", "J_P_FANTASY"]],
+    ["Sonic", ["J_A_ICON", "J_W_5LESS"]],
+    ["Kratos", ["J_A_WEAPON", "J_A_MAGIC", "J_A_ICON", "J_W_A", "J_P_FANTASY"]],
+    ["Kirby", ["J_A_MAGIC", "J_A_ICON", "J_W_5LESS", "J_P_NINTENDO", "J_P_FANTASY"]],
+    ["Samus", ["J_A_WEAPON", "J_A_ICON", "J_W_A", "J_P_NINTENDO", "J_P_FUTURE"]],
+    ["Cloud", ["J_A_WEAPON", "J_A_MAGIC", "J_A_ICON", "J_W_5LESS", "J_P_FANTASY"]],
+    ["Scorpion", ["J_A_WEAPON", "J_A_ICON"]],
+    ["Zelda", ["J_A_MAGIC", "J_W_5LESS", "J_W_A", "J_P_NINTENDO", "J_P_FANTASY"]],
+    ["Doom Slayer", ["J_A_WEAPON", "J_P_FUTURE"]],
+    ["Pac-Man", ["J_A_ICON", "J_W_A"]],
+    ["Donkey Kong", ["J_A_ICON", "J_P_NINTENDO"]]
   ],
   Anime: [
-    ["Goku", ["A_SHONEN", "A_POWER", "A_TEAM", "A_SHORT"]], ["Naruto", ["A_SHONEN", "A_POWER", "A_TEAM"]], ["Luffy", ["A_SHONEN", "A_POWER", "A_TEAM"]], ["Saitama", ["A_POWER"]],
-    ["Anya Forger", ["A_TEAM"]], ["Soma Yukihira", ["A_FOOD", "A_SHONEN"]], ["Pikachu", ["A_TEAM", "A_SHORT"]], ["Gojo", ["A_SHONEN", "A_POWER", "A_SHORT"]],
-    ["Nezuko Kamado", ["A_SHONEN", "A_POWER", "A_TEAM"]], ["Light Yagami", ["A_POWER"]], ["Edward Elric", ["A_SHONEN", "A_POWER", "A_TEAM"]], ["Totoro", ["A_SHORT"]]
+    ["Goku", ["A_A_POWER", "A_A_TEAM", "A_W_5LESS", "A_P_BATTLE"]],
+    ["Naruto", ["A_A_POWER", "A_A_TEAM", "A_W_A", "A_P_BATTLE", "A_P_FAMILY"]],
+    ["Luffy", ["A_A_POWER", "A_A_TEAM", "A_W_5LESS", "A_P_BATTLE"]],
+    ["Saitama", ["A_A_POWER", "A_W_A", "A_P_BATTLE"]],
+    ["Anya Forger", ["A_A_KIND", "A_W_A", "A_W_FULL", "A_P_SCHOOL", "A_P_FAMILY"]],
+    ["Soma Yukihira", ["A_A_TEAM", "A_W_A", "A_W_FULL", "A_P_SCHOOL", "A_P_FAMILY"]],
+    ["Gojo", ["A_A_POWER", "A_A_TEAM", "A_W_5LESS", "A_P_SCHOOL", "A_P_BATTLE"]],
+    ["Nezuko Kamado", ["A_A_POWER", "A_A_TEAM", "A_W_A", "A_W_FULL", "A_P_BATTLE", "A_P_FAMILY"]],
+    ["Light Yagami", ["A_A_POWER", "A_W_A", "A_W_FULL", "A_P_SCHOOL"]],
+    ["Edward Elric", ["A_A_POWER", "A_A_TEAM", "A_W_A", "A_W_FULL", "A_P_BATTLE", "A_P_FAMILY"]],
+    ["Totoro", ["A_A_KIND", "A_P_FAMILY"]],
+    ["Sailor Moon", ["A_A_POWER", "A_A_TEAM", "A_W_FULL", "A_P_BATTLE"]]
   ],
   Geek: [
-    ["Batman", ["K_DC", "K_MASK"]], ["Homem Aranha", ["K_MARVEL", "K_MASK"]], ["Superman", ["K_DC"]], ["Darth Vader", ["K_SPACE", "K_MASK"]],
-    ["Iron Man", ["K_MARVEL", "K_MASK"]], ["Harry Potter", ["K_MAGIC"]], ["Doctor Strange", ["K_MARVEL", "K_MAGIC"]], ["Flash", ["K_DC", "K_MASK"]],
-    ["Yoda", ["K_SPACE", "K_MAGIC"]], ["Wolverine", ["K_MARVEL"]], ["Mandolariano", ["K_SPACE", "K_MASK"]], ["Mulher Maravilha", ["K_DC"]]
+    ["Batman", ["K_A_MASK", "K_A_POWER", "K_W_A", "K_P_DC"]],
+    ["Homem Aranha", ["K_A_MASK", "K_A_POWER", "K_W_A", "K_W_TWO", "K_W_8PLUS", "K_P_MARVEL"]],
+    ["Superman", ["K_A_POWER", "K_W_A", "K_W_8PLUS", "K_P_DC"]],
+    ["Darth Vader", ["K_A_MASK", "K_A_POWER", "K_W_A", "K_W_TWO", "K_W_8PLUS", "K_P_SPACE"]],
+    ["Iron Man", ["K_A_MASK", "K_A_POWER", "K_W_A", "K_W_TWO", "K_P_MARVEL"]],
+    ["Harry Potter", ["K_A_MAGIC", "K_A_POWER", "K_W_A", "K_W_TWO", "K_W_8PLUS"]],
+    ["Doctor Strange", ["K_A_MAGIC", "K_A_POWER", "K_W_A", "K_W_TWO", "K_W_8PLUS", "K_P_MARVEL"]],
+    ["Flash", ["K_A_MASK", "K_A_POWER", "K_W_A", "K_P_DC"]],
+    ["Yoda", ["K_A_MAGIC", "K_A_POWER", "K_W_A", "K_P_SPACE"]],
+    ["Wolverine", ["K_A_POWER", "K_W_8PLUS", "K_P_MARVEL"]],
+    ["Mandaloriano", ["K_A_MASK", "K_W_A", "K_W_8PLUS", "K_P_SPACE"]],
+    ["Mulher Maravilha", ["K_A_POWER", "K_W_A", "K_W_TWO", "K_W_8PLUS", "K_P_DC"]]
   ],
   Famosos: [
-    ["Pelé", ["X_BRAZIL", "X_SPORT"]], ["Ayrton Senna", ["X_BRAZIL", "X_SPORT"]], ["Einstein", ["X_HISTORY", "X_SCIENCE"]], ["Zeca Pagodinho", ["X_BRAZIL", "X_MUSIC"]],
-    ["Machado de Assis", ["X_BRAZIL", "X_HISTORY"]], ["Marta", ["X_BRAZIL", "X_SPORT"]], ["Galileu", ["X_HISTORY", "X_SCIENCE"]], ["Anitta", ["X_BRAZIL", "X_MUSIC"]],
-    ["Marie Curie", ["X_HISTORY", "X_SCIENCE"]], ["Neymar", ["X_BRAZIL", "X_SPORT"]], ["Elis Regina", ["X_BRAZIL", "X_MUSIC"]], ["Santos Dumont", ["X_BRAZIL", "X_HISTORY", "X_SCIENCE"]]
+    ["Pele", ["X_A_BRAZIL", "X_A_HISTORY", "X_W_7PLUS", "X_P_SPORT"]],
+    ["Ayrton Senna", ["X_A_BRAZIL", "X_A_HISTORY", "X_W_TWO", "X_W_A", "X_W_7PLUS", "X_P_SPORT"]],
+    ["Einstein", ["X_A_HISTORY", "X_W_7PLUS", "X_P_SCIENCE"]],
+    ["Zeca Pagodinho", ["X_A_BRAZIL", "X_A_ALIVE", "X_W_TWO", "X_W_A", "X_W_7PLUS", "X_P_MUSIC"]],
+    ["Machado de Assis", ["X_A_BRAZIL", "X_A_HISTORY", "X_W_A", "X_W_7PLUS"]],
+    ["Marta", ["X_A_BRAZIL", "X_A_ALIVE", "X_W_A", "X_P_SPORT"]],
+    ["Galileu", ["X_A_HISTORY", "X_W_A", "X_W_7PLUS", "X_P_SCIENCE"]],
+    ["Anitta", ["X_A_BRAZIL", "X_A_ALIVE", "X_W_A", "X_W_7PLUS", "X_P_MUSIC"]],
+    ["Marie Curie", ["X_A_HISTORY", "X_W_TWO", "X_W_A", "X_P_SCIENCE"]],
+    ["Neymar", ["X_A_BRAZIL", "X_A_ALIVE", "X_W_A", "X_P_SPORT"]],
+    ["Elis Regina", ["X_A_BRAZIL", "X_A_HISTORY", "X_W_TWO", "X_W_7PLUS", "X_P_MUSIC"]],
+    ["Santos Dumont", ["X_A_BRAZIL", "X_A_HISTORY", "X_W_TWO", "X_W_A", "X_W_7PLUS", "X_P_SCIENCE"]]
   ]
 };

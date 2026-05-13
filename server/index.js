@@ -864,7 +864,11 @@ io.on("connection", (socket) => {
     const removed = removePlayer(room, socket.id);
     sessions.delete(socket.id);
     socket.leave(code);
-    if (onlyTestBots(room)) {
+    if (Object.keys(room.players || {}).length === 0) {
+      await discardActiveMatch(room);
+      await closeRoomForNoPlayers(room);
+    }
+    else if (onlyTestBots(room)) {
       await discardActiveMatch(room);
       await closeRoomForNoPlayers(room);
     }
@@ -1004,9 +1008,9 @@ io.on("connection", (socket) => {
     return { ok: true };
   }));
 
-  socket.on("ringbound:guess", ({ ringIds }, reply) => safe(reply, async () => {
+  socket.on("ringbound:guess", ({ ringIds, itemId }, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
-    submitRingboundGuess(room, socket.id, ringIds);
+    submitRingboundGuess(room, socket.id, ringIds, itemId);
     await emitRoom(room);
     await emitRoomList();
     return { ok: true };
@@ -1082,7 +1086,11 @@ io.on("connection", (socket) => {
       if (!liveRoom) return;
       const removed = removePlayer(liveRoom, socket.id);
       if (!removed) return;
-      if (onlyTestBots(liveRoom)) {
+      if (Object.keys(liveRoom.players || {}).length === 0) {
+        await discardActiveMatch(liveRoom).catch((error) => console.error("discardMatch failed", error));
+        await closeRoomForNoPlayers(liveRoom).catch((error) => console.error("closeRoom failed", error));
+      }
+      else if (onlyTestBots(liveRoom)) {
         await discardActiveMatch(liveRoom).catch((error) => console.error("discardMatch failed", error));
         await closeRoomForNoPlayers(liveRoom).catch((error) => console.error("closeRoom failed", error));
       }
@@ -2101,7 +2109,7 @@ async function loadRoomsFromDatabase() {
     const roomsFromDb = await listRooms();
     if (roomsFromDb && Array.isArray(roomsFromDb)) {
       roomsFromDb.forEach((room) => {
-        room = normalizeRoom(room);
+        room = normalizeAnyRoom(room);
         if (room && room.code) {
           rooms.set(room.code, room);
           if (room.phase !== "lobby" && missingRoomImages(room).length) startRoomImageResolver(room.code);
@@ -2114,7 +2122,7 @@ async function loadRoomsFromDatabase() {
   }
 }
 
-// Periodic cleanup of abandoned and inactive rooms.
+// Periodic cleanup of empty rooms.
 async function cleanupAbandonedRooms() {
   try {
     const now = Date.now();
@@ -2122,12 +2130,12 @@ async function cleanupAbandonedRooms() {
 
     const databaseRooms = await listRooms().catch(() => []);
     databaseRooms.forEach((room) => {
-      room = normalizeRoom(room);
-      if (room?.code) rooms.set(room.code, newestRoom(normalizeRoom(rooms.get(room.code)), room));
+      room = normalizeAnyRoom(room);
+      if (room?.code) rooms.set(room.code, newestRoom(normalizeAnyRoom(rooms.get(room.code)), room));
     });
 
     for (const [code, roomValue] of rooms.entries()) {
-      const room = normalizeRoom(roomValue);
+      const room = normalizeAnyRoom(roomValue);
       if (!room) continue;
       const players = Object.keys(room.players || {});
       const emptyRoom = players.length === 0;
@@ -2142,45 +2150,11 @@ async function cleanupAbandonedRooms() {
       if (shouldReturnSpectatorsToLobby(room)) {
         console.log(`Returning spectator-only match to lobby: ${code}`);
         await returnSpectatorsToLobby(room);
-        continue;
-      }
-      if (emptyRoom) continue;
-      const closesAt = Number(room.updatedAt || room.createdAt || now) + ROOM_INACTIVITY_LIMIT_MS;
-      const warnAt = closesAt - ROOM_INACTIVITY_WARNING_MS;
-      if (now >= closesAt) {
-        console.log(`Closing inactive room: ${code}`);
-        await closeInactiveRoom(room);
-        continue;
-      }
-      if (now >= warnAt && !room.inactivityWarningAt) {
-        room.inactivityWarningAt = now;
-        room.inactivityClosesAt = closesAt;
-        rooms.set(code, room);
-        await saveRoom(room).catch(() => {});
-        io.to(code).emit("room:inactivityWarning", {
-          id: `inactivity-${code}`,
-          type: "inactivity",
-          closesAt,
-          at: now
-        });
       }
     }
   } catch (error) {
     console.error("Failed to cleanup abandoned rooms:", error.message);
   }
-}
-
-async function closeInactiveRoom(room) {
-  const code = room.code;
-  await discardActiveMatch(room).catch((error) => console.error("discardMatch failed", error));
-  io.to(code).emit("room:inactiveClosed", { reason: "inactivity" });
-  Object.keys(room.players || {}).forEach((playerId) => {
-    sessions.delete(playerId);
-    io.sockets.sockets.get(playerId)?.leave(code);
-  });
-  rooms.delete(code);
-  await deleteRoom(code).catch((error) => console.error("deleteRoom failed", error));
-  await emitRoomList();
 }
 
 setInterval(cleanupAbandonedRooms, ROOM_CLEANUP_INTERVAL_MS);

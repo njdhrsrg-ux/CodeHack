@@ -1,18 +1,19 @@
-import { RINGBOUND_ITEMS, RINGBOUND_RULE_GROUPS, RINGBOUND_RULES } from "./ringboundData.js";
+import { RINGBOUND_ITEMS, RINGBOUND_RING_TYPES, RINGBOUND_RULES } from "./ringboundData.js";
 
-const RING_COLORS = ["#ff4f8b", "#39d0ff", "#ffd23f"];
+const DEFAULT_RING_TYPES = ["attribute", "word", "place"];
+const HAND_SIZE = 5;
 
 export const RINGBOUND_CONSTANTS = {
-  ruleGroups: RINGBOUND_RULE_GROUPS,
+  ringTypes: RINGBOUND_RING_TYPES,
   categories: Object.keys(RINGBOUND_RULES),
-  maxRounds: 10
+  handSize: HAND_SIZE
 };
 
 export function setupRingboundRoom(room, options = {}) {
   room.gameId = "ringbound";
   room.settings = {
     wordCategory: cleanCategory(options.wordCategory),
-    ringCount: clamp(Number(options.ringCount || 3), 1, 3),
+    ringTypes: cleanRingTypes(options.ringTypes || DEFAULT_RING_TYPES),
     masterMode: ["player", "game"].includes(options.masterMode) ? options.masterMode : "game"
   };
   room.ringbound = makeInitialRingboundState();
@@ -24,7 +25,7 @@ export function normalizeRingboundRoom(room) {
   room.gameId = "ringbound";
   room.settings = {
     wordCategory: cleanCategory(room.settings?.wordCategory),
-    ringCount: clamp(Number(room.settings?.ringCount || 3), 1, 3),
+    ringTypes: cleanRingTypes(room.settings?.ringTypes || ringCountToTypes(room.settings?.ringCount)),
     masterMode: ["player", "game"].includes(room.settings?.masterMode) ? room.settings.masterMode : "game"
   };
   room.ringbound = {
@@ -32,19 +33,28 @@ export function normalizeRingboundRoom(room) {
     ...(room.ringbound || {}),
     rings: Array.isArray(room.ringbound?.rings) ? room.ringbound.rings : [],
     deck: Array.isArray(room.ringbound?.deck) ? room.ringbound.deck : [],
+    hands: room.ringbound?.hands && typeof room.ringbound.hands === "object" ? room.ringbound.hands : {},
     placed: Array.isArray(room.ringbound?.placed) ? room.ringbound.placed : [],
     pending: room.ringbound?.pending || null,
     scores: room.ringbound?.scores || {},
     turnOrder: Array.isArray(room.ringbound?.turnOrder) ? room.ringbound.turnOrder : [],
-    turnIndex: Number(room.ringbound?.turnIndex || 0)
+    turnIndex: Number(room.ringbound?.turnIndex || 0),
+    round: Number(room.ringbound?.round || 0)
   };
   return room;
 }
 
 export function ringboundPublicRoom(room, viewerId) {
-  const viewer = room.players?.[viewerId];
   const isMaster = viewerId && viewerId === room.ringbound?.ringMasterId;
   const revealRules = isMaster || room.phase === "gameOver";
+  const publicHands = {};
+  Object.entries(room.ringbound?.hands || {}).forEach(([playerId, hand]) => {
+    publicHands[playerId] = (hand || []).map((item) => (
+      playerId === viewerId || revealRules
+        ? { id: item.id, label: item.label }
+        : { id: item.id, label: "Carta oculta" }
+    ));
+  });
   const visible = {
     ...room,
     hasPassword: Boolean(room.password),
@@ -52,7 +62,8 @@ export function ringboundPublicRoom(room, viewerId) {
     players: Object.values(room.players || {}),
     ringbound: {
       ...room.ringbound,
-      deck: (room.ringbound?.deck || []).map((item) => ({ id: item.id, label: item.label })),
+      hands: publicHands,
+      deck: (room.ringbound?.deck || []).map((item) => ({ id: item.id })),
       placed: (room.ringbound?.placed || []).map(({ ruleCodes, ...item }) => item),
       pending: room.ringbound?.pending ? {
         ...room.ringbound.pending,
@@ -60,9 +71,9 @@ export function ringboundPublicRoom(room, viewerId) {
       } : null,
       rings: (room.ringbound?.rings || []).map((ring) => ({
         id: ring.id,
+        type: ring.type,
         color: ring.color,
-        group: ring.group,
-        groupLabel: RINGBOUND_RULE_GROUPS[ring.group] || ring.group,
+        groupLabel: ring.groupLabel,
         code: revealRules ? ring.code : undefined,
         label: revealRules ? ring.label : undefined
       }))
@@ -79,7 +90,7 @@ export function updateRingboundSettings(room, playerId, settings = {}) {
   room.settings = {
     ...room.settings,
     wordCategory: cleanCategory(settings.wordCategory || room.settings?.wordCategory),
-    ringCount: clamp(Number(settings.ringCount ?? room.settings?.ringCount ?? 3), 1, 3),
+    ringTypes: cleanRingTypes(settings.ringTypes || room.settings?.ringTypes || DEFAULT_RING_TYPES),
     masterMode: ["player", "game"].includes(settings.masterMode) ? settings.masterMode : room.settings?.masterMode || "game"
   };
   touch(room);
@@ -91,26 +102,38 @@ export function startRingboundGame(room, playerId) {
   const players = Object.values(room.players || {}).filter((player) => player.connected);
   if (!players.length) throw new Error("Nao ha jogadores na sala.");
   const category = cleanCategory(room.settings?.wordCategory);
-  const selectedRules = shuffle(RINGBOUND_RULES[category]).slice(0, room.settings.ringCount);
-  const rings = selectedRules.map((rule, index) => ({
-    id: String.fromCharCode(65 + index),
-    code: rule.code,
-    label: rule.label,
-    group: rule.group,
-    color: RING_COLORS[index]
-  }));
-  const playableItems = shuffle(RINGBOUND_ITEMS[category].filter((item) => item[1].some((code) => selectedRules.some((rule) => rule.code === code)) || Math.random() > 0.45))
-    .slice(0, RINGBOUND_CONSTANTS.maxRounds)
-    .map(([label, ruleCodes]) => ({ id: makeId(), label, ruleCodes }));
-  const ringMasterId = room.settings.masterMode === "player" ? players[Math.floor(Math.random() * players.length)].id : null;
+  const ringTypes = cleanRingTypes(room.settings?.ringTypes || DEFAULT_RING_TYPES);
+  const selectedRules = ringTypes.map((type) => ({ ...randomFrom(RINGBOUND_RULES[category][type]), type }));
+  const rings = selectedRules.map((rule, index) => {
+    const typeInfo = RINGBOUND_RING_TYPES[rule.type];
+    return {
+      id: String.fromCharCode(65 + index),
+      type: rule.type,
+      code: rule.code,
+      label: rule.label,
+      groupLabel: typeInfo.label,
+      color: typeInfo.color
+    };
+  });
+  const itemPool = RINGBOUND_ITEMS[category].map(([label, ruleCodes]) => ({ label, ruleCodes }));
+  const deck = buildDeck(itemPool, players.length * HAND_SIZE + 30);
+  const hands = {};
+  players.forEach((player) => {
+    hands[player.id] = [];
+  });
+  dealInitialHands(hands, deck);
+  const ringMasterId = room.settings.masterMode === "player" && players.length > 1
+    ? randomFrom(players.filter((player) => player.id !== playerId) || players).id
+    : null;
   room.phase = "playing";
   room.ringbound = {
     rings,
-    deck: playableItems,
+    deck,
+    hands,
     placed: [],
     pending: null,
     ringMasterId,
-    turnOrder: players.map((player) => player.id),
+    turnOrder: players.filter((player) => player.id !== ringMasterId).map((player) => player.id),
     turnIndex: 0,
     round: 1,
     scores: Object.fromEntries(players.map((player) => [player.id, 0])),
@@ -119,13 +142,14 @@ export function startRingboundGame(room, playerId) {
   touch(room);
 }
 
-export function submitRingboundGuess(room, playerId, ringIds = []) {
+export function submitRingboundGuess(room, playerId, ringIds = [], itemId = "") {
   ensurePlaying(room);
   if (room.ringbound.pending) throw new Error("Aguarde a validacao do Mestre dos Aneis.");
   const currentPlayerId = currentTurnPlayerId(room);
   if (playerId !== currentPlayerId) throw new Error("Aguarde sua vez.");
-  const item = room.ringbound.deck[0];
-  if (!item) throw new Error("Nao ha item para posicionar.");
+  const hand = room.ringbound.hands[playerId] || [];
+  const item = hand.find((card) => card.id === itemId) || hand[0];
+  if (!item) throw new Error("Voce nao tem cartas na mao.");
   const guess = normalizeRingIds(ringIds, room);
   const correct = correctRingIds(room, item);
   const autoMaster = room.settings.masterMode === "game";
@@ -148,13 +172,14 @@ export function resolveRingboundGuess(room, playerId, ringIds = null) {
 }
 
 function placeRingboundItem(room, item, playerId, guess, correct, success) {
-  room.ringbound.deck = room.ringbound.deck.slice(1);
+  room.ringbound.hands[playerId] = (room.ringbound.hands[playerId] || []).filter((card) => card.id !== item.id);
+  if (!success) drawCard(room, playerId);
   room.ringbound.placed.push({ ...item, playerId, guess, correct, success, at: Date.now() });
   room.ringbound.scores[playerId] = Number(room.ringbound.scores[playerId] || 0) + (success ? 1 : 0);
   room.ringbound.log.push({ item: item.label, playerId, guess, correct, success });
-  room.ringbound.turnIndex = nextTurnIndex(room);
+  if (!success) room.ringbound.turnIndex = nextTurnIndex(room);
   room.ringbound.round = Number(room.ringbound.round || 1) + 1;
-  if (!room.ringbound.deck.length) room.phase = "gameOver";
+  if (hasWinner(room)) room.phase = "gameOver";
   touch(room);
 }
 
@@ -180,12 +205,47 @@ function nextTurnIndex(room) {
   return (room.ringbound.turnIndex + 1) % order.length;
 }
 
+function hasWinner(room) {
+  const activeIds = (room.ringbound.turnOrder || []).filter((id) => id !== room.ringbound.ringMasterId);
+  return activeIds.some((id) => (room.ringbound.hands[id] || []).length === 0);
+}
+
+function dealInitialHands(hands, deck) {
+  for (let round = 0; round < HAND_SIZE; round += 1) {
+    Object.keys(hands).forEach((playerId) => drawCard({ ringbound: { hands, deck } }, playerId));
+  }
+}
+
+function drawCard(room, playerId) {
+  const card = room.ringbound.deck.shift();
+  if (card) room.ringbound.hands[playerId].push(card);
+}
+
+function buildDeck(itemPool, minimumSize) {
+  const deck = [];
+  while (deck.length < minimumSize) {
+    shuffle(itemPool).forEach((item) => {
+      deck.push({ id: makeId(), label: item.label, ruleCodes: item.ruleCodes });
+    });
+  }
+  return deck;
+}
+
 function makeInitialRingboundState() {
-  return { rings: [], deck: [], placed: [], pending: null, ringMasterId: null, turnOrder: [], turnIndex: 0, round: 0, scores: {}, log: [] };
+  return { rings: [], deck: [], hands: {}, placed: [], pending: null, ringMasterId: null, turnOrder: [], turnIndex: 0, round: 0, scores: {}, log: [] };
 }
 
 function cleanCategory(category) {
   return RINGBOUND_RULES[category] ? category : "Geral";
+}
+
+function cleanRingTypes(types) {
+  const clean = [...new Set((Array.isArray(types) ? types : DEFAULT_RING_TYPES).filter((type) => RINGBOUND_RING_TYPES[type]))];
+  return clean.length ? clean.slice(0, 3) : ["attribute"];
+}
+
+function ringCountToTypes(count) {
+  return DEFAULT_RING_TYPES.slice(0, clamp(Number(count || 3), 1, 3));
 }
 
 function ensurePlaying(room) {
@@ -202,6 +262,10 @@ function clamp(value, min, max) {
 
 function arraysEqual(left, right) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function randomFrom(values) {
+  return values[Math.floor(Math.random() * values.length)];
 }
 
 function shuffle(values) {
