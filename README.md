@@ -17,14 +17,13 @@ Backend: http://localhost:3001
 
 ## Imagens
 
-O backend tenta usar Google Custom Search para imagens quando as variaveis abaixo existem:
+O backend tenta usar SerpAPI para imagens quando a variavel abaixo existe:
 
 ```bash
-GOOGLE_API_KEY=...
-GOOGLE_CSE_ID=...
+SERPAPI_API_KEY=...
 ```
 
-Sem essas credenciais, ele usa Wikimedia Commons como fallback e, se nada for encontrado, mostra o placeholder pixelado local. As URLs ficam em cache no servidor para que todos os jogadores vejam a mesma imagem por palavra.
+Sem essa credencial, ele usa Wikimedia Commons como fallback. As URLs ficam em cache no servidor para que todos os jogadores vejam a mesma imagem por palavra.
 
 ## Recursos
 

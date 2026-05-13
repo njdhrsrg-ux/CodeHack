@@ -36,8 +36,8 @@ export default async function handler(req, res) {
   }
 
   if (!/\bpokemon\b/i.test(query)) {
-    const google = await googleImage(query);
-    if (google) return cacheImage(cacheKey, res, { url: google, source: "google" });
+    const serp = await serpImage(query);
+    if (serp) return cacheImage(cacheKey, res, { url: serp, source: "serpapi" });
   }
 
   const wiki = await wikiImage(query);
@@ -51,24 +51,21 @@ function cacheImage(key, res, payload) {
   res.status(200).json(payload);
 }
 
-async function googleImage(query) {
-  const key = process.env.GOOGLE_API_KEY;
-  const cx = process.env.GOOGLE_CSE_ID;
-  if (!key || !cx) return null;
-  const url = new URL("https://www.googleapis.com/customsearch/v1");
-  url.searchParams.set("key", key);
-  url.searchParams.set("cx", cx);
-  url.searchParams.set("searchType", "image");
-  url.searchParams.set("num", "1");
-  url.searchParams.set("safe", "active");
-  url.searchParams.set("hl", "en");
-  url.searchParams.set("lr", "lang_en");
+async function serpImage(query) {
+  const key = process.env.SERPAPI_API_KEY || process.env.SERP_API_KEY;
+  if (!key) return null;
+  const url = new URL("https://serpapi.com/search.json");
+  url.searchParams.set("engine", "google_images");
+  url.searchParams.set("api_key", key);
   url.searchParams.set("q", query);
+  url.searchParams.set("safe", "active");
+  url.searchParams.set("num", "5");
   try {
     const response = await fetch(url);
     if (!response.ok) return null;
     const data = await response.json();
-    return data.items?.[0]?.link || null;
+    const result = (data.images_results || []).find((item) => item?.original || item?.thumbnail);
+    return result?.original || result?.thumbnail || null;
   } catch {
     return null;
   }
