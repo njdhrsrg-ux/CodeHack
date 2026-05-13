@@ -432,6 +432,33 @@ const SERVER_WORD_ORIGINS = {
   }
 };
 
+const SERVER_ORIGIN_PATCH = {
+  Jogos: {
+    Mario: "Super Mario", Luigi: "Super Mario", Peach: "Super Mario", Bowser: "Super Mario", Yoshi: "Super Mario", Toad: "Super Mario", Wario: "Super Mario", Waluigi: "Super Mario",
+    Link: "The Legend of Zelda", Zelda: "The Legend of Zelda", Ganondorf: "The Legend of Zelda", "Princess Zelda": "The Legend of Zelda", Impa: "The Legend of Zelda", Midna: "The Legend of Zelda",
+    "Donkey Kong": "Donkey Kong", "Diddy Kong": "Donkey Kong", Kirby: "Kirby", "Meta Knight": "Kirby", "King Dedede": "Kirby",
+    Samus: "Metroid", "Samus Aran": "Metroid", Ridley: "Metroid", "Master Chief": "Halo", Cortana: "Halo", "Marcus Fenix": "Gears of War",
+    "Solid Snake": "Metal Gear", Snake: "Metal Gear", "Big Boss": "Metal Gear", Raiden: "Metal Gear", "Revolver Ocelot": "Metal Gear", Quiet: "Metal Gear",
+    "Kazuma Kiryu": "Yakuza", "Goro Majima": "Yakuza", "Ichiban Kasuga": "Yakuza",
+    "Ryu Hayabusa": "Ninja Gaiden", Kasumi: "Dead or Alive",
+    Kazuya: "Tekken", "Kazuya Mishima": "Tekken", Heihachi: "Tekken", "Heihachi Mishima": "Tekken", "Jin Kazama": "Tekken", King: "Tekken", "Nina Williams": "Tekken", Lili: "Tekken", "Emilie De Rochefort": "Tekken", "Lars Alexandersson": "Tekken",
+    "Jill Valentine": "Resident Evil", "Claire Redfield": "Resident Evil", "Ada Wong": "Resident Evil", "Chris Redfield": "Resident Evil", "Albert Wesker": "Resident Evil", Nemesis: "Resident Evil", "Lady Dimitrescu": "Resident Evil", "Ethan Winters": "Resident Evil", "Leon Kennedy": "Resident Evil", "Rebecca Chambers": "Resident Evil", "Barry Burton": "Resident Evil",
+    Dante: "Devil May Cry", Vergil: "Devil May Cry", Nero: "Devil May Cry", Lady: "Devil May Cry", Trish: "Devil May Cry",
+    Bayonetta: "Bayonetta", Jeanne: "Bayonetta", Kratos: "God of War", Atreus: "God of War", Freya: "God of War", Baldur: "God of War", Mimir: "God of War",
+    Aloy: "Horizon Zero Dawn", Sylens: "Horizon Zero Dawn", Rost: "Horizon Zero Dawn", Senua: "Hellblade",
+    "2B": "NieR Automata", "9S": "NieR Automata", A2: "NieR Automata", Emil: "NieR",
+    Jinx: "League of Legends", Vi: "League of Legends", Caitlyn: "League of Legends", Ahri: "League of Legends", Yasuo: "League of Legends", Lux: "League of Legends", Garen: "League of Legends", Teemo: "League of Legends", Ekko: "League of Legends", Thresh: "League of Legends",
+    Jett: "Valorant", Phoenix: "Valorant", Sage: "Valorant", Raze: "Valorant", Viper: "Valorant", Killjoy: "Valorant", Reyna: "Valorant",
+    Tracer: "Overwatch", Widowmaker: "Overwatch", Mercy: "Overwatch", Reaper: "Overwatch", Genji: "Overwatch", Hanzo: "Overwatch", "D.Va": "Overwatch", Winston: "Overwatch",
+    "Fox McCloud": "Star Fox", "Falco Lombardi": "Star Fox", Ness: "EarthBound", Lucas: "Mother 3", "Captain Falcon": "F-Zero", Marth: "Fire Emblem", Ike: "Fire Emblem", Lucina: "Fire Emblem", Robin: "Fire Emblem", Shulk: "Xenoblade Chronicles", Pyra: "Xenoblade Chronicles", Mythra: "Xenoblade Chronicles",
+    Inkling: "Splatoon", Villager: "Animal Crossing", Isabelle: "Animal Crossing", "Tom Nook": "Animal Crossing", "K K Slider": "Animal Crossing",
+    Steve: "Minecraft", Alex: "Minecraft", Creeper: "Minecraft", Enderman: "Minecraft", Herobrine: "Minecraft",
+    Sans: "Undertale", Papyrus: "Undertale", Frisk: "Undertale", Undyne: "Undertale",
+    Cuphead: "Cuphead", Mugman: "Cuphead", "Ms Chalice": "Cuphead", "Hollow Knight": "Hollow Knight", Hornet: "Hollow Knight", "Shovel Knight": "Shovel Knight", Ori: "Ori and the Blind Forest", Shantae: "Shantae", Rayman: "Rayman", Rabbid: "Rayman Raving Rabbids",
+    "Crash Bandicoot": "Crash Bandicoot", "Coco Bandicoot": "Crash Bandicoot", "Dr Neo Cortex": "Crash Bandicoot", Spyro: "Spyro the Dragon", "Sly Cooper": "Sly Cooper", Ratchet: "Ratchet and Clank", Clank: "Ratchet and Clank", Jak: "Jak and Daxter", Daxter: "Jak and Daxter", "Cole MacGrath": "Infamous", Sackboy: "LittleBigPlanet"
+  }
+};
+
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
@@ -1112,7 +1139,7 @@ function imageCacheKey(word, category) {
 function serverImageSearchQuery(word, category) {
   const cleanWord = String(word || "").trim();
   if (category === "Geral" || category === "Famosos") return cleanWord;
-  const origin = SERVER_WORD_ORIGINS[category]?.[cleanWord];
+  const origin = serverWordOrigin(cleanWord, category);
   if (["Anime", "Jogos", "Geek"].includes(category) && origin) return `${cleanWord} ${origin}`;
   const suffix = {
     Anime: "anime character",
@@ -1160,8 +1187,13 @@ function imageFailureKey(word, category) {
 
 function externalImageSearchTermsForWord(word, category) {
   const cleanWord = String(word || "").trim();
-  const origin = SERVER_WORD_ORIGINS[category]?.[cleanWord];
+  const origin = serverWordOrigin(cleanWord, category);
   return uniqueSearchTerms(origin ? [`${cleanWord} ${origin}`, cleanWord] : [cleanWord]);
+}
+
+function serverWordOrigin(word, category) {
+  const cleanWord = String(word || "").trim();
+  return SERVER_WORD_ORIGINS[category]?.[cleanWord] || SERVER_ORIGIN_PATCH[category]?.[cleanWord] || "";
 }
 
 function externalImageSearchTermsFromQuery(query) {
