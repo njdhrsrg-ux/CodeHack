@@ -1161,7 +1161,7 @@ function proxiedImageUrl(url) {
   return `/api/image-proxy?u=${encodeURIComponent(value)}`;
 }
 
-async function findImagePayload(query, category) {
+async function findImagePayload(query, category, options = {}) {
   const cacheKey = `${category}:${query}`.toLocaleLowerCase();
   if (imageCache.has(cacheKey)) {
     const cached = imageCache.get(cacheKey);
@@ -1171,8 +1171,11 @@ async function findImagePayload(query, category) {
   const pokemon = await pokemonImage(query);
   if (await imageAvailable(pokemon)) return cacheImage(cacheKey, { url: pokemon, source: "pokeapi" });
   if (category === "Geral") {
-    const pexels = await pexelsImage(query);
-    if (pexels && await imageAvailable(pexels.url)) return cacheImage(cacheKey, { url: pexels.url, source: "pexels", photographer: pexels.photographer, page: pexels.page });
+    const pexels = await pexelsImage(query, { limit: options.force ? 12 : 1, random: options.force });
+    if (pexels) return cacheImage(cacheKey, { url: pexels.url, source: "pexels", photographer: pexels.photographer, page: pexels.page });
+    const wiki = await wikiImageForTerms(imageSearchTerms(query), { random: options.force });
+    if (wiki) return cacheImage(cacheKey, { url: wiki, source: "wikimedia", searchQuery: query });
+    return emptyImagePayload();
   }
   if (category === "Filmes") {
     const poster = await omdbImage(query);
@@ -1223,7 +1226,7 @@ async function startRoomImageResolver(code) {
   }
 }
 
-async function resolveImageUrlForWord(word, category) {
+async function resolveImageUrlForWord(word, category, options = {}) {
   if (category === "Pokemon") {
     const url = proxiedImageUrl(pokemonSpriteUrl(word));
     return await imageAvailable(pokemonSpriteUrl(word)) ? url : "";
@@ -1245,7 +1248,7 @@ async function resolveImageUrlForWord(word, category) {
     return "";
   }
   const query = serverImageSearchQuery(word, category);
-  const payload = await findImagePayload(query, category);
+  const payload = await findImagePayload(query, category, options);
   return payload?.url || "";
 }
 
@@ -1273,7 +1276,7 @@ async function refreshRoomImage(room, word, category) {
   imageCache.delete(`${imageCategory}:${cleanWord}`.toLocaleLowerCase());
   imageFailureCounts.set(imageFailureKey(cleanWord, imageCategory), 10);
   await deleteWordImage(imageCategory, cleanWord);
-  const url = await resolveImageUrlForWord(cleanWord, imageCategory);
+  const url = await resolveImageUrlForWord(cleanWord, imageCategory, { force: true });
   if (url) room.imageMap[key] = url;
 }
 
@@ -1324,7 +1327,7 @@ function serverImageSearchQuery(word, category) {
   const searchWord = serverSearchName(cleanWord, category);
   if (category === "Geral" || category === "Famosos") return searchWord;
   const origin = serverWordOrigin(cleanWord, category);
-  if (isFictionalImageCategory(category)) return `${searchWord} ${origin || fallbackFictionOrigin(category)}`.trim();
+  if (isFictionalImageCategory(category)) return characterImageSearchTerm(searchWord, origin || fallbackFictionOrigin(category));
   const suffix = {
     Anime: "anime character",
     Filmes: "movie",
@@ -1374,7 +1377,7 @@ function externalImageSearchTermsForWord(word, category) {
   const searchWord = serverSearchName(cleanWord, category);
   const origin = serverWordOrigin(cleanWord, category);
   if (isFictionalImageCategory(category)) {
-    const qualified = `${searchWord} ${origin || fallbackFictionOrigin(category)}`.trim();
+    const qualified = characterImageSearchTerm(searchWord, origin || fallbackFictionOrigin(category));
     return uniqueSearchTerms([qualified, searchWord, cleanWord]);
   }
   return uniqueSearchTerms(origin ? [`${searchWord} ${origin}`, searchWord, cleanWord] : [searchWord, cleanWord]);
@@ -1395,6 +1398,12 @@ function serverWordOrigin(word, category) {
 function serverSearchName(word, category) {
   const cleanWord = String(word || "").trim();
   return SERVER_SEARCH_NAME_PATCH[category]?.[cleanWord] || cleanWord;
+}
+
+function characterImageSearchTerm(word, origin) {
+  const cleanWord = String(word || "").trim();
+  const cleanOrigin = String(origin || "").trim();
+  return cleanOrigin ? `${cleanWord} from ${cleanOrigin}` : cleanWord;
 }
 
 function isFictionalImageCategory(category) {
@@ -1494,25 +1503,30 @@ async function logSerperImageError(response) {
   console.warn(`Serper image search unavailable: ${message}${reason ? ` (${reason})` : ""}`);
 }
 
-async function pexelsImage(query) {
+async function pexelsImage(query, options = {}) {
   const key = process.env.PEXELS_API_KEY;
   if (!key) return null;
   const url = new URL("https://api.pexels.com/v1/search");
   url.searchParams.set("query", query);
-  url.searchParams.set("per_page", "1");
+  url.searchParams.set("per_page", String(Math.max(1, Math.min(Number(options.limit || 1), 20))));
   url.searchParams.set("orientation", "square");
   url.searchParams.set("locale", "en-US");
   try {
     const response = await fetchWithTimeout(url, { headers: { Authorization: key } });
     if (!response.ok) return null;
     const data = await response.json();
-    const photo = data.photos?.[0];
-    if (!photo?.src) return null;
-    return {
-      url: photo.src.medium || photo.src.large || photo.src.original,
-      photographer: photo.photographer || "",
-      page: photo.url || ""
-    };
+    const photos = options.random ? shuffleValues(data.photos || []) : (data.photos || []);
+    for (const photo of photos) {
+      const imageUrl = photo?.src?.medium || photo?.src?.large || photo?.src?.original;
+      if (imageUrl && await imageAvailable(imageUrl)) {
+        return {
+          url: imageUrl,
+          photographer: photo.photographer || "",
+          page: photo.url || ""
+        };
+      }
+    }
+    return null;
   } catch {
     return null;
   }
