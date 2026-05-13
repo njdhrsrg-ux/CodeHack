@@ -94,6 +94,7 @@ const pendingDisconnects = new Map();
 const imageCache = new Map();
 const imageBinaryCache = new Map();
 const imageResolveJobs = new Set();
+const brokenImageUrls = new Set();
 const TEAMS = ["red", "blue"];
 const MAX_IMAGE_CACHE_ENTRIES = 160;
 const MAX_IMAGE_CACHE_BYTES = 5 * 1024 * 1024;
@@ -962,7 +963,7 @@ async function findImagePayload(query, category) {
   }
   const wiki = await wikiImage(query);
   if (await imageAvailable(wiki)) return cacheImage(cacheKey, { url: wiki, source: "wikimedia" });
-  return emptyImagePayload();
+  return cacheImage(cacheKey, { url: fallbackWordImage(query, category), source: "generated" });
 }
 
 async function resolveRoomImages(room) {
@@ -1017,6 +1018,7 @@ async function invalidateRoomImage(room, word, category, url) {
   if (!room.imageMap?.[key]) return false;
   if (url && room.imageMap[key] !== url) return false;
   if (await proxiedImageStillLoads(room.imageMap[key])) return false;
+  markBrokenImageUrl(room.imageMap[key]);
   delete room.imageMap[key];
   const query = serverImageSearchQuery(cleanWord, imageCategory);
   imageCache.delete(`${imageCategory}:${query}`.toLocaleLowerCase());
@@ -1179,6 +1181,7 @@ async function fetchImageResource(url, timeoutMs = 8000) {
   if (!url) return null;
   const target = normalizeExternalImageUrl(url);
   if (!target) return null;
+  if (brokenImageUrls.has(target.href)) return null;
   const cacheKey = target.href;
   const cached = imageBinaryCache.get(cacheKey);
   if (cached) return cached;
@@ -1206,6 +1209,7 @@ async function probeImageResource(url, timeoutMs = 3000) {
   if (!url) return null;
   const target = normalizeExternalImageUrl(url);
   if (!target) return null;
+  if (brokenImageUrls.has(target.href)) return null;
   const cached = imageBinaryCache.get(target.href);
   if (cached) return cached;
   try {
@@ -1276,6 +1280,11 @@ function normalizeExternalImageUrl(url) {
   } catch {
     return null;
   }
+}
+
+function markBrokenImageUrl(url) {
+  const target = normalizeExternalImageUrl(url);
+  if (target) brokenImageUrls.add(target.href);
 }
 
 function cacheImageBytes(key, image) {
@@ -1400,6 +1409,28 @@ function imageSearchTerms(query) {
 
 function uniqueSearchTerms(terms) {
   return [...new Set(terms.map((term) => String(term || "").trim()).filter(Boolean))];
+}
+
+function fallbackWordImage(query, category) {
+  const label = imageSearchTerms(query)[0] || query || category || "Code Hack";
+  const initials = label
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase() || "CH";
+  const color = category === "Geek" ? "#4ea1ff" : category === "Anime" ? "#ff4e88" : category === "Jogos" ? "#ffbc42" : "#36f5a2";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" rx="18" fill="#050807"/><path d="M15 20h130v120H15z" fill="none" stroke="${color}" stroke-width="4" stroke-dasharray="9 7"/><text x="80" y="76" text-anchor="middle" font-family="monospace" font-size="44" font-weight="800" fill="${color}">${escapeSvg(initials)}</text><text x="80" y="108" text-anchor="middle" font-family="monospace" font-size="12" fill="${color}" opacity=".78">${escapeSvg(String(category || "imagem").toUpperCase())}</text></svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+}
+
+function escapeSvg(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 async function loadRoomsFromDatabase() {
