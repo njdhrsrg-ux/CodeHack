@@ -95,6 +95,7 @@ const imageCache = new Map();
 const imageBinaryCache = new Map();
 const imageResolveJobs = new Set();
 const brokenImageUrls = new Set();
+const imageFailureCounts = new Map();
 const TEAMS = ["red", "blue"];
 const MAX_IMAGE_CACHE_ENTRIES = 160;
 const MAX_IMAGE_CACHE_BYTES = 5 * 1024 * 1024;
@@ -944,7 +945,11 @@ function proxiedImageUrl(url) {
 
 async function findImagePayload(query, category) {
   const cacheKey = `${category}:${query}`.toLocaleLowerCase();
-  if (imageCache.has(cacheKey)) return imageCache.get(cacheKey);
+  if (imageCache.has(cacheKey)) {
+    const cached = imageCache.get(cacheKey);
+    if (!cached?.url || validStoredImageUrl(cached.url)) return cached;
+    imageCache.delete(cacheKey);
+  }
   const pokemon = await pokemonImage(query);
   if (await imageAvailable(pokemon)) return cacheImage(cacheKey, { url: pokemon, source: "pokeapi" });
   if (category === "Geral") {
@@ -963,6 +968,7 @@ async function findImagePayload(query, category) {
 async function resolveRoomImages(room) {
   const category = room.settings?.category || "";
   room.imageMap ||= {};
+  removeGeneratedImageEntries(room);
   const missing = missingRoomImages(room);
   await mapWithConcurrency(missing, IMAGE_LOOKUP_CONCURRENCY, async (word) => {
     const key = imageCacheKey(word, category);
@@ -1001,7 +1007,11 @@ async function resolveImageUrlForWord(word, category) {
   }
   if (!["Geral", "Filmes"].includes(category)) {
     const cacheKey = `${category}:${word}`.toLocaleLowerCase();
-    if (imageCache.has(cacheKey)) return imageCache.get(cacheKey)?.url || "";
+    if (imageCache.has(cacheKey)) {
+      const cached = imageCache.get(cacheKey);
+      if (cached?.url && validStoredImageUrl(cached.url)) return cached.url;
+      imageCache.delete(cacheKey);
+    }
     const payload = await externalImagePayloadForWord(word, category);
     if (payload?.url) return cacheImage(cacheKey, payload).url;
     return "";
@@ -1033,7 +1043,19 @@ async function invalidateRoomImage(room, word, category, url) {
 function missingRoomImages(room) {
   const category = room.settings?.category || "";
   return TEAMS.flatMap((team) => room.teams?.[team]?.words || [])
-    .filter((word) => !room.imageMap?.[imageCacheKey(word, category)]);
+    .filter((word) => !validStoredImageUrl(room.imageMap?.[imageCacheKey(word, category)]));
+}
+
+function validStoredImageUrl(url) {
+  const value = String(url || "");
+  return Boolean(value) && !value.startsWith("data:image");
+}
+
+function removeGeneratedImageEntries(room) {
+  const imageMap = room.imageMap || {};
+  Object.keys(imageMap).forEach((key) => {
+    if (!validStoredImageUrl(imageMap[key])) delete imageMap[key];
+  });
 }
 
 function imageCacheKey(word, category) {
@@ -1057,27 +1079,40 @@ function serverImageSearchQuery(word, category) {
 async function externalImagePayload(query, category) {
   const terms = externalImageSearchTermsFromQuery(query);
   for (const term of terms) {
-    const google = await googleImage(term);
+    const google = await googleImage(term, { random: false });
     if (google) return { url: google, source: "google" };
   }
   for (const term of terms) {
-    const wiki = await wikiImageForTerms([term]);
+    const wiki = await wikiImageForTerms([term], { random: false });
     if (wiki) return { url: wiki, source: "wikimedia" };
   }
   return emptyImagePayload();
 }
 
 async function externalImagePayloadForWord(word, category) {
+  const failureKey = imageFailureKey(word, category);
+  const random = (imageFailureCounts.get(failureKey) || 0) >= 10;
   const terms = externalImageSearchTermsForWord(word, category);
   for (const term of terms) {
-    const google = await googleImage(term);
-    if (google) return { url: google, source: "google" };
+    const google = await googleImage(term, { random });
+    if (google) {
+      imageFailureCounts.delete(failureKey);
+      return { url: google, source: "google" };
+    }
   }
   for (const term of terms) {
-    const wiki = await wikiImageForTerms([term]);
-    if (wiki) return { url: wiki, source: "wikimedia" };
+    const wiki = await wikiImageForTerms([term], { random });
+    if (wiki) {
+      imageFailureCounts.delete(failureKey);
+      return { url: wiki, source: "wikimedia" };
+    }
   }
+  imageFailureCounts.set(failureKey, (imageFailureCounts.get(failureKey) || 0) + 1);
   return emptyImagePayload();
+}
+
+function imageFailureKey(word, category) {
+  return `${category || ""}:${String(word || "").trim().toLocaleLowerCase()}`;
 }
 
 function externalImageSearchTermsForWord(word, category) {
@@ -1116,9 +1151,10 @@ function pokemonSpriteUrl(word) {
   return slug ? `https://projectpokemon.org/images/normal-sprite/${slug}.gif` : "";
 }
 
-async function googleImage(query) {
-  const links = await googleImageCandidates(query, 5);
-  return firstAvailableUrl(links);
+async function googleImage(query, options = {}) {
+  const links = await googleImageCandidates(query, options.random ? 10 : 5);
+  const candidates = options.random ? shuffleValues(links) : links;
+  return firstAvailableUrl(candidates);
 }
 
 async function googleImageCandidates(query, limit = 5) {
@@ -1377,21 +1413,32 @@ async function mapWithConcurrency(items, limit, worker) {
   await Promise.all(workers);
 }
 
-async function wikiImage(query) {
-  return wikiImageForTerms(imageSearchTerms(query));
+function shuffleValues(values) {
+  const copy = [...values];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const other = Math.floor(Math.random() * (index + 1));
+    [copy[index], copy[other]] = [copy[other], copy[index]];
+  }
+  return copy;
 }
 
-async function wikiImageForTerms(terms) {
+async function wikiImage(query, options = {}) {
+  return wikiImageForTerms(imageSearchTerms(query), options);
+}
+
+async function wikiImageForTerms(terms, options = {}) {
   for (const term of uniqueSearchTerms(terms)) {
-    const summaryImage = await wikiSummaryImage(term);
-    if (await imageAvailable(summaryImage)) return summaryImage;
+    if (!options.random) {
+      const summaryImage = await wikiSummaryImage(term);
+      if (await imageAvailable(summaryImage)) return summaryImage;
+    }
 
     const commons = new URL("https://commons.wikimedia.org/w/api.php");
     commons.searchParams.set("action", "query");
     commons.searchParams.set("generator", "search");
     commons.searchParams.set("gsrsearch", term);
     commons.searchParams.set("gsrnamespace", "6");
-    commons.searchParams.set("gsrlimit", "5");
+    commons.searchParams.set("gsrlimit", options.random ? "10" : "5");
     commons.searchParams.set("prop", "imageinfo");
     commons.searchParams.set("iiprop", "url");
     commons.searchParams.set("format", "json");
@@ -1401,23 +1448,51 @@ async function wikiImageForTerms(terms) {
       if (response.ok) {
         const data = await response.json();
         const urls = Object.values(data.query?.pages || {}).map((page) => page?.imageinfo?.[0]?.url).filter(Boolean);
-        const available = await firstAvailableUrl(urls);
+        const candidates = options.random ? shuffleValues(urls) : urls;
+        const available = await firstAvailableUrl(candidates);
         if (available) return available;
       }
     } catch {
       // Keep the image lookup best-effort; gameplay should not depend on it.
     }
-    const summary = new URL("https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(term));
-    try {
-      const response = await fetchWithTimeout(summary);
-      if (!response.ok) continue;
-      const data = await response.json();
-      if (await imageAvailable(data.thumbnail?.source)) return data.thumbnail.source;
-    } catch {
-      // Try the next term.
+    if (!options.random) {
+      const summary = new URL("https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(term));
+      try {
+        const response = await fetchWithTimeout(summary);
+        if (!response.ok) continue;
+        const data = await response.json();
+        if (await imageAvailable(data.thumbnail?.source)) return data.thumbnail.source;
+      } catch {
+        // Try the next term.
+      }
+    } else {
+      const search = await wikiSearchImages(term, 10);
+      const available = await firstAvailableUrl(shuffleValues(search));
+      if (available) return available;
     }
   }
   return null;
+}
+
+async function wikiSearchImages(term, limit = 10) {
+  const search = new URL("https://en.wikipedia.org/w/api.php");
+  search.searchParams.set("action", "query");
+  search.searchParams.set("generator", "search");
+  search.searchParams.set("gsrsearch", term);
+  search.searchParams.set("gsrlimit", String(limit));
+  search.searchParams.set("prop", "pageimages");
+  search.searchParams.set("piprop", "thumbnail|original");
+  search.searchParams.set("pithumbsize", "600");
+  search.searchParams.set("format", "json");
+  search.searchParams.set("origin", "*");
+  try {
+    const response = await fetchWithTimeout(search);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return Object.values(data.query?.pages || {}).flatMap((page) => [page?.original?.source, page?.thumbnail?.source]).filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 async function wikiSummaryImage(term) {
