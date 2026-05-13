@@ -2310,7 +2310,7 @@ function Game({ room, playerId, constants, action, toast, playerAvatar }) {
       <div className="game-grid">
         <aside className="left-rail">
           <RoundCounter room={room} constants={constants} compact />
-          <WordsPanel team={myTeam} words={room.teams[myTeam]?.words || []} category={room.settings.category} imageMap={room.imageMap} canRefreshImages={isBiscoitoUser(me)} />
+          <WordsPanel team={myTeam} words={room.teams[myTeam]?.words || []} category={room.settings.category} imageMap={room.imageMap} canRefreshImages />
           <GamePlayersPanel room={room} playerId={playerId} constants={constants} action={action} playerAvatar={playerAvatar} />
         </aside>
 
@@ -2368,7 +2368,7 @@ function SpectatorRound({ room, playerId, constants }) {
         <div className={`spectator-team-column team-surface ${team}`} key={team}>
           <p className="eyebrow"><RadioTower size={16} /> {constants.TEAM_NAMES[team]}</p>
           <TeamScoreCard room={room} team={team} constants={constants} />
-          <WordsPanel team={team} words={room.teams[team]?.words || []} category={room.settings.category} imageMap={room.imageMap} canRefreshImages={isBiscoitoUser(me)} />
+          <WordsPanel team={team} words={room.teams[team]?.words || []} category={room.settings.category} imageMap={room.imageMap} canRefreshImages />
           <SpectatorHints hints={room.current?.turns?.[team]?.hints || []} />
           <GuessPhase room={room} playerId={playerId} kind="team" targetTeam={team} title="Descriptografia" hints={room.current?.turns?.[team]?.hints || []} action={() => Promise.resolve({ ok: false })} />
           <GuessPhase room={room} playerId={playerId} kind="intercept" targetTeam={team} title="Interceptacao" hints={room.current?.turns?.[team]?.hints || []} action={() => Promise.resolve({ ok: false })} />
@@ -2899,7 +2899,7 @@ function GameOver({ room, playerId, constants, winner, action }) {
           <FinalScoreTile key={team} team={team} room={room} constants={constants} winner={winner} />
         ))}
       </div>
-      <FinalWords room={room} constants={constants} canRefreshImages={isBiscoitoUser(me)} />
+      <FinalWords room={room} constants={constants} canRefreshImages />
       <ConfirmationRoster players={voters} confirmedBy={confirmed} />
       {me?.spectator ? <p className="small">Espectadores aguardam os jogadores voltarem ao lobby.</p> : (
         <button className="primary" disabled={confirmed.includes(playerId)} onClick={() => action("game:confirmFinal")}><Play size={18} /> Voltar ao lobby</button>

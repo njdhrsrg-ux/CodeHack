@@ -861,8 +861,9 @@ io.on("connection", (socket) => {
 
   socket.on("image:refresh", ({ word, category }, reply) => safe(reply, async () => {
     const room = await currentRoom(socket);
-    const player = room.players?.[socket.id];
-    if (String(player?.username || "").toLowerCase() !== "biscoito") throw new Error("Apenas Biscoito pode refazer a busca da imagem.");
+    // Reativar esta regra depois dos testes para restringir a nova busca ao usuario Biscoito.
+    // const player = room.players?.[socket.id];
+    // if (String(player?.username || "").toLowerCase() !== "biscoito") throw new Error("Apenas Biscoito pode refazer a busca da imagem.");
     await refreshRoomImage(room, word, category);
     await emitRoom(room);
     startRoomImageResolver(room.code);
@@ -1165,23 +1166,25 @@ async function findImagePayload(query, category, options = {}) {
   const cacheKey = `${category}:${query}`.toLocaleLowerCase();
   if (imageCache.has(cacheKey)) {
     const cached = imageCache.get(cacheKey);
-    if (!cached?.url || validStoredImageUrl(cached.url)) return cached;
+    if (!cached?.url || validStoredImageUrl(cached.url)) {
+      if (!urlBlockedForLookup(cached?.url, options.excludeUrls)) return cached;
+    }
     imageCache.delete(cacheKey);
   }
   const pokemon = await pokemonImage(query);
-  if (await imageAvailable(pokemon)) return cacheImage(cacheKey, { url: pokemon, source: "pokeapi" });
+  if (!urlBlockedForLookup(pokemon, options.excludeUrls) && await imageAvailable(pokemon)) return cacheImage(cacheKey, { url: pokemon, source: "pokeapi" });
   if (category === "Geral") {
-    const pexels = await pexelsImage(query, { limit: options.force ? 12 : 1, random: options.force });
+    const pexels = await pexelsImage(query, { limit: options.force ? 12 : 1, random: options.force, excludeUrls: options.excludeUrls });
     if (pexels) return cacheImage(cacheKey, { url: pexels.url, source: "pexels", photographer: pexels.photographer, page: pexels.page });
-    const wiki = await wikiImageForTerms(imageSearchTerms(query), { random: options.force });
+    const wiki = await wikiImageForTerms(imageSearchTerms(query), { random: options.force, excludeUrls: options.excludeUrls });
     if (wiki) return cacheImage(cacheKey, { url: wiki, source: "wikimedia", searchQuery: query });
     return emptyImagePayload();
   }
   if (category === "Filmes") {
     const poster = await omdbImage(query);
-    if (await imageAvailable(poster)) return cacheImage(cacheKey, { url: poster, source: "omdb" });
+    if (!urlBlockedForLookup(poster, options.excludeUrls) && await imageAvailable(poster)) return cacheImage(cacheKey, { url: poster, source: "omdb" });
   }
-  const external = await externalImagePayload(query, category);
+  const external = await externalImagePayload(query, category, options);
   if (external?.url) return cacheImage(cacheKey, external);
   return emptyImagePayload();
 }
@@ -1240,7 +1243,7 @@ async function resolveImageUrlForWord(word, category, options = {}) {
     }
     const stored = await loadStoredWordImage(category, word);
     if (stored?.url) return cacheImage(cacheKey, { url: stored.url, source: stored.source || "word-db" }).url;
-    const payload = await externalImagePayloadForWord(word, category);
+    const payload = await externalImagePayloadForWord(word, category, options);
     if (payload?.url) {
       await saveWordImage(category, word, payload.url, payload.source, payload.searchQuery || externalImageSearchTermsForWord(word, category)[0] || "");
       return cacheImage(cacheKey, payload).url;
@@ -1271,12 +1274,12 @@ async function refreshRoomImage(room, word, category) {
   const imageCategory = String(category || room.settings?.category || "").trim();
   if (!cleanWord || !imageCategory) return;
   const key = imageCacheKey(cleanWord, imageCategory);
-  if (room.imageMap?.[key]) markBrokenImageUrl(room.imageMap[key]);
+  const excludedUrls = imageLookupExclusions(room.imageMap?.[key]);
   delete room.imageMap?.[key];
   imageCache.delete(`${imageCategory}:${cleanWord}`.toLocaleLowerCase());
   imageFailureCounts.set(imageFailureKey(cleanWord, imageCategory), 10);
   await deleteWordImage(imageCategory, cleanWord);
-  const url = await resolveImageUrlForWord(cleanWord, imageCategory, { force: true });
+  const url = await resolveImageUrlForWord(cleanWord, imageCategory, { force: true, excludeUrls: excludedUrls });
   if (url) room.imageMap[key] = url;
 }
 
@@ -1337,28 +1340,28 @@ function serverImageSearchQuery(word, category) {
   return `${searchWord} ${suffix}`.trim();
 }
 
-async function externalImagePayload(query, category) {
+async function externalImagePayload(query, category, options = {}) {
   const terms = externalImageSearchTermsFromQuery(query);
-  const serper = await serperImage(terms[0], { random: false });
+  const serper = await serperImage(terms[0], { random: false, excludeUrls: options.excludeUrls });
   if (serper) return { url: serper, source: "serper", searchQuery: terms[0] };
   for (const term of terms) {
-    const wiki = await wikiImageForTerms([term], { random: false });
+    const wiki = await wikiImageForTerms([term], { random: false, excludeUrls: options.excludeUrls });
     if (wiki) return { url: wiki, source: "wikimedia", searchQuery: term };
   }
   return emptyImagePayload();
 }
 
-async function externalImagePayloadForWord(word, category) {
+async function externalImagePayloadForWord(word, category, options = {}) {
   const failureKey = imageFailureKey(word, category);
   const random = (imageFailureCounts.get(failureKey) || 0) >= 10;
   const terms = externalImageSearchTermsForWord(word, category);
-  const serper = await serperImage(terms[0], { random });
+  const serper = await serperImage(terms[0], { random, excludeUrls: options.excludeUrls });
   if (serper) {
     imageFailureCounts.delete(failureKey);
     return { url: serper, source: "serper", searchQuery: terms[0] };
   }
   for (const term of terms) {
-    const wiki = await wikiImageForTerms([term], { random });
+    const wiki = await wikiImageForTerms([term], { random, excludeUrls: options.excludeUrls });
     if (wiki) {
       imageFailureCounts.delete(failureKey);
       return { url: wiki, source: "wikimedia", searchQuery: term };
@@ -1451,7 +1454,7 @@ function pokemonSpriteUrl(word) {
 async function serperImage(query, options = {}) {
   const links = await serperImageCandidates(query);
   const candidates = options.random ? shuffleValues(links) : links;
-  return firstAvailableUrl(candidates);
+  return firstAvailableUrl(candidates, options);
 }
 
 async function serperImageCandidates(query) {
@@ -1518,7 +1521,7 @@ async function pexelsImage(query, options = {}) {
     const photos = options.random ? shuffleValues(data.photos || []) : (data.photos || []);
     for (const photo of photos) {
       const imageUrl = photo?.src?.medium || photo?.src?.large || photo?.src?.original;
-      if (imageUrl && await imageAvailable(imageUrl)) {
+      if (imageUrl && !urlBlockedForLookup(imageUrl, options.excludeUrls) && await imageAvailable(imageUrl)) {
         return {
           url: imageUrl,
           photographer: photo.photographer || "",
@@ -1723,12 +1726,37 @@ function guessImageContentType(bytes) {
   return "";
 }
 
-async function firstAvailableUrl(urls) {
+async function firstAvailableUrl(urls, options = {}) {
   const queue = uniqueSearchTerms(urls);
   for (const url of queue) {
+    if (urlBlockedForLookup(url, options.excludeUrls)) continue;
     if (await imageAvailable(url)) return url;
   }
   return null;
+}
+
+function imageLookupExclusions(url) {
+  const blocked = new Set();
+  addImageLookupExclusion(blocked, url);
+  return blocked;
+}
+
+function addImageLookupExclusion(blocked, url) {
+  const normalized = normalizeImageLookupUrl(url);
+  if (normalized) blocked.add(normalized);
+}
+
+function urlBlockedForLookup(url, blocked) {
+  if (!blocked?.size) return false;
+  const normalized = normalizeImageLookupUrl(url);
+  return Boolean(normalized && blocked.has(normalized));
+}
+
+function normalizeImageLookupUrl(url) {
+  const target = normalizeExternalImageUrl(url);
+  if (!target) return "";
+  target.hash = "";
+  return target.href;
 }
 
 async function mapWithConcurrency(items, limit, worker) {
@@ -1778,7 +1806,7 @@ async function wikiImageForTerms(terms, options = {}) {
         const data = await response.json();
         const urls = Object.values(data.query?.pages || {}).map((page) => page?.imageinfo?.[0]?.url).filter(Boolean);
         const candidates = options.random ? shuffleValues(urls) : urls;
-        const available = await firstAvailableUrl(candidates);
+        const available = await firstAvailableUrl(candidates, options);
         if (available) return available;
       }
     } catch {
@@ -1796,7 +1824,7 @@ async function wikiImageForTerms(terms, options = {}) {
       }
     } else {
       const search = await wikiSearchImages(term, 10);
-      const available = await firstAvailableUrl(shuffleValues(search));
+      const available = await firstAvailableUrl(shuffleValues(search), options);
       if (available) return available;
     }
   }
