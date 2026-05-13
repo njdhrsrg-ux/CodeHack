@@ -1174,7 +1174,7 @@ async function findImagePayload(query, category, options = {}) {
   const pokemon = await pokemonImage(query);
   if (!urlBlockedForLookup(pokemon, options.excludeUrls) && await imageAvailable(pokemon)) return cacheImage(cacheKey, { url: pokemon, source: "pokeapi" });
   if (category === "Geral") {
-    const pexels = await pexelsImage(query, { limit: options.force ? 12 : 1, random: options.force, excludeUrls: options.excludeUrls });
+    const pexels = await pexelsImage(query, { limit: 20, random: true, excludeUrls: options.excludeUrls });
     if (pexels) return cacheImage(cacheKey, { url: pexels.url, source: "pexels", photographer: pexels.photographer, page: pexels.page });
     const wiki = await wikiImageForTerms(imageSearchTerms(query), { random: options.force, excludeUrls: options.excludeUrls });
     if (wiki) return cacheImage(cacheKey, { url: wiki, source: "wikimedia", searchQuery: query });
@@ -1508,20 +1508,34 @@ async function logSerperImageError(response) {
 
 async function pexelsImage(query, options = {}) {
   const key = process.env.PEXELS_API_KEY;
-  if (!key) return null;
+  if (!key) {
+    console.warn(`Pexels image query skipped: missing PEXELS_API_KEY for "${query}"`);
+    return null;
+  }
   const url = new URL("https://api.pexels.com/v1/search");
   url.searchParams.set("query", query);
-  url.searchParams.set("per_page", String(Math.max(1, Math.min(Number(options.limit || 1), 20))));
+  const perPage = Math.max(1, Math.min(Number(options.limit || 1), 20));
+  url.searchParams.set("per_page", String(perPage));
   url.searchParams.set("orientation", "square");
   url.searchParams.set("locale", "en-US");
+  console.log(`Pexels image query: "${query}" per_page=${perPage} random=${Boolean(options.random)}`);
   try {
     const response = await fetchWithTimeout(url, { headers: { Authorization: key } });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.warn(`Pexels image query failed: "${query}" HTTP ${response.status}`);
+      return null;
+    }
     const data = await response.json();
     const photos = options.random ? shuffleValues(data.photos || []) : (data.photos || []);
+    console.log(`Pexels image results: "${query}" candidates=${photos.length}`);
     for (const photo of photos) {
       const imageUrl = photo?.src?.medium || photo?.src?.large || photo?.src?.original;
-      if (imageUrl && !urlBlockedForLookup(imageUrl, options.excludeUrls) && await imageAvailable(imageUrl)) {
+      if (urlBlockedForLookup(imageUrl, options.excludeUrls)) {
+        console.log(`Pexels image candidate skipped: "${query}" repeated_url=${imageUrl}`);
+        continue;
+      }
+      if (imageUrl && await imageAvailable(imageUrl)) {
+        console.log(`Pexels image selected: "${query}" photo_id=${photo.id || ""} photographer="${photo.photographer || ""}" url=${imageUrl}`);
         return {
           url: imageUrl,
           photographer: photo.photographer || "",
@@ -1529,8 +1543,10 @@ async function pexelsImage(query, options = {}) {
         };
       }
     }
+    console.warn(`Pexels image query empty: "${query}" no valid candidate`);
     return null;
-  } catch {
+  } catch (error) {
+    console.warn(`Pexels image query error: "${query}" ${error?.message || error}`);
     return null;
   }
 }
