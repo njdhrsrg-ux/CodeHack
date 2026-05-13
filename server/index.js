@@ -1620,31 +1620,34 @@ async function logSerperImageError(response) {
 async function pexelsImage(query, options = {}) {
   const key = process.env.PEXELS_API_KEY;
   if (!key) {
-    console.warn(`Pexels curated image request skipped: missing PEXELS_API_KEY for context="${query}"`);
+    console.warn(`Pexels image search skipped: missing PEXELS_API_KEY for "${query}"`);
     return null;
   }
-  const url = new URL("https://api.pexels.com/v1/curated");
+  const url = new URL("https://api.pexels.com/v1/search");
+  url.searchParams.set("query", query);
   const perPage = Math.max(1, Math.min(Number(options.limit || 1), 20));
   url.searchParams.set("per_page", String(perPage));
   url.searchParams.set("page", "1");
-  console.log(`Pexels curated images: context="${query}" page=1 per_page=${perPage} randomize_first_page=${Boolean(options.randomizeFirstPage)}`);
+  url.searchParams.set("orientation", "square");
+  url.searchParams.set("locale", "en-US");
+  console.log(`Pexels image search: "${query}" page=1 per_page=${perPage} randomize_first_page=${Boolean(options.randomizeFirstPage)}`);
   try {
     const response = await fetchWithTimeout(url, { headers: { Authorization: key } });
     if (!response.ok) {
-      console.warn(`Pexels curated image request failed: context="${query}" HTTP ${response.status}`);
+      console.warn(`Pexels image search failed: "${query}" HTTP ${response.status}`);
       return null;
     }
     const data = await response.json();
     const photos = options.randomizeFirstPage ? shuffleValues(data.photos || []) : (data.photos || []);
-    console.log(`Pexels curated image results: context="${query}" candidates=${photos.length}`);
+    console.log(`Pexels image search results: "${query}" candidates=${photos.length}`);
     for (const photo of photos) {
       const imageUrl = photo?.src?.medium || photo?.src?.large || photo?.src?.original;
       if (urlBlockedForLookup(imageUrl, options.excludeUrls)) {
-        console.log(`Pexels curated image candidate skipped: context="${query}" repeated_url=${imageUrl}`);
+        console.log(`Pexels image candidate skipped: "${query}" repeated_url=${imageUrl}`);
         continue;
       }
       if (imageUrl && await imageAvailable(imageUrl)) {
-        console.log(`Pexels curated image selected: context="${query}" photo_id=${photo.id || ""} photographer="${photo.photographer || ""}" url=${imageUrl}`);
+        console.log(`Pexels image selected: "${query}" photo_id=${photo.id || ""} photographer="${photo.photographer || ""}" url=${imageUrl}`);
         return {
           url: imageUrl,
           photographer: photo.photographer || "",
@@ -1652,10 +1655,10 @@ async function pexelsImage(query, options = {}) {
         };
       }
     }
-    console.warn(`Pexels curated image request empty: context="${query}" no valid candidate`);
+    console.warn(`Pexels image search empty: "${query}" no valid candidate`);
     return null;
   } catch (error) {
-    console.warn(`Pexels curated image request error: context="${query}" ${error?.message || error}`);
+    console.warn(`Pexels image search error: "${query}" ${error?.message || error}`);
     return null;
   }
 }
