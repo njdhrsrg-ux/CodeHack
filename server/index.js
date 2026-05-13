@@ -455,7 +455,10 @@ app.get("/api/image-proxy", async (req, res) => {
   if (!["http:", "https:"].includes(target.protocol)) return res.sendStatus(400);
   try {
     const image = await fetchImageResource(target, 15000);
-    if (!image) return res.sendStatus(415);
+    if (!image) {
+      console.warn(`Image proxy rejected ${target.href}`);
+      return res.sendStatus(415);
+    }
     const { bytes, contentType } = image;
     res.setHeader("Content-Type", contentType || "image/jpeg");
     res.setHeader("Cache-Control", "public, max-age=604800, immutable");
@@ -1369,6 +1372,7 @@ function isLikelyImage(bytes, contentType = "") {
   if (bytes.length >= 12 && bytes.toString("ascii", 4, 8) === "ftyp" && /avif|heic|heif/.test(bytes.toString("ascii", 8, 16))) return true;
   if (bytes.length >= 2 && bytes[0] === 0x42 && bytes[1] === 0x4d) return true;
   if (bytes.length >= 4 && bytes[0] === 0x00 && bytes[1] === 0x00 && bytes[2] === 0x01 && bytes[3] === 0x00) return true;
+  if (type.startsWith("image/") && bytes.length > 0) return true;
   return false;
 }
 
