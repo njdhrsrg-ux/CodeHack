@@ -3042,15 +3042,13 @@ function WordImage({ word, index, category, imageUrl = undefined, canRefresh = f
       </button>
       {expanded && createPortal((
         <div className="image-zoom-overlay" role="presentation" onClick={() => setExpanded(false)}>
-          <img className="image-zoom" src={displayedUrl} alt={`Imagem ampliada relacionada a ${word}`} />
+          <img className="image-zoom" src={displayedUrl} alt={`Imagem ampliada relacionada a ${word}`} onClick={(event) => event.stopPropagation()} />
           {canRefresh && (
             <button
               className="image-refresh-button"
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
-                setExpanded(false);
-                setFailed(true);
                 socket.emit("image:refresh", { word, category });
               }}
             >

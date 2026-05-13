@@ -607,6 +607,60 @@ const SERVER_GENERAL_IMAGE_ALIAS = {
   Raquete: "racket", Peteca: "shuttlecock", Trofeu: "trophy", Medalha: "medal", Uniforme: "uniform", Chuteira: "soccer cleats", Capacete: "helmet", Luva: "glove", "Rede de pesca": "fishing net", Aquario: "aquarium"
 };
 
+const SERVER_GENERAL_IMAGE_ALIAS_EXTRA = {
+  Cobertura: "rooftop terrace", "Calçada": "sidewalk", Calcada: "sidewalk", Gaiola: "bird cage", Coleira: "pet collar", Racao: "pet food", Osso: "bone", Ninho: "bird nest", Pena: "feather", Bico: "bird beak",
+  Asa: "wing", Casco: "shell", Chifre: "horn", Cauda: "tail", Bigode: "mustache", Abobora: "pumpkin", Pepino: "cucumber", Alface: "lettuce", Repolho: "cabbage", Cebola: "onion",
+  Alho: "garlic", Pimenta: "pepper", Canela: "cinnamon", Chocolate: "chocolate", Pipoca: "popcorn", Amendoim: "peanut", Castanha: "chestnut", Iogurte: "yogurt", Manteiga: "butter", Geleia: "jam",
+  Farinha: "flour", Fermento: "baking powder", Hamburguer: "hamburger", Pastel: "fried pastry", Coxinha: "coxinha snack", Esfiha: "sfiha", Tapioca: "tapioca pancake", Crepe: "crepe", Panqueca: "pancake", Lasanha: "lasagna",
+  Churrasco: "barbecue", Tempero: "seasoning", Guardanapo: "napkin", Bandeja: "serving tray", Xicara: "teacup", Caneca: "mug", Jarra: "pitcher", Liquidificador: "blender", Batedeira: "stand mixer", Forno: "oven",
+  Microondas: "microwave oven", Chaleira: "kettle", Escorredor: "dish rack", Peneira: "sieve", Ralador: "grater", Abridor: "bottle opener", Rolha: "cork stopper", "Saca rolha": "corkscrew", Fronha: "pillowcase", "Lençol": "bedsheet",
+  Lencol: "bedsheet", Colchao: "mattress", "Berço": "crib", Berco: "crib", Comoda: "dresser", "Criado mudo": "nightstand", Abajur: "table lamp", Interruptor: "light switch", Tomada: "electrical outlet", Extensao: "extension cord",
+  "Controle remoto": "remote control", Campainha: "doorbell", Alarme: "alarm", Fechadura: "door lock", "Dobradiça": "hinge", Dobradica: "hinge", "Maçaneta": "doorknob", Macaneta: "doorknob", Cortador: "cutter tool", "Fita adesiva": "adhesive tape",
+  Grampeador: "stapler", Clipe: "paper clip", Regua: "ruler", Compasso: "drawing compass", Transferidor: "protractor", Calculadora: "calculator", "Mochila escolar": "school backpack", Estojo: "pencil case", Apontador: "pencil sharpener", Giz: "chalk",
+  Lousa: "blackboard", "Carteira escolar": "school desk", Biblioteca: "library", Laboratorio: "laboratory", "Quadro negro": "blackboard", Globo: "globe", Planeta: "planet", Cometa: "comet", Foguete: "rocket", Astronauta: "astronaut",
+  "Satélite": "satellite", Satelite: "satellite", Telescopio: "telescope", Microscopio: "microscope", "Imã": "magnet", Ima: "magnet", Bateria: "battery", Pilhas: "batteries", Controle: "game controller", Joystick: "joystick",
+  Fone: "headphones", Microfone: "microphone", "Caixa de som": "speaker", Impressora: "printer", Scanner: "scanner", Roteador: "router", Antena: "antenna", Relampago: "lightning", Trovao: "thunder", Tempestade: "storm",
+  Garoa: "drizzle", Orvalho: "dew", Geada: "frost", "Arco iris": "rainbow", Cachoeira: "waterfall", Corredeira: "rapids", "Pântano": "swamp", Pantano: "swamp", Mangue: "mangrove", Penhasco: "cliff",
+  Planalto: "plateau", Bosque: "woodland", Jiboia: "boa constrictor", Jacare: "alligator", Coruja: "owl", Pinguim: "penguin", Camelo: "camel", Canguru: "kangaroo", Hipopotamo: "hippopotamus", Rinoceronte: "rhinoceros",
+  Panda: "panda", Koala: "koala", Esquilo: "squirrel", Lontra: "otter", Foca: "seal animal", Pelicano: "pelican", Gaivota: "seagull", Pavao: "peacock", Peru: "turkey bird", Ganso: "goose",
+  Marreco: "duck", Caranguejo: "crab", Lagosta: "lobster", Polvo: "octopus", Lula: "squid", Ostra: "oyster", Concha: "seashell", "Estrela do mar": "starfish", Coral: "coral reef", Ourico: "sea urchin",
+  Besouro: "beetle", Grilo: "cricket insect", Joaninha: "ladybug", Cupim: "termite", Mariposa: "moth", Escorpiao: "scorpion", Libelula: "dragonfly", "Centopéia": "centipede", Centopeia: "centipede", Pijama: "pajamas",
+  Casaco: "coat", Jaqueta: "jacket", Blusa: "blouse", Saia: "skirt", Bermuda: "shorts", Shorts: "shorts clothing", Cinto: "belt", Gravata: "tie", Cachecol: "scarf", "Luva de frio": "winter gloves",
+  "Óculos": "eyeglasses", Oculos: "eyeglasses", "Relogio de pulso": "wristwatch", Brinco: "earring", Colar: "necklace", Pulseira: "bracelet", Anel: "ring jewelry", Perfume: "perfume bottle", Shampoo: "shampoo bottle", Condicionador: "conditioner bottle",
+  Desodorante: "deodorant", Creme: "cream jar", Esparadrapo: "medical tape", Seringa: "syringe", "Raio x": "x-ray", Receita: "medical prescription", Vacina: "vaccine", Dentista: "dentist", Ambulancia: "ambulance", Sirene: "siren",
+  Delegacia: "police station", Tribunal: "courtroom", Cartorio: "notary office", Prefeitura: "city hall", Correio: "post office", Estadio: "stadium", Rodoviaria: "bus station", Aeroporto: "airport", Porto: "harbor", Shopping: "shopping mall",
+  Feira: "street market", Quitanda: "produce market", "Açougue": "butcher shop", Acougue: "butcher shop", Barbearia: "barbershop", "Salão": "beauty salon", Salao: "beauty salon", Academia: "gym", Clube: "clubhouse", Circo: "circus",
+  Zoologico: "zoo", Aqueduto: "aqueduct", Castelo: "castle", Cabana: "cabin", Apartamento: "apartment building", Condominio: "condominium", "Chácara": "country house", Chacara: "country house", "Sítio": "farmhouse", Sitio: "farmhouse",
+  Celeiro: "barn", Curral: "corral", Pomar: "orchard", Girassol: "sunflower", Margarida: "daisy flower", Orquidea: "orchid", Cacto: "cactus", Bambu: "bamboo", Pinheiro: "pine tree", Coqueiro: "coconut tree",
+  Palmeira: "palm tree", Samambaia: "fern", Musgo: "moss", Cogumelo: "mushroom", Carvao: "charcoal", Argila: "clay", Ceramica: "ceramic pottery", Porcelana: "porcelain", Algodao: "cotton", "Lã": "wool",
+  La: "wool", Seda: "silk fabric", Veludo: "velvet fabric", Jeans: "denim jeans", "Zíper": "zipper", Ziper: "zipper", Botina: "work boots", Sandalia: "sandals", Chinelo: "flip flops", "Tênis": "sneakers",
+  Tenis: "sneakers", "Guarda roupa": "wardrobe closet", Maleta: "briefcase", "Carrinho de feira": "shopping trolley", "Carrinho de bebê": "baby stroller", "Carrinho de bebe": "baby stroller", Berimbau: "berimbau", "Bateria musical": "drum kit", Sanfona: "accordion", Trompete: "trumpet",
+  Violino: "violin", Saxofone: "saxophone", Harpa: "harp", Pandeiro: "tambourine", Partitura: "sheet music", Palco: "stage", Camarim: "dressing room", Plateia: "audience", Ingresso: "ticket", Bilheteria: "ticket booth",
+  Fantasia: "costume", "Máscara": "mask", Mascara: "mask", "Balão": "balloon", Balao: "balloon", Confete: "confetti", Serpentina: "party streamer", Fogos: "fireworks", Convite: "invitation card", "Presépio": "nativity scene",
+  Presepio: "nativity scene", Guirlanda: "wreath", Panetone: "panettone", "Chocolate quente": "hot chocolate", Limonada: "lemonade", Vitamina: "fruit smoothie", Sanduiche: "sandwich", Torrada: "toast", Omelete: "omelet", Salada: "salad",
+  Molho: "sauce", Sushi: "sushi", Yakissoba: "yakisoba", Risoto: "risotto", Torta: "pie", Pudim: "pudding", Gelatina: "jelly dessert", Brigadeiro: "brigadeiro candy", Beijinho: "coconut candy", "Paçoca": "paçoca candy",
+  Pacoca: "paçoca candy", Rapadura: "rapadura candy", Sorveteiro: "ice cream vendor", Pipoqueiro: "popcorn vendor", Carteiro: "mail carrier", Pedreiro: "bricklayer", Encanador: "plumber", Eletricista: "electrician", Jardineiro: "gardener", Costureira: "seamstress",
+  Fotografo: "photographer", "Garçom": "waiter", Garcom: "waiter", Bibliotecario: "librarian", Porteiro: "doorman", Vendedor: "salesperson", Agricultor: "farmer", Pescador: "fisherman", Marinheiro: "sailor", Piloto: "pilot",
+  Comissario: "flight attendant", "Mecânico": "mechanic", Mecanico: "mechanic", Ferreiro: "blacksmith", Carpinteiro: "carpenter", Sapateiro: "shoemaker", Veterinario: "veterinarian", Enfermeiro: "nurse", Atleta: "athlete", Treinador: "coach",
+  Arbitro: "referee", Nadador: "swimmer", Ciclista: "cyclist", Ginasta: "gymnast", Lutador: "fighter athlete", Corredor: "runner", Goleiro: "goalkeeper", Zagueiro: "soccer defender", Atacante: "soccer striker", Torcida: "sports fans",
+  Arquibancada: "bleachers", Placar: "scoreboard", Tabuleiro: "game board", "Peão": "game pawn", Peao: "game pawn", "Dominó": "dominoes", Domino: "dominoes", Xadrez: "chess", Damas: "checkers", "Quebra cabeça": "jigsaw puzzle",
+  "Ioiô": "yo-yo", Ioio: "yo-yo", Boliche: "bowling", Bilhar: "billiards", Pescaria: "fishing game", Alvo: "target", Flecha: "arrow", Arco: "bow weapon", Estilingue: "slingshot", Bumerangue: "boomerang",
+  "Pião": "spinning top", Piao: "spinning top", Carruagem: "carriage", Trator: "tractor", Caminhao: "truck", Escavadeira: "excavator", Guindaste: "crane machine", Helicoptero: "helicopter", "Balão de ar": "hot air balloon", "Balao de ar": "hot air balloon",
+  Submarino: "submarine", Jipe: "jeep", Van: "van vehicle", "Carroça": "horse cart", Carroca: "horse cart", Patinete: "kick scooter", "Teleférico": "cable car", Teleferico: "cable car", "Metrô": "subway train", Metro: "subway train",
+  "Boné": "baseball cap", Bone: "baseball cap", Viseira: "visor cap", Capuz: "hood", "Uniforme escolar": "school uniform", "Escova de dentes": "toothbrush", "Pasta de dente": "toothpaste", "Fio dental": "dental floss", Barbeador: "razor", Toalheiro: "towel rack",
+  Saboneteira: "soap dish", Banheira: "bathtub", Vaso: "vase", Descarga: "toilet flush", "Espelho d'agua": "reflecting pool", Filtro: "water filter", Bebedouro: "drinking fountain", "Caixa d'agua": "water tank", "Poço": "well", Poco: "well",
+  Represa: "dam reservoir", Canal: "canal", Dique: "dike", Moinho: "windmill", Catavento: "pinwheel", Biruta: "windsock", Paraquedas: "parachute", Escorregador: "playground slide", "Balanço": "swing set", Balanco: "swing set",
+  Gangorra: "seesaw", Carrossel: "carousel", "Roda gigante": "ferris wheel", "Montanha russa": "roller coaster", Labirinto: "maze", Estatua: "statue", Fonte: "fountain", Coreto: "bandstand", "Banco de praça": "park bench", "Banco de praca": "park bench",
+  Lixeira: "trash bin", Poste: "street light pole", Placa: "signboard", Outdoor: "billboard", Toldo: "awning", Vitrine: "shop window display", Provador: "fitting room", Etiqueta: "price tag", Cabine: "booth", Senha: "queue ticket",
+  Fila: "queue line", Cesta: "basket", "Sacola retornavel": "reusable shopping bag", Moedor: "grinder", "Filtro de cafe": "coffee filter", "Porta copos": "cup holder", "Para choque": "car bumper", Estepe: "spare tire", Pedal: "pedal", "Corrente de bicicleta": "bicycle chain",
+  "Guidão": "bicycle handlebar", Guidao: "bicycle handlebar", Selim: "bicycle saddle", "Campainha de bike": "bicycle bell", "Pneu reserva": "spare tire", "Óleo": "motor oil", Oleo: "motor oil", Graxa: "grease", Ferradura: "horseshoe", Sela: "saddle",
+  "Rédea": "reins", Redea: "reins", Estabulo: "stable", Ferramenta: "tool", Parafuso: "screw", Porca: "nut hardware", Alicate: "pliers", "Chave inglesa": "wrench", Furadeira: "power drill", Lixa: "sandpaper",
+  Capacho: "doormat", Varanda: "porch", Sacada: "balcony", Quintal: "backyard", Calha: "gutter", Rampa: "ramp", Piso: "floor tiles", Azulejo: "wall tile", "Rodapé": "baseboard", Rodape: "baseboard",
+  Persiana: "window blinds", "Porta de correr": "sliding door", Grade: "metal gate", "Tela mosquiteira": "mosquito screen", "Chaminé": "chimney", Chamine: "chimney", Lareira: "fireplace", Lenha: "firewood", "Vaso sanitario": "toilet", "Escova sanitaria": "toilet brush",
+  "Pá": "shovel", Pa: "shovel", Enxada: "hoe tool", Regador: "watering can", "Tesourão": "hedge shears", Tesourao: "hedge shears", "Carrinho de mão": "wheelbarrow", "Carrinho de mao": "wheelbarrow", Adubo: "fertilizer", Espantalho: "scarecrow",
+  Irrigador: "sprinkler", Colheita: "harvest", Silo: "silo", Arado: "plow"
+};
+
 const SERVER_COMPLETE_ORIGIN_PATCH = {
   Anime: {
     "Rock Lee": "Naruto", Hange: "Attack on Titan", Near: "Death Note", Mello: "Death Note", Scar: "Fullmetal Alchemist",
@@ -1448,7 +1502,12 @@ function serverSearchName(word, category) {
 
 function generalImageSearchTerm(word) {
   const cleanWord = String(word || "").trim();
-  return SERVER_GENERAL_IMAGE_ALIAS[cleanWord] || SERVER_GENERAL_IMAGE_ALIAS[stripAccents(cleanWord)] || cleanWord;
+  const normalized = stripAccents(cleanWord);
+  return SERVER_GENERAL_IMAGE_ALIAS[cleanWord]
+    || SERVER_GENERAL_IMAGE_ALIAS[normalized]
+    || SERVER_GENERAL_IMAGE_ALIAS_EXTRA[cleanWord]
+    || SERVER_GENERAL_IMAGE_ALIAS_EXTRA[normalized]
+    || cleanWord;
 }
 
 function characterImageSearchTerm(word, origin) {
@@ -1561,34 +1620,31 @@ async function logSerperImageError(response) {
 async function pexelsImage(query, options = {}) {
   const key = process.env.PEXELS_API_KEY;
   if (!key) {
-    console.warn(`Pexels image query skipped: missing PEXELS_API_KEY for "${query}"`);
+    console.warn(`Pexels curated image request skipped: missing PEXELS_API_KEY for context="${query}"`);
     return null;
   }
-  const url = new URL("https://api.pexels.com/v1/search");
-  url.searchParams.set("query", query);
+  const url = new URL("https://api.pexels.com/v1/curated");
   const perPage = Math.max(1, Math.min(Number(options.limit || 1), 20));
   url.searchParams.set("per_page", String(perPage));
   url.searchParams.set("page", "1");
-  url.searchParams.set("orientation", "square");
-  url.searchParams.set("locale", "en-US");
-  console.log(`Pexels image query: "${query}" page=1 per_page=${perPage} randomize_first_page=${Boolean(options.randomizeFirstPage)}`);
+  console.log(`Pexels curated images: context="${query}" page=1 per_page=${perPage} randomize_first_page=${Boolean(options.randomizeFirstPage)}`);
   try {
     const response = await fetchWithTimeout(url, { headers: { Authorization: key } });
     if (!response.ok) {
-      console.warn(`Pexels image query failed: "${query}" HTTP ${response.status}`);
+      console.warn(`Pexels curated image request failed: context="${query}" HTTP ${response.status}`);
       return null;
     }
     const data = await response.json();
     const photos = options.randomizeFirstPage ? shuffleValues(data.photos || []) : (data.photos || []);
-    console.log(`Pexels image results: "${query}" candidates=${photos.length}`);
+    console.log(`Pexels curated image results: context="${query}" candidates=${photos.length}`);
     for (const photo of photos) {
       const imageUrl = photo?.src?.medium || photo?.src?.large || photo?.src?.original;
       if (urlBlockedForLookup(imageUrl, options.excludeUrls)) {
-        console.log(`Pexels image candidate skipped: "${query}" repeated_url=${imageUrl}`);
+        console.log(`Pexels curated image candidate skipped: context="${query}" repeated_url=${imageUrl}`);
         continue;
       }
       if (imageUrl && await imageAvailable(imageUrl)) {
-        console.log(`Pexels image selected: "${query}" photo_id=${photo.id || ""} photographer="${photo.photographer || ""}" url=${imageUrl}`);
+        console.log(`Pexels curated image selected: context="${query}" photo_id=${photo.id || ""} photographer="${photo.photographer || ""}" url=${imageUrl}`);
         return {
           url: imageUrl,
           photographer: photo.photographer || "",
@@ -1596,10 +1652,10 @@ async function pexelsImage(query, options = {}) {
         };
       }
     }
-    console.warn(`Pexels image query empty: "${query}" no valid candidate`);
+    console.warn(`Pexels curated image request empty: context="${query}" no valid candidate`);
     return null;
   } catch (error) {
-    console.warn(`Pexels image query error: "${query}" ${error?.message || error}`);
+    console.warn(`Pexels curated image request error: context="${query}" ${error?.message || error}`);
     return null;
   }
 }
