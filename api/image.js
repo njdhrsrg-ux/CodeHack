@@ -61,7 +61,7 @@ async function serperImage(query) {
         "X-API-KEY": key,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ q: query, num: 5 })
+      body: JSON.stringify({ q: query })
     });
     if (!response.ok) return null;
     const data = await response.json();
