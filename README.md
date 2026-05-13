@@ -17,10 +17,10 @@ Backend: http://localhost:3001
 
 ## Imagens
 
-O backend tenta usar SerpAPI para imagens quando a variavel abaixo existe:
+O backend tenta usar Serper.dev para imagens quando a variavel abaixo existe:
 
 ```bash
-SERPAPI_API_KEY=...
+SERPER_API_KEY=...
 ```
 
 Sem essa credencial, ele usa Wikimedia Commons como fallback. As URLs ficam em cache no servidor para que todos os jogadores vejam a mesma imagem por palavra.

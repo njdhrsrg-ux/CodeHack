@@ -96,7 +96,7 @@ const imageBinaryCache = new Map();
 const imageResolveJobs = new Set();
 const brokenImageUrls = new Set();
 const imageFailureCounts = new Map();
-const serpImageWarnings = new Set();
+const serperImageWarnings = new Set();
 const TEAMS = ["red", "blue"];
 const MAX_IMAGE_CACHE_ENTRIES = 160;
 const MAX_IMAGE_CACHE_BYTES = 5 * 1024 * 1024;
@@ -1083,8 +1083,8 @@ function serverImageSearchQuery(word, category) {
 async function externalImagePayload(query, category) {
   const terms = externalImageSearchTermsFromQuery(query);
   for (const term of terms) {
-    const serp = await serpImage(term, { random: false });
-    if (serp) return { url: serp, source: "serpapi" };
+    const serper = await serperImage(term, { random: false });
+    if (serper) return { url: serper, source: "serper" };
   }
   for (const term of terms) {
     const wiki = await wikiImageForTerms([term], { random: false });
@@ -1098,10 +1098,10 @@ async function externalImagePayloadForWord(word, category) {
   const random = (imageFailureCounts.get(failureKey) || 0) >= 10;
   const terms = externalImageSearchTermsForWord(word, category);
   for (const term of terms) {
-    const serp = await serpImage(term, { random });
-    if (serp) {
+    const serper = await serperImage(term, { random });
+    if (serper) {
       imageFailureCounts.delete(failureKey);
-      return { url: serp, source: "serpapi" };
+      return { url: serper, source: "serper" };
     }
   }
   for (const term of terms) {
@@ -1155,48 +1155,49 @@ function pokemonSpriteUrl(word) {
   return slug ? `https://projectpokemon.org/images/normal-sprite/${slug}.gif` : "";
 }
 
-async function serpImage(query, options = {}) {
-  const links = await serpImageCandidates(query, options.random ? 10 : 5);
+async function serperImage(query, options = {}) {
+  const links = await serperImageCandidates(query, options.random ? 10 : 5);
   const candidates = options.random ? shuffleValues(links) : links;
   return firstAvailableUrl(candidates);
 }
 
-async function serpImageCandidates(query, limit = 5) {
-  const key = process.env.SERPAPI_API_KEY || process.env.SERP_API_KEY;
+async function serperImageCandidates(query, limit = 5) {
+  const key = process.env.SERPER_API_KEY || process.env.SERPAPI_API_KEY || process.env.SERP_API_KEY;
   if (!key) return [];
-  const url = new URL("https://serpapi.com/search.json");
-  url.searchParams.set("engine", "google_images");
-  url.searchParams.set("api_key", key);
-  url.searchParams.set("q", query);
-  url.searchParams.set("safe", "active");
-  url.searchParams.set("num", String(limit));
   try {
-    const response = await fetchWithTimeout(url);
+    const response = await fetchWithTimeout("https://google.serper.dev/images", {
+      method: "POST",
+      headers: {
+        "X-API-KEY": key,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ q: query, num: limit })
+    });
     if (!response.ok) {
-      await logSerpImageError(response);
+      await logSerperImageError(response);
       return [];
     }
     const data = await response.json();
-    return uniqueSearchTerms((data.images_results || []).flatMap((item) => [item?.original, item?.thumbnail]).filter(Boolean)).slice(0, limit);
+    return uniqueSearchTerms((data.images || []).flatMap((item) => [item?.imageUrl, item?.thumbnailUrl]).filter(Boolean)).slice(0, limit);
   } catch {
     return [];
   }
 }
 
-async function logSerpImageError(response) {
+async function logSerperImageError(response) {
   let message = `HTTP ${response.status}`;
   let reason = "";
   try {
     const data = await response.json();
-    message = data.error || data.error_message || data.message || data.search_metadata?.status || message;
-    reason = data.search_metadata?.id || "";
+    message = data.message || data.error || data.error_message || message;
+    reason = data.statusCode || "";
   } catch {
     // Keep logging best-effort; image search can fall back to Wikimedia.
   }
   const key = `${response.status}:${reason}:${message}`;
-  if (serpImageWarnings.has(key)) return;
-  serpImageWarnings.add(key);
-  console.warn(`SerpAPI image search unavailable: ${message}${reason ? ` (${reason})` : ""}`);
+  if (serperImageWarnings.has(key)) return;
+  serperImageWarnings.add(key);
+  console.warn(`Serper image search unavailable: ${message}${reason ? ` (${reason})` : ""}`);
 }
 
 async function pexelsImage(query) {
