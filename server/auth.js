@@ -678,7 +678,7 @@ export async function loadWordImage(category, word) {
   }
 }
 
-export async function saveWordImage(category, word, url, source = "") {
+export async function saveWordImage(category, word, url, source = "", searchQuery = "") {
   const key = wordImageKey(category, word);
   if (!key || !url) return;
   try {
@@ -688,6 +688,7 @@ export async function saveWordImage(category, word, url, source = "") {
       word,
       url,
       source,
+      searchQuery,
       updatedAt: Date.now()
     }));
   } catch (error) {

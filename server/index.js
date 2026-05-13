@@ -456,6 +456,16 @@ const SERVER_ORIGIN_PATCH = {
     Sans: "Undertale", Papyrus: "Undertale", Frisk: "Undertale", Undyne: "Undertale",
     Cuphead: "Cuphead", Mugman: "Cuphead", "Ms Chalice": "Cuphead", "Hollow Knight": "Hollow Knight", Hornet: "Hollow Knight", "Shovel Knight": "Shovel Knight", Ori: "Ori and the Blind Forest", Shantae: "Shantae", Rayman: "Rayman", Rabbid: "Rayman Raving Rabbids",
     "Crash Bandicoot": "Crash Bandicoot", "Coco Bandicoot": "Crash Bandicoot", "Dr Neo Cortex": "Crash Bandicoot", Spyro: "Spyro the Dragon", "Sly Cooper": "Sly Cooper", Ratchet: "Ratchet and Clank", Clank: "Ratchet and Clank", Jak: "Jak and Daxter", Daxter: "Jak and Daxter", "Cole MacGrath": "Infamous", Sackboy: "LittleBigPlanet"
+  },
+  Geek: {
+    Batman: "DC Comics", Superman: "DC Comics", "Wonder Woman": "DC Comics", Flash: "DC Comics", Aquaman: "DC Comics", Cyborg: "DC Comics", Batgirl: "DC Comics", Nightwing: "DC Comics", "Red Hood": "DC Comics", Raven: "DC Comics", Starfire: "DC Comics", "Beast Boy": "DC Comics", Deathstroke: "DC Comics", Riddler: "DC Comics", Penguin: "DC Comics", "Two-Face": "DC Comics", "Poison Ivy": "DC Comics", Scarecrow: "DC Comics", Bane: "DC Comics", "Green Arrow": "DC Comics", "Black Canary": "DC Comics", "Martian Manhunter": "DC Comics", Shazam: "DC Comics", "Lex Luthor": "DC Comics", Darkseid: "DC Comics", "Doctor Fate": "DC Comics", Zatanna: "DC Comics", Constantine: "DC Comics", "Swamp Thing": "DC Comics", "Blue Beetle": "DC Comics", "Static Shock": "DC Comics",
+    "Homem Aranha": "Marvel Comics", "Homem de Ferro": "Marvel Comics", "Capitao America": "Marvel Comics", Thor: "Marvel Comics", Hulk: "Marvel Comics", "Viuva Negra": "Marvel Comics", "Doutor Estranho": "Marvel Comics", "Pantera Negra": "Marvel Comics", Wolverine: "Marvel Comics", Deadpool: "Marvel Comics", Thanos: "Marvel Comics", Loki: "Marvel Comics", "Wanda Maximoff": "Marvel Comics", "Gaviao Arqueiro": "Marvel Comics", "Professor Xavier": "Marvel Comics", Magneto: "Marvel Comics", Tempestade: "Marvel Comics", Ciclope: "Marvel Comics", "Jean Grey": "Marvel Comics", Vampira: "Marvel Comics", Gambit: "Marvel Comics", Visao: "Marvel Comics", "Nick Fury": "Marvel Comics", Blade: "Marvel Comics", "Motoqueiro Fantasma": "Marvel Comics", "Senhor das Estrelas": "Marvel Comics", Gamora: "Marvel Comics", Groot: "Marvel Comics", "Rocket Raccoon": "Marvel Comics", Drax: "Marvel Comics", "Jessica Jones": "Marvel Comics", "Luke Cage": "Marvel Comics", "Iron Fist": "Marvel Comics", "Ms Marvel": "Marvel Comics", "She-Hulk": "Marvel Comics", Hawkeye: "Marvel Comics", "Kate Bishop": "Marvel Comics", Vision: "Marvel Comics", "Ant-Man": "Marvel Comics", Wasp: "Marvel Comics", Falcon: "Marvel Comics", "Winter Soldier": "Marvel Comics", "Professor X": "Marvel Comics", Cyclops: "Marvel Comics", Storm: "Marvel Comics", Rogue: "Marvel Comics", Beast: "Marvel Comics", Mystique: "Marvel Comics", Venom: "Marvel Comics", Carnage: "Marvel Comics", "Green Goblin": "Marvel Comics", "Doctor Octopus": "Marvel Comics", Mysterio: "Marvel Comics", "Miles Morales": "Marvel Comics", "Gwen Stacy": "Marvel Comics", "Star-Lord": "Marvel Comics", Nebula: "Marvel Comics",
+    "Luke Skywalker": "Star Wars", "Darth Vader": "Star Wars", "Leia Organa": "Star Wars", "Han Solo": "Star Wars", Chewbacca: "Star Wars", Yoda: "Star Wars", "Obi-Wan Kenobi": "Star Wars", "Anakin Skywalker": "Star Wars", "Ahsoka Tano": "Star Wars", "Din Djarin": "Star Wars", Grogu: "Star Wars", "Boba Fett": "Star Wars", "Kylo Ren": "Star Wars", Rey: "Star Wars", Finn: "Star Wars", "Poe Dameron": "Star Wars", "Palpatine": "Star Wars",
+    Spock: "Star Trek", "Jean-Luc Picard": "Star Trek", "James Kirk": "Star Trek", "Data": "Star Trek", "Worf": "Star Trek",
+    Neo: "The Matrix", Trinity: "The Matrix", Morpheus: "The Matrix", "Agent Smith": "The Matrix",
+    "Rick Sanchez": "Rick and Morty", "Morty Smith": "Rick and Morty", "Homer Simpson": "The Simpsons", "Bart Simpson": "The Simpsons", "Lisa Simpson": "The Simpsons", "Marge Simpson": "The Simpsons", "Peter Griffin": "Family Guy", "Stewie Griffin": "Family Guy", Bender: "Futurama", Fry: "Futurama", Leela: "Futurama",
+    "Rick Grimes": "The Walking Dead", "Daryl Dixon": "The Walking Dead", Negan: "The Walking Dead", "Walter White": "Breaking Bad", "Jesse Pinkman": "Breaking Bad", "Gus Fring": "Breaking Bad", "Saul Goodman": "Better Call Saul", "Dexter Morgan": "Dexter", "Tony Soprano": "The Sopranos", "Don Draper": "Mad Men",
+    "Daenerys Targaryen": "Game of Thrones", "Jon Snow": "Game of Thrones", "Tyrion Lannister": "Game of Thrones", "Arya Stark": "Game of Thrones", "Paul Atreides": "Dune", Chani: "Dune", "Buffy Summers": "Buffy the Vampire Slayer", "Sarah Connor": "Terminator", "T-800": "Terminator", "Ellen Ripley": "Alien", "Ice King": "Adventure Time", Ametista: "Steven Universe", Amethyst: "Steven Universe"
   }
 };
 
@@ -1061,7 +1071,7 @@ async function resolveImageUrlForWord(word, category) {
     if (stored?.url) return cacheImage(cacheKey, { url: stored.url, source: stored.source || "word-db" }).url;
     const payload = await externalImagePayloadForWord(word, category);
     if (payload?.url) {
-      await saveWordImage(category, word, payload.url, payload.source);
+      await saveWordImage(category, word, payload.url, payload.source, payload.searchQuery || externalImageSearchTermsForWord(word, category)[0] || "");
       return cacheImage(cacheKey, payload).url;
     }
     return "";
@@ -1074,6 +1084,11 @@ async function resolveImageUrlForWord(word, category) {
 async function loadStoredWordImage(category, word) {
   const stored = await loadWordImage(category, word);
   if (!stored?.url || !validStoredImageUrl(stored.url)) return null;
+  const expectedQuery = externalImageSearchTermsForWord(word, category)[0] || "";
+  if (expectedQuery && stored.searchQuery !== expectedQuery) {
+    await deleteWordImage(category, word);
+    return null;
+  }
   if (await imageAvailable(stored.url)) return stored;
   markBrokenImageUrl(stored.url);
   await deleteWordImage(category, word);
@@ -1140,7 +1155,7 @@ function serverImageSearchQuery(word, category) {
   const cleanWord = String(word || "").trim();
   if (category === "Geral" || category === "Famosos") return cleanWord;
   const origin = serverWordOrigin(cleanWord, category);
-  if (["Anime", "Jogos", "Geek"].includes(category) && origin) return `${cleanWord} ${origin}`;
+  if (isFictionalImageCategory(category)) return `${cleanWord} ${origin || fallbackFictionOrigin(category)}`.trim();
   const suffix = {
     Anime: "anime character",
     Filmes: "movie",
@@ -1153,10 +1168,10 @@ function serverImageSearchQuery(word, category) {
 async function externalImagePayload(query, category) {
   const terms = externalImageSearchTermsFromQuery(query);
   const serper = await serperImage(terms[0], { random: false });
-  if (serper) return { url: serper, source: "serper" };
+  if (serper) return { url: serper, source: "serper", searchQuery: terms[0] };
   for (const term of terms) {
     const wiki = await wikiImageForTerms([term], { random: false });
-    if (wiki) return { url: wiki, source: "wikimedia" };
+    if (wiki) return { url: wiki, source: "wikimedia", searchQuery: term };
   }
   return emptyImagePayload();
 }
@@ -1168,13 +1183,13 @@ async function externalImagePayloadForWord(word, category) {
   const serper = await serperImage(terms[0], { random });
   if (serper) {
     imageFailureCounts.delete(failureKey);
-    return { url: serper, source: "serper" };
+    return { url: serper, source: "serper", searchQuery: terms[0] };
   }
   for (const term of terms) {
     const wiki = await wikiImageForTerms([term], { random });
     if (wiki) {
       imageFailureCounts.delete(failureKey);
-      return { url: wiki, source: "wikimedia" };
+      return { url: wiki, source: "wikimedia", searchQuery: term };
     }
   }
   imageFailureCounts.set(failureKey, (imageFailureCounts.get(failureKey) || 0) + 1);
@@ -1188,12 +1203,28 @@ function imageFailureKey(word, category) {
 function externalImageSearchTermsForWord(word, category) {
   const cleanWord = String(word || "").trim();
   const origin = serverWordOrigin(cleanWord, category);
+  if (isFictionalImageCategory(category)) {
+    const qualified = `${cleanWord} ${origin || fallbackFictionOrigin(category)}`.trim();
+    return uniqueSearchTerms([qualified, cleanWord]);
+  }
   return uniqueSearchTerms(origin ? [`${cleanWord} ${origin}`, cleanWord] : [cleanWord]);
 }
 
 function serverWordOrigin(word, category) {
   const cleanWord = String(word || "").trim();
   return SERVER_WORD_ORIGINS[category]?.[cleanWord] || SERVER_ORIGIN_PATCH[category]?.[cleanWord] || "";
+}
+
+function isFictionalImageCategory(category) {
+  return ["Anime", "Jogos", "Geek"].includes(category);
+}
+
+function fallbackFictionOrigin(category) {
+  return {
+    Anime: "anime character",
+    Jogos: "video game character",
+    Geek: "fictional character"
+  }[category] || "";
 }
 
 function externalImageSearchTermsFromQuery(query) {
