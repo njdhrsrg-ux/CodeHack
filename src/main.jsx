@@ -801,6 +801,18 @@ function App() {
         setRoomEvents((events) => events.filter((item) => item.type !== "inactivity"));
       }
     });
+    socket.on("room:imageMap", (imageMap = {}) => {
+      setRoom((currentRoom) => {
+        if (!currentRoom) return currentRoom;
+        return {
+          ...currentRoom,
+          imageMap: {
+            ...(currentRoom.imageMap || {}),
+            ...imageMap
+          }
+        };
+      });
+    });
     socket.on("player:avatarUpdate", ({ playerId: updatedPlayerId, avatar }) => {
       setRoom((currentRoom) => {
         if (!currentRoom) return currentRoom;
@@ -842,6 +854,7 @@ function App() {
       socket.off("constants");
       socket.off("rooms:update");
       socket.off("room:update");
+      socket.off("room:imageMap");
       socket.off("player:avatarUpdate");
       socket.off("room:kicked");
       socket.off("room:event");

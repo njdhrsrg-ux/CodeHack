@@ -433,6 +433,25 @@ const SERVER_WORD_ORIGINS = {
 };
 
 const SERVER_ORIGIN_PATCH = {
+  Anime: {
+    "Son Goku": "Dragon Ball", Goku: "Dragon Ball", Vegeta: "Dragon Ball", "Son Gohan": "Dragon Ball", Gohan: "Dragon Ball", Piccolo: "Dragon Ball", "Bulma Brief": "Dragon Ball", Bulma: "Dragon Ball", Freeza: "Dragon Ball", Cell: "Dragon Ball", "Majin Boo": "Dragon Ball", Kuririn: "Dragon Ball", "Trunks Brief": "Dragon Ball", Trunks: "Dragon Ball",
+    "Naruto Uzumaki": "Naruto", "Sasuke Uchiha": "Naruto", "Sakura Haruno": "Naruto", "Kakashi Hatake": "Naruto", "Hinata Hyuga": "Naruto", "Itachi Uchiha": "Naruto", "Madara Uchiha": "Naruto", Jiraiya: "Naruto", Gaara: "Naruto",
+    "Monkey D. Luffy": "One Piece", "Roronoa Zoro": "One Piece", Nami: "One Piece", "Vinsmoke Sanji": "One Piece", Usopp: "One Piece", "Tony Tony Chopper": "One Piece", "Nico Robin": "One Piece", Franky: "One Piece", Brook: "One Piece", Shanks: "One Piece",
+    "Ichigo Kurosaki": "Bleach", "Rukia Kuchiki": "Bleach", "Orihime Inoue": "Bleach", "Uryu Ishida": "Bleach", "Renji Abarai": "Bleach", "Byakuya Kuchiki": "Bleach", "Sosuke Aizen": "Bleach", "Kenpachi Zaraki": "Bleach", "Toshiro Hitsugaya": "Bleach", "Yoruichi Shihoin": "Bleach",
+    Saitama: "One Punch Man", Genos: "One Punch Man", Tatsumaki: "One Punch Man", "Mumen Rider": "One Punch Man", Garou: "One Punch Man",
+    "Izuku Midoriya": "My Hero Academia", "Katsuki Bakugo": "My Hero Academia", "Ochaco Uraraka": "My Hero Academia", "Shoto Todoroki": "My Hero Academia", "Toshinori Yagi": "My Hero Academia", "All Might": "My Hero Academia", "Tomura Shigaraki": "My Hero Academia",
+    "Tanjiro Kamado": "Demon Slayer", "Nezuko Kamado": "Demon Slayer", "Zenitsu Agatsuma": "Demon Slayer", "Inosuke Hashibira": "Demon Slayer", "Giyu Tomioka": "Demon Slayer", "Kyojuro Rengoku": "Demon Slayer", "Muzan Kibutsuji": "Demon Slayer", "Shinobu Kocho": "Demon Slayer",
+    "Eren Yeager": "Attack on Titan", "Mikasa Ackerman": "Attack on Titan", "Armin Arlert": "Attack on Titan", "Levi Ackerman": "Attack on Titan", "Erwin Smith": "Attack on Titan", "Reiner Braun": "Attack on Titan", "Annie Leonhart": "Attack on Titan",
+    "Light Yagami": "Death Note", "L Lawliet": "Death Note", "Misa Amane": "Death Note", Ryuk: "Death Note",
+    "Edward Elric": "Fullmetal Alchemist", "Alphonse Elric": "Fullmetal Alchemist", "Winry Rockbell": "Fullmetal Alchemist", "Roy Mustang": "Fullmetal Alchemist", "Alex Louis Armstrong": "Fullmetal Alchemist",
+    "Gon Freecss": "Hunter x Hunter", Gon: "Hunter x Hunter", "Killua Zoldyck": "Hunter x Hunter", Killua: "Hunter x Hunter", Kurapika: "Hunter x Hunter", "Leorio Paradinight": "Hunter x Hunter", "Hisoka Morow": "Hunter x Hunter", Hisoka: "Hunter x Hunter", Meruem: "Hunter x Hunter", Netero: "Hunter x Hunter",
+    "Yusuke Urameshi": "Yu Yu Hakusho", "Kazuma Kuwabara": "Yu Yu Hakusho", Kuwabara: "Yu Yu Hakusho", Kurama: "Yu Yu Hakusho", Hiei: "Yu Yu Hakusho", Toguro: "Yu Yu Hakusho",
+    "Usagi Tsukino": "Sailor Moon", "Ami Mizuno": "Sailor Moon", "Rei Hino": "Sailor Moon", "Makoto Kino": "Sailor Moon", "Minako Aino": "Sailor Moon", "Mamoru Chiba": "Sailor Moon",
+    "Shinji Ikari": "Neon Genesis Evangelion", "Asuka Langley Soryu": "Neon Genesis Evangelion", "Rei Ayanami": "Neon Genesis Evangelion", "Misato Katsuragi": "Neon Genesis Evangelion", "Kaworu Nagisa": "Neon Genesis Evangelion",
+    "Shotaro Kaneda": "Akira", Kaneda: "Akira", "Tetsuo Shima": "Akira", Tetsuo: "Akira",
+    "Kenshin Himura": "Rurouni Kenshin", Kenshin: "Rurouni Kenshin", "Senku Ishigami": "Dr. Stone", Senku: "Dr. Stone", "Tsukasa Shishio": "Dr. Stone", Rimuru: "That Time I Got Reincarnated as a Slime", "Rimuru Tempest": "That Time I Got Reincarnated as a Slime", "Subaru Natsuki": "Re:Zero", Subaru: "Re:Zero", "Kazuto Kirigaya": "Sword Art Online", Kirito: "Sword Art Online", "Asuna Yuuki": "Sword Art Online", Asuna: "Sword Art Online",
+    "Megumi Fushiguro": "Jujutsu Kaisen", "Nobara Kugisaki": "Jujutsu Kaisen", "Satoru Gojo": "Jujutsu Kaisen", Gojo: "Jujutsu Kaisen", "Yuta Okkotsu": "Jujutsu Kaisen", "Aki Hayakawa": "Chainsaw Man", "Vash the Stampede": "Trigun", Vash: "Trigun", "Lelouch Lamperouge": "Code Geass", Lelouch: "Code Geass", "Suzaku Kururugi": "Code Geass", "Gintoki Sakata": "Gintama", Gintoki: "Gintama", Kagura: "Gintama", "Shigeo Kageyama": "Mob Psycho 100"
+  },
   Jogos: {
     Mario: "Super Mario", Luigi: "Super Mario", Peach: "Super Mario", Bowser: "Super Mario", Yoshi: "Super Mario", Toad: "Super Mario", Wario: "Super Mario", Waluigi: "Super Mario",
     Link: "The Legend of Zelda", Zelda: "The Legend of Zelda", Ganondorf: "The Legend of Zelda", "Princess Zelda": "The Legend of Zelda", Impa: "The Legend of Zelda", Midna: "The Legend of Zelda",
@@ -466,6 +485,150 @@ const SERVER_ORIGIN_PATCH = {
     "Rick Sanchez": "Rick and Morty", "Morty Smith": "Rick and Morty", "Homer Simpson": "The Simpsons", "Bart Simpson": "The Simpsons", "Lisa Simpson": "The Simpsons", "Marge Simpson": "The Simpsons", "Peter Griffin": "Family Guy", "Stewie Griffin": "Family Guy", Bender: "Futurama", Fry: "Futurama", Leela: "Futurama",
     "Rick Grimes": "The Walking Dead", "Daryl Dixon": "The Walking Dead", Negan: "The Walking Dead", "Walter White": "Breaking Bad", "Jesse Pinkman": "Breaking Bad", "Gus Fring": "Breaking Bad", "Saul Goodman": "Better Call Saul", "Dexter Morgan": "Dexter", "Tony Soprano": "The Sopranos", "Don Draper": "Mad Men",
     "Daenerys Targaryen": "Game of Thrones", "Jon Snow": "Game of Thrones", "Tyrion Lannister": "Game of Thrones", "Arya Stark": "Game of Thrones", "Paul Atreides": "Dune", Chani: "Dune", "Buffy Summers": "Buffy the Vampire Slayer", "Sarah Connor": "Terminator", "T-800": "Terminator", "Ellen Ripley": "Alien", "Ice King": "Adventure Time", Ametista: "Steven Universe", Amethyst: "Steven Universe"
+  }
+};
+
+const SERVER_SEARCH_NAME_PATCH = {
+  Anime: {
+    "Toshinori Yagi": "All Might",
+    "Izuku Midoriya": "Deku",
+    "Tomura Shigaraki": "Shigaraki",
+    "Shigeo Kageyama": "Mob",
+    "Kazuto Kirigaya": "Kirito",
+    "Satoru Gojo": "Gojo",
+    "Monkey D. Luffy": "Luffy",
+    "Roronoa Zoro": "Zoro",
+    "Tony Tony Chopper": "Chopper",
+    "Sosuke Aizen": "Aizen",
+    "Hisoka Morow": "Hisoka",
+    "Kenshin Himura": "Kenshin",
+    "Senku Ishigami": "Senku",
+    "Rimuru Tempest": "Rimuru",
+    "Subaru Natsuki": "Subaru",
+    "Vash the Stampede": "Vash",
+    "Lelouch Lamperouge": "Lelouch",
+    "Gintoki Sakata": "Gintoki"
+  },
+  Jogos: {
+    "Carl Johnson": "CJ",
+    "Hanzo Hasashi": "Scorpion",
+    "Lena Oxton": "Tracer",
+    "Gabriel Reyes": "Reaper",
+    "Hana Song": "D.Va",
+    "Octavio Silva": "Octane",
+    "Renee Blasey": "Wraith",
+    "Luxanna Crownguard": "Lux",
+    "Emilie De Rochefort": "Lili",
+    "Miles Tails Prower": "Tails",
+    "Princess Peach": "Peach",
+    "Princess Zelda": "Zelda",
+    "Cloud Strife": "Cloud",
+    "Sephiroth": "Sephiroth",
+    "Geralt of Rivia": "Geralt",
+    "Cirilla Fiona Elen Riannon": "Ciri",
+    "Victor Sullivan": "Sully",
+    "Bayek of Siwa": "Bayek"
+  },
+  Geek: {
+    "Homem Aranha": "Spider-Man",
+    "Homem de Ferro": "Iron Man",
+    "Capitao America": "Captain America",
+    "Viuva Negra": "Black Widow",
+    "Viúva Negra": "Black Widow",
+    "Doutor Estranho": "Doctor Strange",
+    "Pantera Negra": "Black Panther",
+    "Gaviao Arqueiro": "Hawkeye",
+    Tempestade: "Storm",
+    Ciclope: "Cyclops",
+    Vampira: "Rogue",
+    Visao: "Vision",
+    "Motoqueiro Fantasma": "Ghost Rider",
+    "Senhor das Estrelas": "Star-Lord",
+    "Mulher Maravilha": "Wonder Woman",
+    "Mulher Gato": "Catwoman",
+    "Lanterna Verde": "Green Lantern",
+    Coringa: "Joker",
+    Arlequina: "Harley Quinn",
+    Demolidor: "Daredevil",
+    Justiceiro: "Punisher",
+    Charada: "Riddler",
+    Pinguim: "Penguin",
+    "Asa Noturna": "Nightwing",
+    "Bob Esponja": "SpongeBob SquarePants",
+    "Princesa Jujuba": "Princess Bubblegum",
+    Perola: "Pearl",
+    Ravena: "Raven",
+    Mutano: "Beast Boy",
+    Estelar: "Starfire",
+    Wandinha: "Wednesday Addams",
+    "Mandaloriano": "The Mandalorian"
+  }
+};
+
+const SERVER_COMPLETE_ORIGIN_PATCH = {
+  Anime: {
+    "Rock Lee": "Naruto", Hange: "Attack on Titan", Near: "Death Note", Mello: "Death Note", Scar: "Fullmetal Alchemist",
+    Totoro: "My Neighbor Totoro", Ashitaka: "Princess Mononoke", Howl: "Howl's Moving Castle", Sophie: "Howl's Moving Castle",
+    "Makoto Shishio": "Rurouni Kenshin", "Soma Yukihira": "Food Wars", "Erina Nakiri": "Food Wars",
+    Rem: "Re:Zero", Emilia: "Re:Zero", Ram: "Re:Zero", "Yuji Itadori": "Jujutsu Kaisen", Sukuna: "Jujutsu Kaisen", "Ryomen Sukuna": "Jujutsu Kaisen", "Maki Zenin": "Jujutsu Kaisen", "Toge Inumaki": "Jujutsu Kaisen", Panda: "Jujutsu Kaisen",
+    Denji: "Chainsaw Man", Power: "Chainsaw Man", Makima: "Chainsaw Man", "Kobeni Higashiyama": "Chainsaw Man", Pochita: "Chainsaw Man",
+    "Anya Forger": "Spy x Family", "Loid Forger": "Spy x Family", "Yor Forger": "Spy x Family", "Bond Forger": "Spy x Family",
+    "Motoko Kusanagi": "Ghost in the Shell", "Arataka Reigen": "Mob Psycho 100", Thorfinn: "Vinland Saga", Askeladd: "Vinland Saga", Canute: "Vinland Saga",
+    Boji: "Ranking of Kings", Kage: "Ranking of Kings", "Ash Ketchum": "Pokemon", Misty: "Pokemon", Brock: "Pokemon", Serena: "Pokemon",
+    "Yugi Muto": "Yu-Gi-Oh!", "Seto Kaiba": "Yu-Gi-Oh!", "Joey Wheeler": "Yu-Gi-Oh!", "Yami Yugi": "Yu-Gi-Oh!",
+    Meliodas: "The Seven Deadly Sins", Ban: "The Seven Deadly Sins", Diane: "The Seven Deadly Sins", Escanor: "The Seven Deadly Sins",
+    Raphtalia: "The Rising of the Shield Hero", "Naofumi Iwatani": "The Rising of the Shield Hero",
+    "Kazuma Sato": "Konosuba", Aqua: "Konosuba", Megumin: "Konosuba", Darkness: "Konosuba",
+    Sinon: "Sword Art Online", Eugeo: "Sword Art Online", Frieren: "Frieren: Beyond Journey's End", Fern: "Frieren: Beyond Journey's End", Stark: "Frieren: Beyond Journey's End", Himmel: "Frieren: Beyond Journey's End",
+    Maomao: "The Apothecary Diaries", Jinshi: "The Apothecary Diaries", Kohaku: "Dr. Stone",
+    "Shoyo Hinata": "Haikyuu!!", "Tobio Kageyama": "Haikyuu!!", "Violet Evergarden": "Violet Evergarden",
+    Guts: "Berserk", Griffith: "Berserk", Casca: "Berserk", Alucard: "Hellsing", "Conan Edogawa": "Detective Conan",
+    Saber: "Fate/stay night", "Rin Tohsaka": "Fate/stay night", "Shirou Emiya": "Fate/stay night",
+    "Lupin III": "Lupin III", Shoyo: "Gintama", "Kagura Gintama": "Gintama", Mugen: "Samurai Champloo", Jin: "Samurai Champloo",
+    Simon: "Gurren Lagann", Kamina: "Gurren Lagann", "Ryuko Matoi": "Kill la Kill", "Satsuki Kiryuin": "Kill la Kill",
+    "Kaguya Shinomiya": "Kaguya-sama", "Miyuki Shirogane": "Kaguya-sama", "Marin Kitagawa": "My Dress-Up Darling"
+  },
+  Jogos: {
+    Sonic: "Sonic the Hedgehog", Tails: "Sonic the Hedgehog", "Miles Tails Prower": "Sonic the Hedgehog", "Knuckles the Echidna": "Sonic the Hedgehog", "Amy Rose": "Sonic the Hedgehog", "Dr Eggman": "Sonic the Hedgehog", "Shadow the Hedgehog": "Sonic the Hedgehog",
+    "Pac-Man": "Pac-Man", "Mega Man": "Mega Man", "Dr Wily": "Mega Man", Zero: "Mega Man",
+    Ryu: "Street Fighter", Ken: "Street Fighter", "Chun-Li": "Street Fighter", Guile: "Street Fighter", Cammy: "Street Fighter", "Cammy White": "Street Fighter", "M Bison": "Street Fighter", Akuma: "Street Fighter", Zangief: "Street Fighter", Sagat: "Street Fighter",
+    "Sub-Zero": "Mortal Kombat", Scorpion: "Mortal Kombat", "Liu Kang": "Mortal Kombat", Kitana: "Mortal Kombat", "Johnny Cage": "Mortal Kombat", "Sonya Blade": "Mortal Kombat", Mileena: "Mortal Kombat", "Shao Kahn": "Mortal Kombat", "Jax Briggs": "Mortal Kombat",
+    "Cloud Strife": "Final Fantasy VII", Sephiroth: "Final Fantasy VII", "Tifa Lockhart": "Final Fantasy VII", "Aerith Gainsborough": "Final Fantasy VII", "Barret Wallace": "Final Fantasy VII", "Yuffie Kisaragi": "Final Fantasy VII",
+    "Squall Leonhart": "Final Fantasy VIII", "Rinoa Heartilly": "Final Fantasy VIII", "Lightning Farron": "Final Fantasy XIII", "Noctis Lucis Caelum": "Final Fantasy XV", Tidus: "Final Fantasy X", Yuna: "Final Fantasy X", "Terra Branford": "Final Fantasy VI", "Cecil Harvey": "Final Fantasy IV", "Kain Highwind": "Final Fantasy IV", "Vivi Ornitier": "Final Fantasy IX",
+    Sora: "Kingdom Hearts", Riku: "Kingdom Hearts", Kairi: "Kingdom Hearts", Roxas: "Kingdom Hearts", "Donald Duck": "Kingdom Hearts", Goofy: "Kingdom Hearts", Terra: "Kingdom Hearts", Aqua: "Kingdom Hearts", Ventus: "Kingdom Hearts",
+    "Neo Cortex": "Crash Bandicoot", Arbiter: "Halo", Doomguy: "Doom", "Doom Slayer": "Doom", "Gordon Freeman": "Half-Life", "GLaDOS": "Portal", Chell: "Portal", "Alyx Vance": "Half-Life",
+    "Nathan Drake": "Uncharted", "Elena Fisher": "Uncharted", "Victor Sullivan": "Uncharted", Sully: "Uncharted", "Chloe Frazer": "Uncharted", "Nadine Ross": "Uncharted", "Lara Croft": "Tomb Raider", "Pyramid Head": "Silent Hill",
+    "Geralt of Rivia": "The Witcher", Geralt: "The Witcher", "Cirilla Fiona Elen Riannon": "The Witcher", Ciri: "The Witcher", Yennefer: "The Witcher", "Triss Merigold": "The Witcher", Dandelion: "The Witcher", Vesemir: "The Witcher",
+    "Arthur Morgan": "Red Dead Redemption", "John Marston": "Red Dead Redemption", "Dutch van der Linde": "Red Dead Redemption", "Sadie Adler": "Red Dead Redemption", "Micah Bell": "Red Dead Redemption",
+    "Trevor Philips": "Grand Theft Auto", CJ: "Grand Theft Auto", "Tommy Vercetti": "Grand Theft Auto", "Niko Bellic": "Grand Theft Auto", "Franklin Clinton": "Grand Theft Auto", "Michael De Santa": "Grand Theft Auto",
+    "Ezio Auditore": "Assassin's Creed", "Altair Ibn-La'Ahad": "Assassin's Creed", "Bayek of Siwa": "Assassin's Creed", Kassandra: "Assassin's Creed", Eivor: "Assassin's Creed", "Edward Kenway": "Assassin's Creed",
+    "Agent 47": "Hitman", "Max Payne": "Max Payne", "Alan Wake": "Alan Wake", "Jesse Faden": "Control", "Sam Fisher": "Splinter Cell",
+    "Cole Train": "Gears of War", "Dominic Santiago": "Gears of War", Joel: "The Last of Us", Ellie: "The Last of Us", Abby: "The Last of Us", "Abby Anderson": "The Last of Us", "Tommy Miller": "The Last of Us", "Sarah Miller": "The Last of Us",
+    Banjo: "Banjo-Kazooie", Kazooie: "Banjo-Kazooie", Pit: "Kid Icarus", Palutena: "Kid Icarus", "Freddy Fazbear": "Five Nights at Freddy's",
+    Tracer: "Overwatch", Reaper: "Overwatch", "Genji Shimada": "Overwatch", Genji: "Overwatch", "Hanzo Shimada": "Overwatch", Hanzo: "Overwatch", "D.Va": "Overwatch", Ashe: "Overwatch", Winston: "Overwatch",
+    Octane: "Apex Legends", "Octavio Silva": "Apex Legends", Wraith: "Apex Legends", "Renee Blasey": "Apex Legends", Bloodhound: "Apex Legends", Pathfinder: "Apex Legends",
+    "Corvo Attano": "Dishonored", "Booker DeWitt": "BioShock Infinite", Elizabeth: "BioShock Infinite", "Big Daddy": "BioShock", "Isaac Clarke": "Dead Space", "Commander Shepard": "Mass Effect", "Liara T'Soni": "Mass Effect", "Garrus Vakarian": "Mass Effect", "Tali'Zorah": "Mass Effect",
+    Morrigan: "Dragon Age", "Varric Tethras": "Dragon Age", Solas: "Dragon Age", Alistair: "Dragon Age", "Cassandra Pentaghast": "Dragon Age", Hawke: "Dragon Age",
+    Rosalina: "Super Mario", Zant: "The Legend of Zelda", Tingle: "The Legend of Zelda", Mipha: "The Legend of Zelda", Revali: "The Legend of Zelda", Urbosa: "The Legend of Zelda", Daruk: "The Legend of Zelda",
+    "Malenia": "Elden Ring", Radahn: "Elden Ring", Ranni: "Elden Ring", Solaire: "Dark Souls", Sekiro: "Sekiro", "Nico Robin": "One Piece", Celeste: "Celeste"
+  },
+  Geek: {
+    "Viúva Negra": "Marvel Comics", Demolidor: "Marvel Comics", Justiceiro: "Marvel Comics",
+    Starlight: "The Boys", "Lucas Sinclair": "Stranger Things", "Will Byers": "Stranger Things", "Max Mayfield": "Stranger Things", Hopper: "Stranger Things",
+    "Morticia Addams": "The Addams Family", "Gomez Addams": "The Addams Family", "Tio Chico": "The Addams Family",
+    "Sherlock Holmes": "Sherlock Holmes", "John Watson": "Sherlock Holmes", "Doctor Who": "Doctor Who", Dalek: "Doctor Who", "The Doctor": "Doctor Who", "Amy Pond": "Doctor Who", "Clara Oswald": "Doctor Who", "Donna Noble": "Doctor Who",
+    "Capitao Kirk": "Star Trek", Gimli: "The Lord of the Rings", Bilbo: "The Hobbit", Hagrid: "Harry Potter", "Draco Malfoy": "Harry Potter",
+    "Geralt de Rivia": "The Witcher", "Geralt of Rivia": "The Witcher", Ciri: "The Witcher", Yennefer: "The Witcher", Jaskier: "The Witcher",
+    "Patrick Estrela": "SpongeBob SquarePants", "Lula Molusco": "SpongeBob SquarePants", "Sandy Bochechas": "SpongeBob SquarePants", "Steven Universo": "Steven Universe",
+    Phineas: "Phineas and Ferb", Ferb: "Phineas and Ferb", Perry: "Phineas and Ferb", "Mabel Pines": "Gravity Falls", "Dipper Pines": "Gravity Falls", "Bill Cipher": "Gravity Falls",
+    Sokka: "Avatar The Last Airbender", Toph: "Avatar The Last Airbender", Spawn: "Spawn", Hellboy: "Hellboy",
+    "Summer Smith": "Rick and Morty", "Beth Smith": "Rick and Morty", "Jerry Smith": "Rick and Morty", "Professor Farnsworth": "Futurama", "Maggie Simpson": "The Simpsons",
+    "Brian Griffin": "Family Guy", "Lois Griffin": "Family Guy", "Stan Smith": "American Dad", "Roger Smith": "American Dad", "Bob Belcher": "Bob's Burgers", "Tina Belcher": "Bob's Burgers", "Louise Belcher": "Bob's Burgers",
+    "Cersei Lannister": "Game of Thrones", "Sansa Stark": "Game of Thrones", "Mace Windu": "Star Wars", "Qui-Gon Jinn": "Star Wars", "Finn Star Wars": "Star Wars", "Lando Calrissian": "Star Wars", "Padme Amidala": "Star Wars", "C-3PO": "Star Wars", "BB-8": "Star Wars",
+    "Geordi La Forge": "Star Trek", "William Riker": "Star Trek", "Kathryn Janeway": "Star Trek", "Benjamin Sisko": "Star Trek",
+    "James Holden": "The Expanse", "Naomi Nagata": "The Expanse", "Amos Burton": "The Expanse", "Chrisjen Avasarala": "The Expanse",
+    "Lady Jessica": "Dune", "Baron Harkonnen": "Dune", Dracula: "Dracula", Frankenstein: "Frankenstein", Wolfman: "Universal Monsters", Spike: "Buffy the Vampire Slayer", Angel: "Buffy the Vampire Slayer",
+    Xena: "Xena: Warrior Princess", Hercules: "Hercules: The Legendary Journeys", Newt: "Fantastic Beasts", Predator: "Predator", Robocop: "RoboCop"
   }
 };
 
@@ -1020,7 +1183,7 @@ async function findImagePayload(query, category) {
   return emptyImagePayload();
 }
 
-async function resolveRoomImages(room) {
+async function resolveRoomImages(room, onImageFound = null) {
   const category = room.settings?.category || "";
   room.imageMap ||= {};
   removeGeneratedImageEntries(room);
@@ -1028,7 +1191,10 @@ async function resolveRoomImages(room) {
   await mapWithConcurrency(missing, IMAGE_LOOKUP_CONCURRENCY, async (word) => {
     const key = imageCacheKey(word, category);
     const url = await resolveImageUrlForWord(word, category);
-    if (url) room.imageMap[key] = url;
+    if (url) {
+      room.imageMap[key] = url;
+      if (onImageFound) onImageFound(key, url);
+    }
   });
   return room.imageMap;
 }
@@ -1043,7 +1209,9 @@ async function startRoomImageResolver(code) {
       const room = await getRoom(roomCode).catch(() => null);
       if (!room || room.phase === "lobby") break;
       const before = JSON.stringify(room.imageMap || {});
-      await resolveRoomImages(room);
+      await resolveRoomImages(room, () => {
+        io.to(room.code).emit("room:imageMap", room.imageMap || {});
+      });
       const after = JSON.stringify(room.imageMap || {});
       if (after !== before) await emitRoom(room);
       if (!missingRoomImages(room).length) break;
@@ -1153,16 +1321,17 @@ function imageCacheKey(word, category) {
 
 function serverImageSearchQuery(word, category) {
   const cleanWord = String(word || "").trim();
-  if (category === "Geral" || category === "Famosos") return cleanWord;
+  const searchWord = serverSearchName(cleanWord, category);
+  if (category === "Geral" || category === "Famosos") return searchWord;
   const origin = serverWordOrigin(cleanWord, category);
-  if (isFictionalImageCategory(category)) return `${cleanWord} ${origin || fallbackFictionOrigin(category)}`.trim();
+  if (isFictionalImageCategory(category)) return `${searchWord} ${origin || fallbackFictionOrigin(category)}`.trim();
   const suffix = {
     Anime: "anime character",
     Filmes: "movie",
     Jogos: "video game character",
     Geek: "fictional character"
   }[category] || category || "";
-  return `${cleanWord} ${suffix}`.trim();
+  return `${searchWord} ${suffix}`.trim();
 }
 
 async function externalImagePayload(query, category) {
@@ -1202,17 +1371,30 @@ function imageFailureKey(word, category) {
 
 function externalImageSearchTermsForWord(word, category) {
   const cleanWord = String(word || "").trim();
+  const searchWord = serverSearchName(cleanWord, category);
   const origin = serverWordOrigin(cleanWord, category);
   if (isFictionalImageCategory(category)) {
-    const qualified = `${cleanWord} ${origin || fallbackFictionOrigin(category)}`.trim();
-    return uniqueSearchTerms([qualified, cleanWord]);
+    const qualified = `${searchWord} ${origin || fallbackFictionOrigin(category)}`.trim();
+    return uniqueSearchTerms([qualified, searchWord, cleanWord]);
   }
-  return uniqueSearchTerms(origin ? [`${cleanWord} ${origin}`, cleanWord] : [cleanWord]);
+  return uniqueSearchTerms(origin ? [`${searchWord} ${origin}`, searchWord, cleanWord] : [searchWord, cleanWord]);
 }
 
 function serverWordOrigin(word, category) {
   const cleanWord = String(word || "").trim();
-  return SERVER_WORD_ORIGINS[category]?.[cleanWord] || SERVER_ORIGIN_PATCH[category]?.[cleanWord] || "";
+  const searchWord = serverSearchName(cleanWord, category);
+  return SERVER_WORD_ORIGINS[category]?.[cleanWord]
+    || SERVER_ORIGIN_PATCH[category]?.[cleanWord]
+    || SERVER_COMPLETE_ORIGIN_PATCH[category]?.[cleanWord]
+    || SERVER_WORD_ORIGINS[category]?.[searchWord]
+    || SERVER_ORIGIN_PATCH[category]?.[searchWord]
+    || SERVER_COMPLETE_ORIGIN_PATCH[category]?.[searchWord]
+    || "";
+}
+
+function serverSearchName(word, category) {
+  const cleanWord = String(word || "").trim();
+  return SERVER_SEARCH_NAME_PATCH[category]?.[cleanWord] || cleanWord;
 }
 
 function isFictionalImageCategory(category) {
